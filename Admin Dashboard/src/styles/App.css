@@ -1,0 +1,4 @@
+/* Remove default App.css resets that conflict with our system */
+#root {
+  height: 100vh;
+}
