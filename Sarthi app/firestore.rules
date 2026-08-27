@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn() && userData().role == 'admin';
+    }
+
+    function isVerifiedCaptain() {
+      return signedIn() &&
+        userData().role == 'captain' &&
+        userData().verificationStatus == 'verified';
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == uid &&
+        request.resource.data.role in ['user', 'captain'] &&
+        request.resource.data.verificationStatus != 'verified';
+      allow update: if isAdmin() ||
+        (signedIn() && request.auth.uid == uid &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.verificationStatus in
+            [resource.data.verificationStatus, 'pending', 'pending_review']);
+      allow delete: if isAdmin();
+    }
+
+    match /ride_requests/{rideId} {
+      allow create: if signedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'searching';
+
+      allow read: if isAdmin() ||
+        (signedIn() && resource.data.userId == request.auth.uid) ||
+        (isVerifiedCaptain() &&
+          (resource.data.status == 'searching' ||
+           resource.data.assignedCaptainId == request.auth.uid));
+
+      allow update: if isAdmin() || riderCancellation() ||
+        captainDecline() || captainAcceptance() || captainTransition();
+      allow delete: if isAdmin();
+
+      function riderCancellation() {
+        return signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.status == 'cancelled' &&
+          resource.data.status in ['searching', 'accepted', 'arriving'] &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'updatedAt']);
+      }
+
+      function captainDecline() {
+        return isVerifiedCaptain() &&
+          resource.data.status == 'searching' &&
+          request.resource.data.status == 'searching' &&
+          request.resource.data.assignedCaptainId == resource.data.assignedCaptainId &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['declinedBy', 'updatedAt']);
+      }
+
+      function captainAcceptance() {
+        return isVerifiedCaptain() &&
+          resource.data.status == 'searching' &&
+          request.resource.data.status == 'accepted' &&
+          request.resource.data.assignedCaptainId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'assignedCaptainId', 'acceptedAt', 'updatedAt']);
+      }
+
+      function captainTransition() {
+        return isVerifiedCaptain() &&
+          resource.data.assignedCaptainId == request.auth.uid &&
+          request.resource.data.assignedCaptainId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'arrivingAt', 'arrivedAt', 'startedAt',
+                      'completedAt', 'updatedAt']) &&
+          ((resource.data.status == 'accepted' && request.resource.data.status in ['arriving', 'arrived']) ||
+           (resource.data.status == 'arriving' && request.resource.data.status == 'arrived') ||
+           (resource.data.status == 'arrived' && request.resource.data.status == 'in_progress') ||
+           (resource.data.status == 'in_progress' && request.resource.data.status == 'completed'));
+      }
+
+      match /issues/{issueId} {
+        allow read: if isAdmin() ||
+          (isVerifiedCaptain() &&
+           get(/databases/$(database)/documents/ride_requests/$(rideId)).data.assignedCaptainId == request.auth.uid);
+        allow create: if isVerifiedCaptain() &&
+          get(/databases/$(database)/documents/ride_requests/$(rideId)).data.assignedCaptainId == request.auth.uid &&
+          request.resource.data.reportedBy == request.auth.uid &&
+          request.resource.data.reporterRole == 'captain';
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /fare_rules/{document=**} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /admin_audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() &&
+        request.resource.data.adminUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:layout_width="wrap_content"
+  android:layout_height="wrap_content">
+
+  <org.maplibre.android.annotations.BubbleLayout
+    android:id="@+id/bubbleLayout"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="0dp"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="2dp"
+    app:maplibre_bl_arrowDirection="bottom"
+    app:maplibre_bl_arrowHeight="8dp"
+    app:maplibre_bl_arrowPosition="50dp"
+    app:maplibre_bl_arrowWidth="8dp"
+    app:maplibre_bl_bubbleColor="@android:color/white"
+    app:maplibre_bl_cornersRadius="6dp"
+    app:maplibre_bl_strokeColor="@android:color/darker_gray"
+    app:maplibre_bl_strokeWidth="2dp">
+
+    <LinearLayout
+      android:id="@+id/infoWindowContainer"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:gravity="center"
+      android:orientation="vertical">
+
+      <TextView
+        android:id="@+id/infoWindowSnippet"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:textColor="#000000"
+        android:textSize="12sp"
+        tools:text="Tonkutsu Ramen" />
+
+      <TextView
+        android:id="@+id/infoWindowSubSnippet"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:textColor="#000000"
+        android:textSize="11sp"
+        android:visibility="gone"
+        tools:text="Tonkutsu Ramen" />
+
+    </LinearLayout>
+  </org.maplibre.android.annotations.BubbleLayout>
+
+  <ImageView
+    android:id="@+id/markerView"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_below="@+id/bubbleLayout"
+    android:layout_centerHorizontal="true"
+    android:src="@drawable/ic_user_current_location" />
+
+  <org.maplibre.android.annotations.BubbleLayout
+      android:id="@+id/bubbleLayout2"
+      android:visibility="invisible"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginBottom="0dp"
+      android:gravity="center"
+      android:orientation="vertical"
+      android:padding="2dp"
+      android:layout_below="@id/markerView"
+      app:maplibre_bl_arrowDirection="bottom"
+      app:maplibre_bl_arrowHeight="8dp"
+      app:maplibre_bl_arrowPosition="50dp"
+      app:maplibre_bl_arrowWidth="8dp"
+      app:maplibre_bl_bubbleColor="@android:color/white"
+      app:maplibre_bl_cornersRadius="6dp"
+      app:maplibre_bl_strokeColor="@android:color/darker_gray"
+      app:maplibre_bl_strokeWidth="2dp">
+
+    <LinearLayout
+        android:id="@+id/infoWindowContainer2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical">
+
+      <TextView
+          android:id="@+id/infoWindowSnippet2"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:maxLines="1"
+          android:textColor="#000000"
+          android:textSize="12sp"
+          tools:text="Tonkutsu Ramen" />
+
+      <TextView
+          android:id="@+id/infoWindowSubSnippet2"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:maxLines="1"
+          android:textColor="#000000"
+          android:textSize="11sp"
+          android:visibility="gone"
+          tools:text="Tonkutsu Ramen" />
+
+    </LinearLayout>
+  </org.maplibre.android.annotations.BubbleLayout>
+
+</RelativeLayout>

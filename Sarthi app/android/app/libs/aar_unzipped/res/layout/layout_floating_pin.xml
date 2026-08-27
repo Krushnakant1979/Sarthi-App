@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  android:id="@+id/parentFrameLayoutView"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:elevation="5dp">
+
+  <!--<com.ola.maps.ripple.RippleView
+    android:id="@+id/parentRippleView"
+    android:layout_width="130dp"
+    android:layout_height="130dp"
+    app:rv_color="@color/black"
+    app:rv_radius="15dp"
+    app:rv_scale="4"
+    app:rv_duration="5000"
+    app:rv_type="stroke">-->
+
+  <ImageView
+    android:id="@+id/imgViewFloatingPin"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:src="@drawable/ic_user_current_location" />
+
+  <!-- </com.ola.maps.ripple.RippleView>-->
+
+</FrameLayout>

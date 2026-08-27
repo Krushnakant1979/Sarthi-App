@@ -1,0 +1,127 @@
+{
+  "project_info": {
+    "project_number": "38677009511",
+    "firebase_url": "https://rapido-app-8745a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "rapido-app-8745a",
+    "storage_bucket": "rapido-app-8745a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:38677009511:android:44b6ff62378ff7359b70c2",
+        "android_client_info": {
+          "package_name": "com.example.rapido_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "38677009511-hq6s3f5jv55a91q5ajo1rhu8111vcm41.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZgfdYu_DVHm3Ai5jNukAaZCtqp2wGKpk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "38677009511-hq6s3f5jv55a91q5ajo1rhu8111vcm41.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:38677009511:android:b1031f0bd2d4fb6c9b70c2",
+        "android_client_info": {
+          "package_name": "com.example.rapido_app.admin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "38677009511-hq6s3f5jv55a91q5ajo1rhu8111vcm41.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZgfdYu_DVHm3Ai5jNukAaZCtqp2wGKpk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "38677009511-hq6s3f5jv55a91q5ajo1rhu8111vcm41.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:38677009511:android:6ba7472c0b00a57b9b70c2",
+        "android_client_info": {
+          "package_name": "com.example.rapido_app.captain"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "38677009511-hq6s3f5jv55a91q5ajo1rhu8111vcm41.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZgfdYu_DVHm3Ai5jNukAaZCtqp2wGKpk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "38677009511-hq6s3f5jv55a91q5ajo1rhu8111vcm41.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:38677009511:android:2d8d85681d92278c9b70c2",
+        "android_client_info": {
+          "package_name": "com.example.rapido_app.user"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "38677009511-hq6s3f5jv55a91q5ajo1rhu8111vcm41.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZgfdYu_DVHm3Ai5jNukAaZCtqp2wGKpk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "38677009511-hq6s3f5jv55a91q5ajo1rhu8111vcm41.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

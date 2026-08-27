@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "live": {
+      "captains": {
+        "$captainId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $captainId",
+          ".validate": "!newData.exists() || (newData.hasChildren(['lat', 'lng', 'updatedAt']) && newData.child('lat').isNumber() && newData.child('lng').isNumber())"
+        }
+      }
+    }
+  }
+}
