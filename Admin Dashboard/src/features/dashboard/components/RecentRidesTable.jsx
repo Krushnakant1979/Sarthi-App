@@ -1,5 +1,6 @@
 import React from 'react';
 import { Circle } from '@phosphor-icons/react';
+import { publicIdService } from '../../../services/publicIdService';
 
 export const RecentRidesTable = ({ rides, loading, onNavigateToRides }) => {
   return (
@@ -31,7 +32,7 @@ export const RecentRidesTable = ({ rides, loading, onNavigateToRides }) => {
           ) : rides.map(ride => (
             <tr key={ride.id}>
               <td style={{ fontFamily: 'monospace', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                #{ride.id.slice(0, 8)}
+                {publicIdService.formatId(ride.id)}
               </td>
               <td>
                 <span className={`badge ${ride.status === 'completed' ? 'badge-success' : ride.status === 'cancelled' ? 'badge-error' : 'badge-warning'}`}>

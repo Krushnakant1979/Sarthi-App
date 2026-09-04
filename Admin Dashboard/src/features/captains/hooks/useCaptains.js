@@ -13,14 +13,11 @@ export const useCaptains = () => {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setCaptains(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        
-        // Auto-backfill publicIds
-        snap.docs.forEach(docSnap => {
-          if (!docSnap.data().publicId) {
-            publicIdService.assignSequentialId(docSnap.id, 'captain').catch(console.error);
-          }
-        });
+        setCaptains(snap.docs.map((d) => ({ 
+          id: d.id, 
+          ...d.data(),
+          publicId: publicIdService.formatId(d.id)
+        })));
         
         setLoading(false);
       },

@@ -57,11 +57,20 @@ class UserRepository {
     return _uploadToCloudinary('$uid.jpg', imageFile);
   }
 
-  Future<String> uploadDocument(String uid, String docType, File imageFile) async {
+  Future<String> uploadDocument(
+    String uid,
+    String docType,
+    File imageFile,
+  ) async {
     return _uploadToCloudinary('${uid}_$docType.jpg', imageFile);
   }
 
-  Future<void> createSupportTicket(String uid, String role, String subject, String message) async {
+  Future<void> createSupportTicket(
+    String uid,
+    String role,
+    String subject,
+    String message,
+  ) async {
     await _firestore.collection('support_tickets').add({
       'userId': uid,
       'reporterRole': role,
@@ -78,20 +87,22 @@ class UserRepository {
         .where('userId', isEqualTo: uid)
         .snapshots()
         .map((snapshot) {
-      final tickets = snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return data;
-      }).toList();
+          final tickets = snapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return data;
+          }).toList();
 
-      // Sort in Dart to avoid needing a composite index in Firestore
-      tickets.sort((a, b) {
-        final aTime = (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-        final bTime = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
-        return bTime.compareTo(aTime); // descending
-      });
+          // Sort in Dart to avoid needing a composite index in Firestore
+          tickets.sort((a, b) {
+            final aTime =
+                (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            final bTime =
+                (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+            return bTime.compareTo(aTime); // descending
+          });
 
-      return tickets;
-    });
+          return tickets;
+        });
   }
 }

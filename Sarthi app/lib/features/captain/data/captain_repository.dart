@@ -30,7 +30,9 @@ class CaptainRepository {
   }
 
   // Listen for rides that are searching for a captain
-  Stream<List<Map<String, dynamic>>> streamIncomingRequests(String captainId) async* {
+  Stream<List<Map<String, dynamic>>> streamIncomingRequests(
+    String captainId,
+  ) async* {
     final userDoc = await _firestore.collection('users').doc(captainId).get();
     final captainVehicleType = userDoc.data()?['vehicleType'] ?? 'bike';
 
@@ -40,19 +42,23 @@ class CaptainRepository {
         .where('vehicleType', isEqualTo: captainVehicleType)
         .snapshots()
         .map((snapshot) {
-          final requests = snapshot.docs.map((doc) {
-            final data = doc.data();
-            data['id'] = doc.id;
-            return data;
-          }).where((data) {
-            final declinedBy = (data['declinedBy'] as List?) ?? const [];
-            return !declinedBy.contains(captainId);
-          }).toList();
+          final requests = snapshot.docs
+              .map((doc) {
+                final data = doc.data();
+                data['id'] = doc.id;
+                return data;
+              })
+              .where((data) {
+                final declinedBy = (data['declinedBy'] as List?) ?? const [];
+                return !declinedBy.contains(captainId);
+              })
+              .toList();
           requests.sort((a, b) {
             final aTime = a['createdAt'] as Timestamp?;
             final bTime = b['createdAt'] as Timestamp?;
-            return (bTime?.millisecondsSinceEpoch ?? 0)
-                .compareTo(aTime?.millisecondsSinceEpoch ?? 0);
+            return (bTime?.millisecondsSinceEpoch ?? 0).compareTo(
+              aTime?.millisecondsSinceEpoch ?? 0,
+            );
           });
           return requests;
         });
@@ -62,26 +68,28 @@ class CaptainRepository {
   Future<void> acceptRide(String rideId, String captainId) async {
     final rideRef = _firestore.collection('ride_requests').doc(rideId);
     final captainRef = _firestore.collection('users').doc(captainId);
-    await _withFirestoreRetry(() => _firestore.runTransaction((transaction) async {
-      final captain = await transaction.get(captainRef);
-      if (!captain.exists ||
-          captain.data()?['role'] != 'captain' ||
-          captain.data()?['verificationStatus'] != 'verified') {
-        throw StateError('Only a verified captain can accept rides.');
-      }
+    await _withFirestoreRetry(
+      () => _firestore.runTransaction((transaction) async {
+        final captain = await transaction.get(captainRef);
+        if (!captain.exists ||
+            captain.data()?['role'] != 'captain' ||
+            captain.data()?['verificationStatus'] != 'verified') {
+          throw StateError('Only a verified captain can accept rides.');
+        }
 
-      final ride = await transaction.get(rideRef);
-      if (!ride.exists || ride.data()?['status'] != 'searching') {
-        throw StateError('This ride has already been accepted or cancelled.');
-      }
+        final ride = await transaction.get(rideRef);
+        if (!ride.exists || ride.data()?['status'] != 'searching') {
+          throw StateError('This ride has already been accepted or cancelled.');
+        }
 
-      transaction.update(rideRef, {
-        'status': 'accepted',
-        'assignedCaptainId': captainId,
-        'acceptedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }));
+        transaction.update(rideRef, {
+          'status': 'accepted',
+          'assignedCaptainId': captainId,
+          'acceptedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }),
+    );
   }
 
   Future<void> rejectRide(String rideId, String captainId) async {
@@ -107,8 +115,9 @@ class CaptainRepository {
               ..sort((a, b) {
                 final aTime = a.data()['updatedAt'] as Timestamp?;
                 final bTime = b.data()['updatedAt'] as Timestamp?;
-                return (bTime?.millisecondsSinceEpoch ?? 0)
-                    .compareTo(aTime?.millisecondsSinceEpoch ?? 0);
+                return (bTime?.millisecondsSinceEpoch ?? 0).compareTo(
+                  aTime?.millisecondsSinceEpoch ?? 0,
+                );
               });
             final doc = docs.first;
             final data = doc.data();
@@ -144,10 +153,13 @@ class CaptainRepository {
     double? lng,
     double heading = 0,
   }) async {
-    final firestoreUpdate = _firestore.collection('users').doc(captainId).update({
-      'isOnline': isOnline,
-      'availabilityUpdatedAt': FieldValue.serverTimestamp(),
-    });
+    final firestoreUpdate = _firestore
+        .collection('users')
+        .doc(captainId)
+        .update({
+          'isOnline': isOnline,
+          'availabilityUpdatedAt': FieldValue.serverTimestamp(),
+        });
 
     final liveRef = _rtdb.ref().child('live/captains/$captainId');
     Future<void> rtdbUpdate;
@@ -174,21 +186,25 @@ class CaptainRepository {
     required String toStatus,
   }) async {
     final rideRef = _firestore.collection('ride_requests').doc(rideId);
-    await _withFirestoreRetry(() => _firestore.runTransaction((transaction) async {
-      final ride = await transaction.get(rideRef);
-      final data = ride.data();
-      if (!ride.exists || data?['assignedCaptainId'] != captainId) {
-        throw StateError('This ride is not assigned to you.');
-      }
-      if (data?['status'] != fromStatus) {
-        throw StateError('Ride status changed. Please refresh and try again.');
-      }
-      transaction.update(rideRef, {
-        'status': toStatus,
-        '${toStatus}At': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }));
+    await _withFirestoreRetry(
+      () => _firestore.runTransaction((transaction) async {
+        final ride = await transaction.get(rideRef);
+        final data = ride.data();
+        if (!ride.exists || data?['assignedCaptainId'] != captainId) {
+          throw StateError('This ride is not assigned to you.');
+        }
+        if (data?['status'] != fromStatus) {
+          throw StateError(
+            'Ride status changed. Please refresh and try again.',
+          );
+        }
+        transaction.update(rideRef, {
+          'status': toStatus,
+          '${toStatus}At': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }),
+    );
   }
 
   Future<void> verifyOtpAndStartRide({
@@ -229,12 +245,12 @@ class CaptainRepository {
         .doc(rideId)
         .collection('issues')
         .add({
-      'reportedBy': captainId,
-      'reporterRole': 'captain',
-      'issue': issue,
-      'createdAt': FieldValue.serverTimestamp(),
-      'status': 'open',
-    });
+          'reportedBy': captainId,
+          'reporterRole': 'captain',
+          'issue': issue,
+          'createdAt': FieldValue.serverTimestamp(),
+          'status': 'open',
+        });
   }
 
   // Fetch paginated completed rides
@@ -314,11 +330,11 @@ class CaptainRepository {
       if (!snapshot.exists) {
         throw StateError('Captain not found.');
       }
-      
+
       final data = snapshot.data()!;
       final currentScore = (data['ratingScore'] as num?) ?? 0;
       final currentCount = (data['ratingCount'] as int?) ?? 0;
-      
+
       transaction.update(captainRef, {
         'ratingScore': currentScore + stars,
         'ratingCount': currentCount + 1,

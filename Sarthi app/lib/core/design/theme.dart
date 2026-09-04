@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -87,9 +86,7 @@ class AppTheme {
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -195,30 +192,46 @@ class AppTheme {
     return base.copyWith(
       textTheme: GoogleFonts.plusJakartaSansTextTheme(base.textTheme).copyWith(
         displayLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 32, fontWeight: FontWeight.w800,
-          color: AppThemeColors.light.primary, letterSpacing: -1,
+          fontSize: 32,
+          fontWeight: FontWeight.w800,
+          color: AppThemeColors.light.primary,
+          letterSpacing: -1,
         ),
         headlineLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 26, fontWeight: FontWeight.w700,
-          color: AppThemeColors.light.primary, letterSpacing: -0.5,
+          fontSize: 26,
+          fontWeight: FontWeight.w700,
+          color: AppThemeColors.light.primary,
+          letterSpacing: -0.5,
         ),
         headlineMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 22, fontWeight: FontWeight.w700, color: AppThemeColors.light.primary,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: AppThemeColors.light.primary,
         ),
         titleLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 18, fontWeight: FontWeight.w700, color: AppThemeColors.light.primary,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: AppThemeColors.light.primary,
         ),
         titleMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 16, fontWeight: FontWeight.w600, color: const Color(0xFF1A1A2E),
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF1A1A2E),
         ),
         bodyLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 16, fontWeight: FontWeight.w400, color: const Color(0xFF374151),
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: const Color(0xFF374151),
         ),
         bodyMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFF6B7280),
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: const Color(0xFF6B7280),
         ),
         labelLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.3,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -305,9 +318,7 @@ class AppTheme {
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -398,31 +409,47 @@ class AppTheme {
     return base.copyWith(
       textTheme: GoogleFonts.plusJakartaSansTextTheme(base.textTheme).copyWith(
         displayLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 32, fontWeight: FontWeight.w800,
-          color: Colors.white, letterSpacing: -1,
+          fontSize: 32,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+          letterSpacing: -1,
         ),
         headlineLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 26, fontWeight: FontWeight.w700,
-          color: Colors.white, letterSpacing: -0.5,
+          fontSize: 26,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          letterSpacing: -0.5,
         ),
         headlineMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
         ),
         titleLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
         ),
         titleMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
         ),
         bodyLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 16, fontWeight: FontWeight.w400, color: const Color(0xFFD1D5DB),
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: const Color(0xFFD1D5DB),
         ),
         bodyMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFF9CA3AF),
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: const Color(0xFF9CA3AF),
         ),
         labelLarge: GoogleFonts.plusJakartaSans(
-          fontSize: 14, fontWeight: FontWeight.w600,
-          letterSpacing: 0.3, color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+          color: Colors.white,
         ),
       ),
     );

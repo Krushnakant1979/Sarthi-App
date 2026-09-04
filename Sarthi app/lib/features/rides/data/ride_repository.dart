@@ -26,6 +26,7 @@ class RideRepository {
     String vehicleType = 'bike',
     String? appliedOfferCode,
     double? discountAmount,
+    Map<String, dynamic>? fareBreakdown,
   }) async {
     final docRef = _firestore.collection('ride_requests').doc();
 
@@ -47,6 +48,7 @@ class RideRepository {
       'destination': {'lat': endLat, 'lng': endLng, 'address': destinationName},
       'distanceMeters': distanceMeters,
       'fareEstimate': estimatedFare,
+      'fareBreakdown': fareBreakdown,
       'vehicleType': vehicleType,
       'appliedOfferCode': appliedOfferCode,
       'discountAmount': discountAmount,
@@ -76,7 +78,7 @@ class RideRepository {
             'arrived',
             'in_progress',
           ];
-          
+
           final docs = snapshot.docs.where((doc) {
             final data = doc.data();
             return activeStatuses.contains(data['status']);
@@ -85,8 +87,12 @@ class RideRepository {
           if (docs.isNotEmpty) {
             // Sort by createdAt descending to get the latest active ride
             docs.sort((a, b) {
-              final aTime = (a.data()['createdAt'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-              final bTime = (b.data()['createdAt'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+              final aTime =
+                  (a.data()['createdAt'] as Timestamp?)?.toDate() ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
+              final bTime =
+                  (b.data()['createdAt'] as Timestamp?)?.toDate() ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
               return bTime.compareTo(aTime);
             });
             final doc = docs.first;
@@ -122,10 +128,11 @@ class RideRepository {
   }
 
   Future<List<Map<String, dynamic>>> getActiveOffers() async {
-    final snapshot = await _firestore.collection('offers')
-      .where('isActive', isEqualTo: true)
-      .get();
-    
+    final snapshot = await _firestore
+        .collection('offers')
+        .where('isActive', isEqualTo: true)
+        .get();
+
     return snapshot.docs.map((doc) {
       final data = doc.data();
       data['id'] = doc.id;

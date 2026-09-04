@@ -117,7 +117,7 @@ class SafetyScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: InkWell(
@@ -193,13 +193,7 @@ class SafetyScreen extends StatelessWidget {
                 color: bgColor,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Center(
-                child: Icon(
-                  icon,
-                  size: 80,
-                  color: iconColor,
-                ),
-              ),
+              child: Center(child: Icon(icon, size: 80, color: iconColor)),
             ),
           ),
           const SizedBox(height: 12),

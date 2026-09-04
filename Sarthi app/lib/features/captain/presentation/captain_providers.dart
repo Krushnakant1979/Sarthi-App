@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/captain_repository.dart';
 
@@ -12,9 +12,7 @@ final incomingRequestsProvider = StreamProvider<List<Map<String, dynamic>>>((
 ) {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) return Stream.value(const []);
-  return ref
-      .watch(captainRepositoryProvider)
-      .streamIncomingRequests(user.uid);
+  return ref.watch(captainRepositoryProvider).streamIncomingRequests(user.uid);
 });
 
 // Provides the current active ride for the captain
@@ -28,10 +26,10 @@ final currentCaptainRideProvider = StreamProvider<Map<String, dynamic>?>((ref) {
 
 // Provides aggregated stats for trips
 final captainTripStatsProvider =
-    FutureProvider.family<Map<String, dynamic>, ({DateTime start, DateTime end})>((
-      ref,
-      args,
-    ) async {
+    FutureProvider.family<
+      Map<String, dynamic>,
+      ({DateTime start, DateTime end})
+    >((ref, args) async {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         return {'count': 0, 'totalIncome': 0.0, 'totalDistance': 0.0};

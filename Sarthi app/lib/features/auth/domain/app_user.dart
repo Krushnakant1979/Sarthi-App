@@ -18,6 +18,16 @@ class AppUser {
   final String? vehicleType;
   final DateTime createdAt;
 
+  String get publicId {
+    if (uid.length < 8) return uid.toUpperCase();
+    return uid.substring(0, 8).toUpperCase();
+  }
+
+  static String shortId(String uid) {
+    if (uid.length < 8) return uid.toUpperCase();
+    return uid.substring(0, 8).toUpperCase();
+  }
+
   AppUser({
     required this.uid,
     required this.name,
@@ -71,10 +81,18 @@ class AppUser {
       drivingLicenceUrl: map['drivingLicenceUrl'],
       ratingScore: map['ratingScore'] ?? 0,
       ratingCount: map['ratingCount'] ?? 0,
-      homeAddress: map['homeAddress'] != null ? Map<String, dynamic>.from(map['homeAddress']) : null,
-      workAddress: map['workAddress'] != null ? Map<String, dynamic>.from(map['workAddress']) : null,
-      recentSearches: map['recentSearches'] != null 
-          ? List<Map<String, dynamic>>.from((map['recentSearches'] as List).map((e) => Map<String, dynamic>.from(e))) 
+      homeAddress: map['homeAddress'] != null
+          ? Map<String, dynamic>.from(map['homeAddress'])
+          : null,
+      workAddress: map['workAddress'] != null
+          ? Map<String, dynamic>.from(map['workAddress'])
+          : null,
+      recentSearches: map['recentSearches'] != null
+          ? List<Map<String, dynamic>>.from(
+              (map['recentSearches'] as List).map(
+                (e) => Map<String, dynamic>.from(e),
+              ),
+            )
           : null,
       vehicleType: map['vehicleType'],
       createdAt: _parseDate(map['createdAt']),

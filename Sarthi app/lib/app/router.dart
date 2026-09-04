@@ -112,7 +112,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Check if captain needs to upload documents
       if (role == 'captain') {
-        final missingDocs = appUser.aadhaarCardUrl == null || appUser.drivingLicenceUrl == null;
+        final missingDocs =
+            appUser.aadhaarCardUrl == null || appUser.drivingLicenceUrl == null;
         final isVerified = appUser.verificationStatus == 'verified';
         if ((missingDocs || !isVerified) && loc != '/captain/documents') {
           return '/captain/documents';
@@ -133,56 +134,80 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/loading',
         pageBuilder: (context, state) => fadeRoute(
-          const Scaffold(body: Center(child: CircularProgressIndicator())), state),
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+          state,
+        ),
       ),
-      GoRoute(path: '/', pageBuilder: (context, state) => fadeRoute(const MapHomeScreen(), state)),
-      GoRoute(path: '/login', pageBuilder: (context, state) => fadeRoute(const LoginScreen(), state)),
+      GoRoute(
+        path: '/',
+        pageBuilder: (context, state) =>
+            fadeRoute(const MapHomeScreen(), state),
+      ),
+      GoRoute(
+        path: '/login',
+        pageBuilder: (context, state) => fadeRoute(const LoginScreen(), state),
+      ),
       GoRoute(
         path: '/signup',
         pageBuilder: (context, state) => fadeRoute(const SignupScreen(), state),
       ),
       GoRoute(
         path: '/forgot-password',
-        pageBuilder: (context, state) => fadeRoute(const ForgotPasswordScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const ForgotPasswordScreen(), state),
       ),
       GoRoute(
         path: '/search',
         pageBuilder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
-          return fadeRoute(SearchScreen(
-            initialPickup: extra?['pickup'] as Map<String, dynamic>?,
-            initialDestination: extra?['destination'] as Map<String, dynamic>?,
-          ), state);
+          return fadeRoute(
+            SearchScreen(
+              initialPickup: extra?['pickup'] as Map<String, dynamic>?,
+              initialDestination:
+                  extra?['destination'] as Map<String, dynamic>?,
+            ),
+            state,
+          );
         },
       ),
       GoRoute(
         path: '/admin',
-        pageBuilder: (context, state) => fadeRoute(const AdminDashboardScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const AdminDashboardScreen(), state),
       ),
-      GoRoute(path: '/legal', pageBuilder: (context, state) => fadeRoute(const LegalScreen(), state)),
+      GoRoute(
+        path: '/legal',
+        pageBuilder: (context, state) => fadeRoute(const LegalScreen(), state),
+      ),
       GoRoute(
         path: '/captain',
-        pageBuilder: (context, state) => fadeRoute(const CaptainMapScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const CaptainMapScreen(), state),
       ),
       GoRoute(
         path: '/captain/trips',
-        pageBuilder: (context, state) => fadeRoute(const CaptainTripsScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const CaptainTripsScreen(), state),
       ),
       GoRoute(
         path: '/captain/profile',
-        pageBuilder: (context, state) => fadeRoute(const CaptainProfileScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const CaptainProfileScreen(), state),
       ),
       GoRoute(
         path: '/captain/documents',
-        pageBuilder: (context, state) => fadeRoute(const CaptainDocumentUploadScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const CaptainDocumentUploadScreen(), state),
       ),
       GoRoute(
         path: '/profile',
-        pageBuilder: (context, state) => fadeRoute(const ProfileScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const ProfileScreen(), state),
       ),
       GoRoute(
         path: '/notifications',
-        pageBuilder: (context, state) => fadeRoute(const NotificationsScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const NotificationsScreen(), state),
       ),
       GoRoute(
         path: '/rating',
@@ -194,11 +219,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/history',
-        pageBuilder: (context, state) => fadeRoute(const RideHistoryScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const RideHistoryScreen(), state),
       ),
       GoRoute(
         path: '/support',
-        pageBuilder: (context, state) => fadeRoute(const SupportTicketsScreen(), state),
+        pageBuilder: (context, state) =>
+            fadeRoute(const SupportTicketsScreen(), state),
       ),
     ],
   );

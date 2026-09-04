@@ -9,7 +9,8 @@ class SupportTicketsScreen extends ConsumerStatefulWidget {
   const SupportTicketsScreen({super.key});
 
   @override
-  ConsumerState<SupportTicketsScreen> createState() => _SupportTicketsScreenState();
+  ConsumerState<SupportTicketsScreen> createState() =>
+      _SupportTicketsScreenState();
 }
 
 class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
@@ -30,7 +31,9 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
     final message = _messageController.text.trim();
 
     if (subject.isEmpty || message.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
       return;
     }
 
@@ -40,16 +43,24 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      await ref.read(userRepositoryProvider).createSupportTicket(user.uid, user.role, subject, message);
+      await ref
+          .read(userRepositoryProvider)
+          .createSupportTicket(user.uid, user.role, subject, message);
       if (mounted) {
         _subjectController.clear();
         _messageController.clear();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Support complaint submitted successfully')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Support complaint submitted successfully'),
+          ),
+        );
         FocusScope.of(context).unfocus();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to submit complaint: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit complaint: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -63,7 +74,11 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
       appBar: AppBar(
         title: const Text(
           'Help & Support',
-          style: TextStyle(color: Color(0xFF0B2A4A), fontWeight: FontWeight.w700, fontSize: 18),
+          style: TextStyle(
+            color: Color(0xFF0B2A4A),
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -86,7 +101,9 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
                   AnimatedAlign(
                     duration: const Duration(milliseconds: 250),
                     curve: Curves.easeInOut,
-                    alignment: _selectedTab == 0 ? Alignment.centerLeft : Alignment.centerRight,
+                    alignment: _selectedTab == 0
+                        ? Alignment.centerLeft
+                        : Alignment.centerRight,
                     child: FractionallySizedBox(
                       widthFactor: 0.5,
                       child: Container(
@@ -117,7 +134,9 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
-                                color: _selectedTab == 0 ? Colors.white : Colors.grey.shade700,
+                                color: _selectedTab == 0
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
                               ),
                               child: const Text('Submit Complaint'),
                             ),
@@ -134,7 +153,9 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
-                                color: _selectedTab == 1 ? Colors.white : Colors.grey.shade700,
+                                color: _selectedTab == 1
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
                               ),
                               child: const Text('My Complaints'),
                             ),
@@ -155,10 +176,7 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
               layoutBuilder: (currentChild, previousChildren) {
                 return Stack(
                   alignment: Alignment.topCenter,
-                  children: <Widget>[
-                    ...previousChildren,
-                    if (currentChild != null) currentChild,
-                  ],
+                  children: <Widget>[...previousChildren, ?currentChild],
                 );
               },
               transitionBuilder: (child, animation) {
@@ -175,7 +193,9 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
               },
               child: KeyedSubtree(
                 key: ValueKey<int>(_selectedTab),
-                child: _selectedTab == 0 ? _buildSubmitForm() : _buildMyTickets(ref),
+                child: _selectedTab == 0
+                    ? _buildSubmitForm()
+                    : _buildMyTickets(ref),
               ),
             ),
           ),
@@ -192,12 +212,20 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
         children: [
           const Text(
             'How can we help you?',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F172A),
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
             'Describe your issue and our support team will get back to you.',
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 15, height: 1.4),
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 15,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 24),
           Container(
@@ -219,33 +247,72 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
               children: [
                 TextField(
                   controller: _subjectController,
-                  style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF1E293B)),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1E293B),
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Subject',
                     hintText: 'e.g. Lost Item, Payment Issue',
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w400),
-                    prefixIcon: const Icon(Icons.subject_rounded, color: Color(0xFF94A3B8)),
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.subject_rounded,
+                      color: Color(0xFF94A3B8),
+                    ),
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF0B2A4A), width: 1.5)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF0B2A4A),
+                        width: 1.5,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _messageController,
-                  style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF1E293B)),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1E293B),
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Description',
                     hintText: 'Describe your issue in detail...',
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w400),
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontWeight: FontWeight.w400,
+                    ),
                     alignLabelWithHint: true,
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF0B2A4A), width: 1.5)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF0B2A4A),
+                        width: 1.5,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
                   ),
                   maxLines: 6,
                 ),
@@ -255,14 +322,32 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0B2A4A),
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFF0B2A4A).withValues(alpha: 0.5),
+                    disabledBackgroundColor: const Color(
+                      0xFF0B2A4A,
+                    ).withValues(alpha: 0.5),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   child: _isSubmitting
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                      : const Text('Submit Complaint', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, letterSpacing: 0.3)),
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Text(
+                          'Submit Complaint',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -274,13 +359,18 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
 
   Widget _buildMyTickets(WidgetRef ref) {
     final ticketsAsync = ref.watch(mySupportTicketsProvider);
-    
+
     return ticketsAsync.when(
       data: (tickets) {
         if (tickets.isEmpty) {
-          return Center(child: Text('You have no support complaints.', style: TextStyle(color: context.colors.textMuted)));
+          return Center(
+            child: Text(
+              'You have no support complaints.',
+              style: TextStyle(color: context.colors.textMuted),
+            ),
+          );
         }
-        
+
         return ListView.separated(
           padding: const EdgeInsets.all(20),
           itemCount: tickets.length,
@@ -289,8 +379,10 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
             final t = tickets[index];
             final isResolved = t['status'] == 'resolved';
             final createdAt = t['createdAt'] as Timestamp?;
-            final dateStr = createdAt != null ? DateFormat('MMM d, yyyy').format(createdAt.toDate()) : '';
-            
+            final dateStr = createdAt != null
+                ? DateFormat('MMM d, yyyy').format(createdAt.toDate())
+                : '';
+
             return Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -305,28 +397,53 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: isResolved ? context.colors.success.withValues(alpha: 0.1) : const Color(0xFFFEF3C7),
+                          color: isResolved
+                              ? context.colors.success.withValues(alpha: 0.1)
+                              : const Color(0xFFFEF3C7),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           isResolved ? 'Resolved' : 'Open',
                           style: TextStyle(
-                            color: isResolved ? context.colors.success : const Color(0xFFF59E0B),
+                            color: isResolved
+                                ? context.colors.success
+                                : const Color(0xFFF59E0B),
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
-                      Text(dateStr, style: TextStyle(color: context.colors.hint, fontSize: 12)),
+                      Text(
+                        dateStr,
+                        style: TextStyle(
+                          color: context.colors.hint,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text(t['subject'] ?? 'No Subject', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  Text(
+                    t['subject'] ?? 'No Subject',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Text(t['message'] ?? '', style: TextStyle(color: context.colors.textMuted, fontSize: 14)),
-                  
+                  Text(
+                    t['message'] ?? '',
+                    style: TextStyle(
+                      color: context.colors.textMuted,
+                      fontSize: 14,
+                    ),
+                  ),
+
                   if (isResolved && t['resolutionMessage'] != null) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -338,9 +455,22 @@ class _SupportTicketsScreenState extends ConsumerState<SupportTicketsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Support Team Reply:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: context.colors.primary)),
+                          Text(
+                            'Support Team Reply:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: context.colors.primary,
+                            ),
+                          ),
                           const SizedBox(height: 4),
-                          Text(t['resolutionMessage'], style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                          Text(
+                            t['resolutionMessage'],
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.black87,
+                            ),
+                          ),
                         ],
                       ),
                     ),

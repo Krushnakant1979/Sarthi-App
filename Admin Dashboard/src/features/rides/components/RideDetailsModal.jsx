@@ -40,10 +40,7 @@ export const RideDetailsModal = ({ ride, onClose }) => {
           const pDoc = await getDoc(doc(db, 'users', ride.userId));
           if (pDoc.exists()) {
             let pData = pDoc.data();
-            if (!pData.publicId) {
-              const newId = await publicIdService.assignSequentialId(pDoc.id, 'user');
-              pData.publicId = newId;
-            }
+            pData.publicId = publicIdService.formatId(pDoc.id);
             if (isMounted) setPassenger(pData);
           }
         }
@@ -53,10 +50,7 @@ export const RideDetailsModal = ({ ride, onClose }) => {
           const cDoc = await getDoc(doc(db, 'users', actualCaptainId));
           if (cDoc.exists()) {
             let cData = cDoc.data();
-            if (!cData.publicId) {
-              const newId = await publicIdService.assignSequentialId(cDoc.id, 'captain');
-              cData.publicId = newId;
-            }
+            cData.publicId = publicIdService.formatId(cDoc.id);
             if (isMounted) setCaptain(cData);
           }
         }
@@ -89,7 +83,7 @@ export const RideDetailsModal = ({ ride, onClose }) => {
           <div>
             <h2 className="modal-title">Ride Details</h2>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontFamily: 'monospace' }}>
-              #{ride.id}
+              #{publicIdService.formatId(ride.id)}
             </div>
           </div>
           <button className="modal-close" onClick={onClose}><X /></button>

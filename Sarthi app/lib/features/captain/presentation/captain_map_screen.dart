@@ -12,6 +12,7 @@ import '../../../core/design/tokens.dart';
 import '../../map/data/ola_maps_repository.dart';
 
 import 'widgets/captain_drawer.dart';
+
 class CaptainMapScreen extends ConsumerStatefulWidget {
   const CaptainMapScreen({super.key});
 
@@ -37,7 +38,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
   int _updateRouteSeq = 0;
   int? _navigationDistanceMeters;
   int? _navigationDurationSeconds;
-  final DraggableScrollableController _sheetController = DraggableScrollableController();
+  final DraggableScrollableController _sheetController =
+      DraggableScrollableController();
   final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(0.45);
   double? _targetSheetFraction;
 
@@ -111,7 +113,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
 
     if (val) {
       // Fast fallback to last known if possible to avoid waiting for GPS lock
-      Position? pos = _lastValidPosition ?? await _locationService.getLastKnownPosition();
+      Position? pos =
+          _lastValidPosition ?? await _locationService.getLastKnownPosition();
       pos ??= await _locationService.getCurrentPosition();
 
       if (!mounted) return;
@@ -124,19 +127,21 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       }
       _lastValidPosition = pos;
       try {
-        await ref.read(captainRepositoryProvider).setAvailability(
-          uid,
-          true,
-          lat: pos.latitude,
-          lng: pos.longitude,
-          heading: pos.heading,
-        );
+        await ref
+            .read(captainRepositoryProvider)
+            .setAvailability(
+              uid,
+              true,
+              lat: pos.latitude,
+              lng: pos.longitude,
+              heading: pos.heading,
+            );
       } catch (e) {
         if (!mounted) return;
         setState(() => _isOnline = false); // Revert
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not go online: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not go online: $e')));
         return;
       }
       if (!mounted) return;
@@ -146,23 +151,25 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       _liveLocationSub = _locationService
           .getPositionStream(distanceFilter: 10)
           .listen((position) {
-        _lastValidPosition = position;
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid != null) {
-          ref.read(captainRepositoryProvider).updateLiveLocation(
-            uid,
-            position.latitude,
-            position.longitude,
-            position.heading,
-          );
-          _mapController?.updateUserLocation(
-            position.latitude,
-            position.longitude,
-            heading: position.heading,
-          );
-          unawaited(_maybeReroute(position));
-        }
-      });
+            _lastValidPosition = position;
+            final uid = FirebaseAuth.instance.currentUser?.uid;
+            if (uid != null) {
+              ref
+                  .read(captainRepositoryProvider)
+                  .updateLiveLocation(
+                    uid,
+                    position.latitude,
+                    position.longitude,
+                    position.heading,
+                  );
+              _mapController?.updateUserLocation(
+                position.latitude,
+                position.longitude,
+                heading: position.heading,
+              );
+              unawaited(_maybeReroute(position));
+            }
+          });
 
       final requests = _nearbyRequests(
         ref.read(incomingRequestsProvider).value ?? const [],
@@ -239,8 +246,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     if (!_mapReady || _mapController == null) return;
     final lat = (target['lat'] as num?)?.toDouble();
     final lng = (target['lng'] as num?)?.toDouble();
-    final position = _lastValidPosition ??
-        await _locationService.getCurrentPosition();
+    final position =
+        _lastValidPosition ?? await _locationService.getCurrentPosition();
     if (lat == null || lng == null || position == null || !mounted) return;
 
     try {
@@ -360,7 +367,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: context.colors.error),
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: context.colors.error,
+          ),
         );
       }
     } finally {
@@ -410,13 +420,11 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       ),
     );
     if (issue == null) return;
-    await _runRideAction(() => ref
-        .read(captainRepositoryProvider)
-        .reportRideIssue(
-          rideId: rideId,
-          captainId: captainId,
-          issue: issue,
-        ));
+    await _runRideAction(
+      () => ref
+          .read(captainRepositoryProvider)
+          .reportRideIssue(rideId: rideId, captainId: captainId, issue: issue),
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Issue reported to support.')),
@@ -428,9 +436,14 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     if (_isRecentering) return;
 
     // 1. Fast fallback: immediately use cached or last known position
-    Position? fastPos = _lastValidPosition ?? await _locationService.getLastKnownPosition();
+    Position? fastPos =
+        _lastValidPosition ?? await _locationService.getLastKnownPosition();
     if (fastPos != null && _mapController != null && mounted) {
-      _mapController!.moveCamera(fastPos.latitude, fastPos.longitude, zoom: 16.0);
+      _mapController!.moveCamera(
+        fastPos.latitude,
+        fastPos.longitude,
+        zoom: 16.0,
+      );
       _mapController!.updateUserLocation(
         fastPos.latitude,
         fastPos.longitude,
@@ -445,19 +458,25 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       final freshPos = await _locationService.getCurrentPosition();
       if (freshPos != null && _mapController != null && mounted) {
         bool shouldUpdate = true;
-        
+
         // 3. Prevent micro-jitters by only updating if moved > 10 meters
         if (fastPos != null) {
           final distance = Geolocator.distanceBetween(
-            fastPos.latitude, fastPos.longitude,
-            freshPos.latitude, freshPos.longitude,
+            fastPos.latitude,
+            fastPos.longitude,
+            freshPos.latitude,
+            freshPos.longitude,
           );
           if (distance < 10) shouldUpdate = false;
         }
 
         if (shouldUpdate) {
           _lastValidPosition = freshPos;
-          _mapController!.moveCamera(freshPos.latitude, freshPos.longitude, zoom: 16.0);
+          _mapController!.moveCamera(
+            freshPos.latitude,
+            freshPos.longitude,
+            zoom: 16.0,
+          );
           _mapController!.updateUserLocation(
             freshPos.latitude,
             freshPos.longitude,
@@ -467,9 +486,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to get location: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to get location: $e')));
       }
     } finally {
       if (mounted) {
@@ -497,7 +516,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
 
     ref.listen(incomingRequestsProvider, (previous, next) {
       final requests = next.value;
-      final nearby = requests == null ? const <Map<String, dynamic>>[] : _nearbyRequests(requests);
+      final nearby = requests == null
+          ? const <Map<String, dynamic>>[]
+          : _nearbyRequests(requests);
       if (_isOnline && nearby.isNotEmpty && activeRideAsync.value == null) {
         final pickup = nearby.first['pickup'];
         if (pickup is Map) {
@@ -524,16 +545,13 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 if (event is Map && event['event'] == 'mapReady') {
                   _mapReady = true;
                   // 1. Immediately jump to India to avoid showing the whole world map
-                  controller.moveCamera(
-                    20.5937,
-                    78.9629,
-                    zoom: 4.5,
-                  );
+                  controller.moveCamera(20.5937, 78.9629, zoom: 4.5);
 
                   if (!mounted) return;
 
                   // 2. Try to get a fast last known location and animate there
-                  final lastKnown = await _locationService.getLastKnownPosition();
+                  final lastKnown = await _locationService
+                      .getLastKnownPosition();
                   if (lastKnown != null && mounted) {
                     controller.moveCamera(
                       lastKnown.latitude,
@@ -566,9 +584,12 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     final requests = _nearbyRequests(
                       ref.read(incomingRequestsProvider).value ?? const [],
                     );
-                    if (requests.isNotEmpty && requests.first['pickup'] is Map) {
+                    if (requests.isNotEmpty &&
+                        requests.first['pickup'] is Map) {
                       await _renderRouteToTarget(
-                        Map<String, dynamic>.from(requests.first['pickup'] as Map),
+                        Map<String, dynamic>.from(
+                          requests.first['pickup'] as Map,
+                        ),
                         isPickup: true,
                       );
                     }
@@ -660,8 +681,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                             activeRideAsync.value != null
                                 ? 'On trip'
                                 : _isOnline
-                                    ? 'Online'
-                                    : 'Offline',
+                                ? 'Online'
+                                : 'Offline',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -706,17 +727,20 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               ),
               child: IconButton(
                 onPressed: _isRecentering ? null : _recenter,
-                icon: _isRecentering 
-                  ? SizedBox(
-                      width: 20, 
-                      height: 20, 
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: context.colors.primary)
-                    )
-                  : Icon(
-                      Icons.my_location_rounded,
-                      color: context.colors.primary,
-                      size: 22,
-                    ),
+                icon: _isRecentering
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: context.colors.primary,
+                        ),
+                      )
+                    : Icon(
+                        Icons.my_location_rounded,
+                        color: context.colors.primary,
+                        size: 22,
+                      ),
               ),
             ),
           ),
@@ -746,7 +770,11 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                   data: (activeRide) {
                     Widget sheetContent;
                     if (activeRide != null) {
-                      sheetContent = _buildActiveRideSheet(context, ref, activeRide);
+                      sheetContent = _buildActiveRideSheet(
+                        context,
+                        ref,
+                        activeRide,
+                      );
                     } else if (!_isOnline) {
                       sheetContent = _buildOfflineSheet();
                     } else {
@@ -756,9 +784,14 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                           if (nearbyRequests.isEmpty) {
                             return _buildSearchingSheet();
                           }
-                          return _buildIncomingRequestSheet(context, ref, nearbyRequests.first);
+                          return _buildIncomingRequestSheet(
+                            context,
+                            ref,
+                            nearbyRequests.first,
+                          );
                         },
-                        loading: () => const Center(child: CircularProgressIndicator()),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
                         error: (e, s) => Center(child: Text('Error: $e')),
                       );
                     }
@@ -767,8 +800,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     final stateKey = activeRide != null
                         ? 'active_${activeRide['status']}'
                         : _isOnline
-                            ? 'searching_${incomingRequestsAsync.value?.isNotEmpty == true}'
-                            : 'offline';
+                        ? 'searching_${incomingRequestsAsync.value?.isNotEmpty == true}'
+                        : 'offline';
 
                     return SingleChildScrollView(
                       controller: scrollController,
@@ -778,27 +811,45 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                         switchInCurve: Curves.easeOut,
                         switchOutCurve: Curves.easeIn,
                         transitionBuilder: (child, animation) =>
-                          FadeTransition(opacity: animation, child: child),
-                        layoutBuilder: (currentChild, previousChildren) => Stack(
-                          alignment: Alignment.topCenter,
-                          children: <Widget>[
-                            ...previousChildren,
-                            ?currentChild,
-                          ],
-                        ),
+                            FadeTransition(opacity: animation, child: child),
+                        layoutBuilder: (currentChild, previousChildren) =>
+                            Stack(
+                              alignment: Alignment.topCenter,
+                              children: <Widget>[
+                                ...previousChildren,
+                                ?currentChild,
+                              ],
+                            ),
                         child: KeyedSubtree(
                           key: ValueKey(stateKey),
                           child: MeasureSize(
                             onChange: (size) {
-                              final screenHeight = MediaQuery.of(context).size.height;
+                              final screenHeight = MediaQuery.of(
+                                context,
+                              ).size.height;
                               // Calculate exact fraction
-                              final target = (size.height / screenHeight).clamp(0.25, 0.95);
-                              if (_targetSheetFraction == null || (_targetSheetFraction! - target).abs() > 0.01) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                              final target = (size.height / screenHeight).clamp(
+                                0.25,
+                                0.95,
+                              );
+                              if (_targetSheetFraction == null ||
+                                  (_targetSheetFraction! - target).abs() >
+                                      0.01) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
                                   if (mounted) {
-                                    setState(() => _targetSheetFraction = target);
+                                    setState(
+                                      () => _targetSheetFraction = target,
+                                    );
                                     if (_sheetController.isAttached) {
-                                      _sheetController.animateTo(target, duration: const Duration(milliseconds: 250), curve: Curves.easeOutCubic);
+                                      _sheetController.animateTo(
+                                        target,
+                                        duration: const Duration(
+                                          milliseconds: 250,
+                                        ),
+                                        curve: Curves.easeOutCubic,
+                                      );
                                     }
                                   }
                                 });
@@ -810,7 +861,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       ),
                     );
                   },
-                  loading: () => const Center(child: CircularProgressIndicator()),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
                   error: (e, s) => Center(child: Text('Error: $e')),
                 ),
               );
@@ -841,54 +893,54 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-        _dragHandle(),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF9CA3AF).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xFF9CA3AF).withValues(alpha: 0.3),
+          _dragHandle(),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF9CA3AF).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF9CA3AF).withValues(alpha: 0.3),
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.wifi_off_rounded,
+                    size: 16,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'You are offline',
+                    style: TextStyle(
+                      color: Color(0xFF9CA3AF),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.wifi_off_rounded,
-                  size: 16,
-                  color: Color(0xFF9CA3AF),
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'You are offline',
-                  style: TextStyle(
-                    color: Color(0xFF9CA3AF),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Go online to start\nreceiving ride requests',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: context.colors.primary,
+              height: 1.4,
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Go online to start\nreceiving ride requests',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: context.colors.primary,
-            height: 1.4,
+          const SizedBox(height: 8),
+          const Text(
+            'Toggle the switch at the top to go online',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
           ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Toggle the switch at the top to go online',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
-        ),
         ],
       ),
     );
@@ -901,50 +953,53 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-        _dragHandle(),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: context.colors.liveTeal.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: context.colors.liveTeal.withValues(alpha: 0.25),
+          _dragHandle(),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.colors.liveTeal.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: context.colors.liveTeal.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: context.colors.liveTeal,
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Searching for Users',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: context.colors.primary,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'You\'re online and available',
+                        style: TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: context.colors.liveTeal,
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Searching for Users',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: context.colors.primary,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'You\'re online and available',
-                      style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
         ],
       ),
     );
@@ -953,7 +1008,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
   // ── Incoming request sheet ───────────────────────────────────
   Widget _buildIncomingRequestSheet(
     BuildContext context,
-    WidgetRef ref, Map<String, dynamic> request,
+    WidgetRef ref,
+    Map<String, dynamic> request,
   ) {
     final fare = request['fareEstimate'];
     final dest = request['destination']?['address'] ?? 'Unknown';
@@ -962,211 +1018,216 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     return SafeArea(
       top: false,
       child: Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-        _dragHandle(),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _dragHandle(),
 
-        // Alert header
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF16A34A).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFF16A34A).withValues(alpha: 0.3),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.notifications_active_rounded,
-                color: Color(0xFF16A34A),
-                size: 18,
-              ),
-              SizedBox(width: 8),
-              Text(
-                'New Ride Request!',
-                style: TextStyle(
-                  color: context.colors.primary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
+            // Alert header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16A34A).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF16A34A).withValues(alpha: 0.3),
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Route card
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFD),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Column(
-            children: [
-              Row(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: context.colors.rapidoYellow,
-                      shape: BoxShape.circle,
-                    ),
+                  const Icon(
+                    Icons.notifications_active_rounded,
+                    color: Color(0xFF16A34A),
+                    size: 18,
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Current Location',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
+                  SizedBox(width: 8),
+                  Text(
+                    'New Ride Request!',
+                    style: TextStyle(
+                      color: context.colors.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
                     ),
                   ),
                 ],
               ),
-              Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Column(
-                  children: List.generate(
-                    3,
-                    (_) => Container(
-                      width: 2,
-                      height: 6,
-                      margin: const EdgeInsets.symmetric(vertical: 2),
-                      color: const Color(0xFFD1D5DB),
+            ),
+            const SizedBox(height: 12),
+
+            // Route card
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFD),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: context.colors.rapidoYellow,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Current Location',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Column(
+                      children: List.generate(
+                        3,
+                        (_) => Container(
+                          width: 2,
+                          height: 6,
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                          color: const Color(0xFFD1D5DB),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              Row(
-                children: [
-                  Icon(
-                    Icons.flag_rounded,
-                    color: context.colors.error,
-                    size: 20,
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.flag_rounded,
+                        color: context.colors.error,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          dest,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Metrics row
+            Row(
+              children: [
+                Expanded(
+                  child: _captainMetricCard(
+                    icon: Icons.currency_rupee_rounded,
+                    value: '₹$fare',
+                    label: 'Fare',
+                    color: context.colors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (distM != null)
                   Expanded(
-                    child: Text(
-                      dest,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: _captainMetricCard(
+                      icon: Icons.straighten_rounded,
+                      value: '${(distM / 1000).toStringAsFixed(1)} km',
+                      label: 'Distance',
+                      color: context.colors.rapidoYellow,
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Metrics row
-        Row(
-          children: [
-            Expanded(
-              child: _captainMetricCard(
-                icon: Icons.currency_rupee_rounded,
-                value: '₹$fare',
-                label: 'Fare',
-                color: context.colors.primary,
-              ),
+              ],
             ),
-            const SizedBox(width: 12),
-            if (distM != null)
-              Expanded(
-                child: _captainMetricCard(
-                  icon: Icons.straighten_rounded,
-                  value: '${(distM / 1000).toStringAsFixed(1)} km',
-                  label: 'Distance',
-                  color: context.colors.rapidoYellow,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _isRideActionLoading
-                    ? null
-                    : () {
-                        final uid = FirebaseAuth.instance.currentUser?.uid;
-                        if (uid != null) {
-                          _runRideAction(() => ref
-                              .read(captainRepositoryProvider)
-                              .rejectRide(request['id'] as String, uid));
-                        }
-                      },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: context.colors.error,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isRideActionLoading
+                        ? null
+                        : () {
+                            final uid = FirebaseAuth.instance.currentUser?.uid;
+                            if (uid != null) {
+                              _runRideAction(
+                                () => ref
+                                    .read(captainRepositoryProvider)
+                                    .rejectRide(request['id'] as String, uid),
+                              );
+                            }
+                          },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: context.colors.error,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Skip'),
+                  ),
                 ),
-                child: const Text('Skip'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: _isRideActionLoading
-                    ? null
-                    : () {
-                        final uid = FirebaseAuth.instance.currentUser?.uid;
-                        if (uid != null) {
-                          _runRideAction(() => ref
-                              .read(captainRepositoryProvider)
-                              .acceptRide(request['id'] as String, uid));
-                        }
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: context.colors.rapidoYellow,
-                  foregroundColor: context.colors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: _isRideActionLoading
+                        ? null
+                        : () {
+                            final uid = FirebaseAuth.instance.currentUser?.uid;
+                            if (uid != null) {
+                              _runRideAction(
+                                () => ref
+                                    .read(captainRepositoryProvider)
+                                    .acceptRide(request['id'] as String, uid),
+                              );
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: context.colors.rapidoYellow,
+                      foregroundColor: context.colors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: _isRideActionLoading
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: context.colors.primary,
+                            ),
+                          )
+                        : const Text(
+                            'Accept Ride',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
                 ),
-                child: _isRideActionLoading
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: context.colors.primary,
-                        ),
-                      )
-                    : const Text(
-                        'Accept Ride',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-              ),
+              ],
             ),
           ],
         ),
-        ],
       ),
-    ),
     );
   }
 
   // ── Active ride sheet ────────────────────────────────────────
   Widget _buildActiveRideSheet(
     BuildContext context,
-    WidgetRef ref, Map<String, dynamic> activeRide,
+    WidgetRef ref,
+    Map<String, dynamic> activeRide,
   ) {
     final status = activeRide['status'] as String;
     final rideId = activeRide['id'] as String;
@@ -1179,8 +1240,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     final pickup = activeRide['pickup'] as Map?;
     final targetAddress = isHeadingToPickup
         ? (pickup == null
-            ? 'User pickup location'
-            : pickup['address']?.toString() ?? 'User pickup location')
+              ? 'User pickup location'
+              : pickup['address']?.toString() ?? 'User pickup location')
         : dest;
     final etaMinutes = _navigationDurationSeconds == null
         ? null
@@ -1192,491 +1253,531 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     return SafeArea(
       top: false,
       child: Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-        _dragHandle(),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _dragHandle(),
 
-        // Status chip
-        _captainStatusChip(status),
-        const SizedBox(height: 12),
+            // Status chip
+            _captainStatusChip(status),
+            const SizedBox(height: 12),
 
-        // Ride info card
-        if (status != 'in_progress') ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFD),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: context.colors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.person_rounded,
-                      color: context.colors.primary,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            // Ride info card
+            if (status != 'in_progress') ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFD),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          riderName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: context.colors.primary.withValues(
+                              alpha: 0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.person_rounded,
+                            color: context.colors.primary,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                riderName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                riderPhone?.isNotEmpty == true
+                                    ? '$riderPhone • $targetAddress'
+                                    : targetAddress,
+                                style: const TextStyle(
+                                  color: Color(0xFF6B7280),
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
                         Text(
-                          riderPhone?.isNotEmpty == true
-                              ? '$riderPhone • $targetAddress'
-                              : targetAddress,
-                          style: const TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 12,
+                          '₹$fare',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: context.colors.primary,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (etaMinutes != null && navigationKm != null)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.route_rounded, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 10),
+                    Text(
+                      '$etaMinutes min • $navigationKm km',
+                      style: const TextStyle(
+                        color: Color(0xFF1D4ED8),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      isHeadingToPickup ? 'to pickup' : 'to destination',
+                      style: const TextStyle(
+                        color: Color(0xFF1D4ED8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
+            if (status != 'in_progress') ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: riderPhone?.isNotEmpty == true
+                          ? () => _callNumber(riderPhone!)
+                          : null,
+                      icon: const Icon(Icons.call_rounded, size: 18),
+                      label: const Text('Call'),
+                    ),
                   ),
-                  Text(
-                    '₹$fare',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: context.colors.primary,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _isRideActionLoading || captainId == null
+                          ? null
+                          : () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (dialogContext) => AlertDialog(
+                                  title: const Text('Cancel Ride?'),
+                                  content: const Text(
+                                    'Are you sure you want to cancel this ride? This may negatively impact your rating.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext, false),
+                                      child: const Text('No'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext, true),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: context.colors.error,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      child: const Text('Yes, Cancel'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed != true) return;
+                              await _runRideAction(
+                                () => ref
+                                    .read(captainRepositoryProvider)
+                                    .transitionRide(
+                                      rideId: rideId,
+                                      captainId: captainId,
+                                      fromStatus: status,
+                                      toStatus: 'cancelled',
+                                    ),
+                              );
+                            },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: context.colors.error,
+                        side: BorderSide(color: context.colors.error),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    tooltip: 'Report ride issue',
+                    onPressed: captainId == null
+                        ? null
+                        : () => _reportIssue(rideId, captainId),
+                    icon: const Icon(Icons.report_problem_outlined),
+                    style: IconButton.styleFrom(
+                      backgroundColor: context.colors.rapidoYellow,
+                      foregroundColor: Colors.black,
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
             ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (etaMinutes != null && navigationKm != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFBFDBFE)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.route_rounded, color: Color(0xFF2563EB)),
-                const SizedBox(width: 10),
-                Text(
-                  '$etaMinutes min • $navigationKm km',
-                  style: const TextStyle(
-                    color: Color(0xFF1D4ED8),
-                    fontWeight: FontWeight.w700,
+
+            // Action by status
+            if (status == 'accepted')
+              ElevatedButton.icon(
+                onPressed: _isRideActionLoading || captainId == null
+                    ? null
+                    : () => _runRideAction(
+                        () => ref
+                            .read(captainRepositoryProvider)
+                            .transitionRide(
+                              rideId: rideId,
+                              captainId: captainId,
+                              fromStatus: 'accepted',
+                              toStatus: 'arrived',
+                            ),
+                      ),
+                icon: const Icon(Icons.location_on_rounded),
+                label: const Text('Arrived at Pickup'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: context.colors.rapidoYellow,
+                  foregroundColor: context.colors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              )
+            else if (status == 'arriving')
+              ElevatedButton.icon(
+                onPressed: _isRideActionLoading || captainId == null
+                    ? null
+                    : () => _runRideAction(
+                        () => ref
+                            .read(captainRepositoryProvider)
+                            .transitionRide(
+                              rideId: rideId,
+                              captainId: captainId,
+                              fromStatus: 'arriving',
+                              toStatus: 'arrived',
+                            ),
+                      ),
+                icon: const Icon(Icons.location_on_rounded),
+                label: const Text('I have Arrived'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: context.colors.rapidoYellow,
+                  foregroundColor: context.colors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              )
+            else if (status == 'arrived') ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: context.colors.primary.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: context.colors.primary.withValues(alpha: 0.2),
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  isHeadingToPickup ? 'to pickup' : 'to destination',
-                  style: const TextStyle(
-                    color: Color(0xFF1D4ED8),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 12),
-        if (status != 'in_progress') ...[
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: riderPhone?.isNotEmpty == true
-                      ? () => _callNumber(riderPhone!)
-                      : null,
-                  icon: const Icon(Icons.call_rounded, size: 18),
-                  label: const Text('Call'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Enter User'
+                      's OTP',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: context.colors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Ask the user for their 4-digit OTP',
+                      style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    // Single OTP input, centered and reduced in size
+                    Center(
+                      child: SizedBox(
+                        width: 240,
+                        child: TextField(
+                          controller: _otpController,
+                          focusNode: _otpFocusNode,
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(4),
+                          ],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 16.0,
+                            color: context.colors.primary,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'OTP',
+                            hintStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD1D5DB),
+                                width: 1.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: context.colors.primary,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          onChanged: (val) {
+                            setState(() {}); // Refresh button state
+                            if (val.length == 4) {
+                              FocusScope.of(context).unfocus();
+                            }
+                          },
+                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed:
+                            _enteredOtp.length == 4 &&
+                                !_isRideActionLoading &&
+                                captainId != null
+                            ? () => _runRideAction(() async {
+                                FocusScope.of(context).unfocus();
+                                try {
+                                  await ref
+                                      .read(captainRepositoryProvider)
+                                      .verifyOtpAndStartRide(
+                                        rideId: rideId,
+                                        captainId: captainId,
+                                        enteredOtp: _enteredOtp,
+                                      );
+                                  _otpController.clear();
+                                } catch (error) {
+                                  // Preserve the OTP for transient Firebase/network
+                                  // failures; clear it only when validation failed.
+                                  if (error is StateError) {
+                                    _otpController.clear();
+                                    _otpFocusNode.requestFocus();
+                                  }
+                                  rethrow;
+                                }
+                              })
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: context.colors.rapidoYellow,
+                          foregroundColor: context.colors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text(
+                          'Verify OTP',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _isRideActionLoading || captainId == null
-                      ? null
-                      : () async {
-                          final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (dialogContext) => AlertDialog(
-                              title: const Text('Cancel Ride?'),
-                              content: const Text(
-                                'Are you sure you want to cancel this ride? This may negatively impact your rating.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(dialogContext, false),
-                                  child: const Text('No'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(dialogContext, true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: context.colors.error,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Yes, Cancel'),
-                                ),
-                              ],
+            ] else if (status == 'in_progress') ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFD),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.flag_rounded,
+                      color: context.colors.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Drop-off Location',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              color: Color(0xFF6B7280),
                             ),
-                          );
-                          if (confirmed != true) return;
-                          await _runRideAction(() => ref
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            dest,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                onPressed: _isRideActionLoading || captainId == null
+                    ? null
+                    : () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            title: const Text(
+                              'Complete this trip?',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            content: const Text(
+                              'Confirm only after reaching the destination and collecting the fare.',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            actionsPadding: const EdgeInsets.only(
+                              left: 16,
+                              right: 16,
+                              bottom: 16,
+                              top: 8,
+                            ),
+                            actions: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, false),
+                                    style: ElevatedButton.styleFrom(
+                                      minimumSize: Size.zero,
+                                      backgroundColor: const Color(
+                                        0xFFEF4444,
+                                      ), // Red color
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      elevation: 0,
+                                    ),
+                                    child: const Text(
+                                      'Not yet',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, true),
+                                    style: ElevatedButton.styleFrom(
+                                      minimumSize: Size.zero,
+                                      backgroundColor:
+                                          context.colors.rapidoYellow,
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      elevation: 0,
+                                    ),
+                                    child: const Text(
+                                      'Complete trip',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true) return;
+                        await _runRideAction(
+                          () => ref
                               .read(captainRepositoryProvider)
                               .transitionRide(
                                 rideId: rideId,
                                 captainId: captainId,
-                                fromStatus: status,
-                                toStatus: 'cancelled',
-                              ));
-                        },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.colors.error,
-                    side: BorderSide(color: context.colors.error),
-                  ),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                tooltip: 'Report ride issue',
-                onPressed: captainId == null
-                    ? null
-                    : () => _reportIssue(rideId, captainId),
-                icon: const Icon(Icons.report_problem_outlined),
-                style: IconButton.styleFrom(
+                                fromStatus: 'in_progress',
+                                toStatus: 'completed',
+                              ),
+                        );
+                      },
+                icon: const Icon(Icons.check_circle_rounded),
+                label: const Text('Complete Trip & Collect Cash'),
+                style: ElevatedButton.styleFrom(
                   backgroundColor: context.colors.rapidoYellow,
                   foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-        ],
-
-        // Action by status
-        if (status == 'accepted')
-          ElevatedButton.icon(
-            onPressed: _isRideActionLoading || captainId == null
-                ? null
-                : () => _runRideAction(() => ref
-                    .read(captainRepositoryProvider)
-                    .transitionRide(
-                      rideId: rideId,
-                      captainId: captainId,
-                      fromStatus: 'accepted',
-                      toStatus: 'arrived',
-                    )),
-            icon: const Icon(Icons.location_on_rounded),
-            label: const Text('Arrived at Pickup'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: context.colors.rapidoYellow,
-              foregroundColor: context.colors.primary,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          )
-        else if (status == 'arriving')
-          ElevatedButton.icon(
-            onPressed: _isRideActionLoading || captainId == null
-                ? null
-                : () => _runRideAction(() => ref
-                    .read(captainRepositoryProvider)
-                    .transitionRide(
-                      rideId: rideId,
-                      captainId: captainId,
-                      fromStatus: 'arriving',
-                      toStatus: 'arrived',
-                    )),
-            icon: const Icon(Icons.location_on_rounded),
-            label: const Text('I have Arrived'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: context.colors.rapidoYellow,
-              foregroundColor: context.colors.primary,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          )
-        else if (status == 'arrived') ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: context.colors.primary.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: context.colors.primary.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Enter User''s OTP',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: context.colors.primary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Ask the user for their 4-digit OTP',
-                  style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                // Single OTP input, centered and reduced in size
-                Center(
-                  child: SizedBox(
-                    width: 240,
-                    child: TextField(
-                      controller: _otpController,
-                      focusNode: _otpFocusNode,
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.done,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(4),
-                      ],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 16.0,
-                        color: context.colors.primary,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'OTP',
-                        hintStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0,
-                          color: Color(0xFF9CA3AF),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFD1D5DB),
-                            width: 1.5,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: context.colors.primary,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      onChanged: (val) {
-                        setState(() {}); // Refresh button state
-                        if (val.length == 4) {
-                          FocusScope.of(context).unfocus();
-                        }
-                      },
-                      onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _enteredOtp.length == 4 &&
-                            !_isRideActionLoading &&
-                            captainId != null
-                        ? () => _runRideAction(() async {
-                            FocusScope.of(context).unfocus();
-                            try {
-                              await ref
-                                  .read(captainRepositoryProvider)
-                                  .verifyOtpAndStartRide(
-                                    rideId: rideId,
-                                    captainId: captainId,
-                                    enteredOtp: _enteredOtp,
-                                  );
-                              _otpController.clear();
-                            } catch (error) {
-                              // Preserve the OTP for transient Firebase/network
-                              // failures; clear it only when validation failed.
-                              if (error is StateError) {
-                                _otpController.clear();
-                                _otpFocusNode.requestFocus();
-                              }
-                              rethrow;
-                            }
-                          })
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: context.colors.rapidoYellow,
-                      foregroundColor: context.colors.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text(
-                      'Verify OTP',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-] else if (status == 'in_progress') ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFD),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.flag_rounded,
-                  color: context.colors.error,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Drop-off Location',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        dest,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          ElevatedButton.icon(
-            onPressed: _isRideActionLoading || captainId == null
-                ? null
-                : () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (dialogContext) => AlertDialog(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        title: const Text(
-                          'Complete this trip?',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                        ),
-                        content: const Text(
-                          'Confirm only after reaching the destination and collecting the fare.',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        actionsPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 8),
-                        actions: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(dialogContext, false),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: Size.zero,
-                                  backgroundColor: const Color(0xFFEF4444), // Red color
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  elevation: 0,
-                                ),
-                                child: const Text(
-                                  'Not yet',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(dialogContext, true),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: Size.zero,
-                                  backgroundColor: context.colors.rapidoYellow,
-                                  foregroundColor: Colors.black,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  elevation: 0,
-                                ),
-                                child: const Text(
-                                  'Complete trip',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirmed != true) return;
-                    await _runRideAction(() => ref
-                        .read(captainRepositoryProvider)
-                        .transitionRide(
-                          rideId: rideId,
-                          captainId: captainId,
-                          fromStatus: 'in_progress',
-                          toStatus: 'completed',
-                        ));
-                  },
-            icon: const Icon(Icons.check_circle_rounded),
-            label: const Text('Complete Trip & Collect Cash'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: context.colors.rapidoYellow,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ],
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -1781,4 +1882,3 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     );
   }
 }
-

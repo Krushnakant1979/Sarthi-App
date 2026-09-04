@@ -13,14 +13,13 @@ const Users = () => {
   useEffect(() => {
     const q = query(collection(db, 'users'), where('role', '==', 'user'));
     const unsub = onSnapshot(q, (snap) => {
-      setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setUsers(snap.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(),
+        publicId: publicIdService.formatId(doc.id) 
+      })));
       
-      // Auto-backfill publicIds
-      snap.docs.forEach(docSnap => {
-        if (!docSnap.data().publicId) {
-          publicIdService.assignSequentialId(docSnap.id, 'user').catch(console.error);
-        }
-      });
+      // Removed auto-backfill of sequential IDs as we now use formatId
       
       setLoading(false);
     }, (error) => {
@@ -164,17 +163,15 @@ const Users = () => {
                         <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>{user.name || 'Unknown User'}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.125rem' }}>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                            {user.publicId || 'Generating...'}
+                            {user.publicId}
                           </div>
-                          {user.publicId && (
-                            <button 
-                              onClick={(e) => handleCopy(e, user.publicId)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: copiedId === user.publicId ? 'var(--success)' : 'var(--text-muted)', padding: 0, display: 'flex' }}
-                              title="Copy ID"
-                            >
-                              {copiedId === user.publicId ? <Check size={14} weight="bold" /> : <Copy size={14} />}
-                            </button>
-                          )}
+                          <button 
+                            onClick={(e) => handleCopy(e, user.publicId)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: copiedId === user.publicId ? 'var(--success)' : 'var(--text-muted)', padding: 0, display: 'flex' }}
+                            title="Copy ID"
+                          >
+                            {copiedId === user.publicId ? <Check size={14} weight="bold" /> : <Copy size={14} />}
+                          </button>
                         </div>
                         {user.email && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>{user.email}</div>}
                       </div>

@@ -5,23 +5,23 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
   final Color actionBlue;
   final Color liveTeal;
   final Color rapidoYellow;
-  
+
   final Color background;
   final Color surface;
   final Color surfaceAlt;
-  
+
   final Color text;
   final Color textMuted;
   final Color hint;
-  
+
   final Color divider;
   final Color cardBorder;
   final Color iconBg;
-  
+
   final Color success;
   final Color warning;
   final Color error;
-  
+
   final Color adminAccent;
   final Color adminAccentDark;
   final Color adminInfo;

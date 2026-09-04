@@ -79,6 +79,21 @@ class OlaMapsRepository {
     return null;
   }
 
+  Future<String> getCityAndState(double lat, double lng) async {
+    final address = await reverseGeocode(lat, lng);
+    if (address == null || address.isEmpty) return 'Locating...';
+    
+    final parts = address.split(',').map((e) => e.trim()).toList();
+    final textParts = parts.where((p) => p.isNotEmpty && p.toLowerCase() != 'india' && int.tryParse(p.replaceAll(' ', '')) == null).toList();
+    
+    if (textParts.length >= 2) {
+      return '${textParts[textParts.length - 2]}, ${textParts.last}';
+    } else if (textParts.isNotEmpty) {
+      return textParts.last;
+    }
+    return 'Unknown Location';
+  }
+
   /// Fetches real road-following directions using Ola Maps Directions API,
   /// falling back to OSRM road routing API if Ola API quota/network fails.
   Future<Map<String, dynamic>> getDirections(
@@ -165,7 +180,9 @@ class OlaMapsRepository {
       final osrmResponse = await _dio.get(
         osrmUrl,
         options: Options(
-          headers: {'User-Agent': 'Sarthi App/1.0 (Contact: admin@sarthiapp.com)'},
+          headers: {
+            'User-Agent': 'Sarthi App/1.0 (Contact: admin@sarthiapp.com)',
+          },
         ),
       );
 
@@ -193,7 +210,9 @@ class OlaMapsRepository {
     }
 
     // 3. Last fallback: Throw an exception to prevent drawing a straight line
-    throw Exception('Failed to retrieve road route from both Ola and OSRM APIs.');
+    throw Exception(
+      'Failed to retrieve road route from both Ola and OSRM APIs.',
+    );
   }
 
   /// Standard Google / Mapbox Polyline Algorithm Decoder

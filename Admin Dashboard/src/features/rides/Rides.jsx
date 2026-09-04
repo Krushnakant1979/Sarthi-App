@@ -3,6 +3,7 @@ import { db } from '../../config/firebase';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { MagnifyingGlass, Circle, Eye, MapTrifold, NavigationArrow, CheckCircle, XCircle } from '@phosphor-icons/react';
 import { RideDetailsModal } from './components/RideDetailsModal';
+import { publicIdService } from '../../services/publicIdService';
 
 const statusConfig = {
   completed: { class: 'badge-success', label: 'Completed' },
@@ -31,7 +32,7 @@ const Rides = () => {
       try {
         const q = query(collection(db, 'ride_requests'), orderBy('createdAt', 'desc'), limit(200));
         const snap = await getDocs(q);
-        setRides(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setRides(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), publicId: publicIdService.formatId(doc.id) })));
       } catch (error) {
         console.error(error);
       } finally {
@@ -207,11 +208,10 @@ const Rides = () => {
                     onClick={() => setSelectedRide(ride)}
                   >
                     <td style={{ paddingLeft: '1.5rem' }}>
-                      <div style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                        #{ride.id.slice(0, 8)}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {ride.id.slice(8, 16)}
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                          {ride.publicId}
+                        </span>
                       </div>
                     </td>
                     <td>

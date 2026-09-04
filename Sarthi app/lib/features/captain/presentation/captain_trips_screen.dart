@@ -229,10 +229,7 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(
-      captainTripStatsProvider((
-        start: widget.startDate,
-        end: widget.endDate,
-      )),
+      captainTripStatsProvider((start: widget.startDate, end: widget.endDate)),
     );
 
     return RefreshIndicator(
@@ -291,7 +288,9 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                   ? SizedBox(
                       height: 150,
                       child: Center(
-                        child: CircularProgressIndicator(color: context.colors.liveTeal),
+                        child: CircularProgressIndicator(
+                          color: context.colors.liveTeal,
+                        ),
                       ),
                     )
                   : const SizedBox.shrink(),
@@ -314,7 +313,6 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                 child: CircularProgressIndicator(color: context.colors.primary),
               ),
             )
-
           // 3. Global Error State
           else if (_trips.isEmpty && (_error != null || statsAsync.hasError))
             SliverFillRemaining(
@@ -324,19 +322,29 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.error_outline, color: context.colors.error, size: 48),
+                      Icon(
+                        Icons.error_outline,
+                        color: context.colors.error,
+                        size: 48,
+                      ),
                       const SizedBox(height: 16),
                       SelectableText(
-                        _error ?? (statsAsync.hasError ? statsAsync.error.toString() : null) ?? 'Failed to load trip history',
+                        _error ??
+                            (statsAsync.hasError
+                                ? statsAsync.error.toString()
+                                : null) ??
+                            'Failed to load trip history',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: context.colors.error, fontSize: 14),
+                        style: TextStyle(
+                          color: context.colors.error,
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
             )
-
           // 4. Empty State
           else if (_trips.isEmpty)
             const SliverFillRemaining(
@@ -362,7 +370,6 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                 ),
               ),
             )
-
           // 5. Trip List
           else
             SliverList(
@@ -482,7 +489,10 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
 
   Widget _buildTripCard(Map<String, dynamic> trip) {
     final pickupName = trip['pickup']?['address'] ?? 'Unknown Pickup';
-    final dropoffName = trip['destination']?['address'] ?? trip['dropoff']?['address'] ?? 'Unknown Dropoff';
+    final dropoffName =
+        trip['destination']?['address'] ??
+        trip['dropoff']?['address'] ??
+        'Unknown Dropoff';
     final fare = (trip['fareEstimate'] as num?)?.toDouble() ?? 0.0;
 
     DateTime? tripTime;
@@ -663,9 +673,14 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
     final netIncome = fare * 0.8;
     final commission = fare * 0.2;
     final pickupName = trip['pickup']?['address'] ?? 'Unknown Pickup';
-    final dropoffName = trip['destination']?['address'] ?? trip['dropoff']?['address'] ?? 'Unknown Dropoff';
+    final dropoffName =
+        trip['destination']?['address'] ??
+        trip['dropoff']?['address'] ??
+        'Unknown Dropoff';
     final distM = trip['distanceMeters'] as int?;
-    final distanceStr = distM != null ? '${(distM / 1000).toStringAsFixed(1)} km' : 'Unknown Distance';
+    final distanceStr = distM != null
+        ? '${(distM / 1000).toStringAsFixed(1)} km'
+        : 'Unknown Distance';
     final status = trip['status'] as String? ?? 'unknown';
 
     DateTime? tripTime;
@@ -674,7 +689,9 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
     } else if (trip['updatedAt'] is String) {
       tripTime = DateTime.tryParse(trip['updatedAt']);
     }
-    final timeString = tripTime != null ? DateFormat('MMM d, yyyy • h:mm a').format(tripTime) : 'Unknown Time';
+    final timeString = tripTime != null
+        ? DateFormat('MMM d, yyyy • h:mm a').format(tripTime)
+        : 'Unknown Time';
     final riderName = trip['riderName'] ?? 'Rider';
 
     showModalBottomSheet(
@@ -687,7 +704,12 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 24),
+            padding: EdgeInsets.fromLTRB(
+              24,
+              16,
+              24,
+              MediaQuery.of(context).padding.bottom + 24,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -715,9 +737,14 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: status == 'completed' ? const Color(0xFF10B981).withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
+                        color: status == 'completed'
+                            ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                            : Colors.grey.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -725,7 +752,9 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: status == 'completed' ? const Color(0xFF10B981) : Colors.grey.shade700,
+                          color: status == 'completed'
+                              ? const Color(0xFF10B981)
+                              : Colors.grey.shade700,
                         ),
                       ),
                     ),
@@ -741,7 +770,7 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                   ),
                 ),
                 const Divider(height: 32, color: Color(0xFFF3F4F6)),
-                
+
                 // Route
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -800,7 +829,7 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                   ],
                 ),
                 const Divider(height: 32, color: Color(0xFFF3F4F6)),
-                
+
                 // Earnings Breakdown
                 Text(
                   'Earnings Breakdown',
@@ -814,42 +843,101 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Customer Fare', style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
-                    Text('₹${fare.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Customer Fare',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '₹${fare.toStringAsFixed(0)}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Platform Fee (20%)', style: TextStyle(color: context.colors.error, fontWeight: FontWeight.w500)),
-                    Text('-₹${commission.toStringAsFixed(0)}', style: TextStyle(color: context.colors.error, fontWeight: FontWeight.w600)),
+                    Text(
+                      'Platform Fee (20%)',
+                      style: TextStyle(
+                        color: context.colors.error,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '-₹${commission.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        color: context.colors.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Net Income', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.colors.primary)),
-                    Text('₹${netIncome.toStringAsFixed(0)}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.colors.primary)),
+                    Text(
+                      'Net Income',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: context.colors.primary,
+                      ),
+                    ),
+                    Text(
+                      '₹${netIncome.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: context.colors.primary,
+                      ),
+                    ),
                   ],
                 ),
                 const Divider(height: 32, color: Color(0xFFF3F4F6)),
-                
+
                 // Additional Info
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Distance', style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
-                    Text(distanceStr, style: TextStyle(fontWeight: FontWeight.w700, color: context.colors.primary)),
+                    const Text(
+                      'Distance',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      distanceStr,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: context.colors.primary,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Rider', style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
-                    Text(riderName, style: TextStyle(fontWeight: FontWeight.w700, color: context.colors.primary)),
+                    const Text(
+                      'Rider',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      riderName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: context.colors.primary,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -865,7 +953,13 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text('Close', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
               ],

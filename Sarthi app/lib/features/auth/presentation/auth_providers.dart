@@ -44,7 +44,9 @@ final currentUserProvider = FutureProvider<AppUser?>((ref) async {
   return null;
 });
 
-final mySupportTicketsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+final mySupportTicketsProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
   final user = ref.watch(authStateProvider).value;
   if (user == null) return const Stream.empty();
   return ref.watch(userRepositoryProvider).streamMyTickets(user.uid);

@@ -14,7 +14,8 @@ class CaptainDocumentUploadScreen extends ConsumerStatefulWidget {
       _CaptainDocumentUploadScreenState();
 }
 
-class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUploadScreen> {
+class _CaptainDocumentUploadScreenState
+    extends ConsumerState<CaptainDocumentUploadScreen> {
   bool _isLoading = false;
   String? _uploadError;
 
@@ -75,7 +76,11 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
 
       // Upload to Storage
       final userRepo = ref.read(userRepositoryProvider);
-      final downloadUrl = await userRepo.uploadDocument(user.uid, docType, tempFile);
+      final downloadUrl = await userRepo.uploadDocument(
+        user.uid,
+        docType,
+        tempFile,
+      );
 
       setState(() {
         if (docType == 'aadhaar') {
@@ -128,19 +133,36 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
           barrierDismissible: false,
           builder: (context) => AlertDialog(
             backgroundColor: context.colors.background,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Text('Registration Successful', style: TextStyle(fontWeight: FontWeight.w800, color: context.colors.primary)),
-            content: Text('Your registration is complete.\n\nThe Admin will review and accept your verification request soon. Once approved, you can log into your account.', style: TextStyle(color: context.colors.primary, height: 1.5)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              'Registration Successful',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: context.colors.primary,
+              ),
+            ),
+            content: Text(
+              'Your registration is complete.\n\nThe Admin will review and accept your verification request soon. Once approved, you can log into your account.',
+              style: TextStyle(color: context.colors.primary, height: 1.5),
+            ),
             actions: [
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: context.colors.rapidoYellow, foregroundColor: Colors.black),
+                style: FilledButton.styleFrom(
+                  backgroundColor: context.colors.rapidoYellow,
+                  foregroundColor: Colors.black,
+                ),
                 onPressed: () => Navigator.pop(context),
-                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text(
+                  'OK',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
         );
-        
+
         if (mounted) {
           await ref.read(authRepositoryProvider).signOut();
         }
@@ -162,7 +184,12 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
     }
   }
 
-  Widget _buildDocumentCard(String title, String subtitle, String docType, String? currentUrl) {
+  Widget _buildDocumentCard(
+    String title,
+    String subtitle,
+    String docType,
+    String? currentUrl,
+  ) {
     final isUploaded = currentUrl != null;
 
     return GestureDetector(
@@ -173,7 +200,9 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isUploaded ? const Color(0xFF16A34A) : const Color(0xFFE5E7EB),
+            color: isUploaded
+                ? const Color(0xFF16A34A)
+                : const Color(0xFFE5E7EB),
             width: isUploaded ? 2 : 1,
           ),
           boxShadow: const [
@@ -189,12 +218,18 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isUploaded ? const Color(0xFF16A34A).withValues(alpha: 0.1) : const Color(0xFFF3F4F6),
+                color: isUploaded
+                    ? const Color(0xFF16A34A).withValues(alpha: 0.1)
+                    : const Color(0xFFF3F4F6),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                isUploaded ? Icons.check_circle_rounded : Icons.upload_file_rounded,
-                color: isUploaded ? const Color(0xFF16A34A) : const Color(0xFF6B7280),
+                isUploaded
+                    ? Icons.check_circle_rounded
+                    : Icons.upload_file_rounded,
+                color: isUploaded
+                    ? const Color(0xFF16A34A)
+                    : const Color(0xFF6B7280),
                 size: 28,
               ),
             ),
@@ -215,7 +250,9 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
                   Text(
                     isUploaded ? 'Document Uploaded' : subtitle,
                     style: TextStyle(
-                      color: isUploaded ? const Color(0xFF16A34A) : const Color(0xFF6B7280),
+                      color: isUploaded
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF6B7280),
                       fontSize: 13,
                     ),
                   ),
@@ -223,15 +260,9 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
               ),
             ),
             if (isUploaded)
-              const Icon(
-                Icons.check_rounded,
-                color: Color(0xFF16A34A),
-              )
+              const Icon(Icons.check_rounded, color: Color(0xFF16A34A))
             else
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF9CA3AF),
-              ),
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFF9CA3AF)),
           ],
         ),
       ),
@@ -247,16 +278,16 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
       appBar: AppBar(
         title: const Text(
           'Document Verification',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: context.colors.primary,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+          ),
           onPressed: () {
             ref.read(authRepositoryProvider).signOut();
           },
@@ -300,7 +331,7 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
                       ),
                     ),
                     const SizedBox(height: 32),
-                    
+
                     _buildDocumentCard(
                       'Aadhaar Card',
                       'Tap to upload front side',
@@ -329,11 +360,15 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
                         ),
                         filled: true,
                         fillColor: Colors.white,
@@ -341,16 +376,24 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
                       items: const [
                         DropdownMenuItem(value: 'bike', child: Text('Bike')),
                         DropdownMenuItem(value: 'cab', child: Text('Cab')),
-                        DropdownMenuItem(value: 'auto', child: Text('Auto Rickshaw')),
-                        DropdownMenuItem(value: 'parcel', child: Text('Parcel Delivery')),
+                        DropdownMenuItem(
+                          value: 'auto',
+                          child: Text('Auto Rickshaw'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'parcel',
+                          child: Text('Parcel Delivery'),
+                        ),
                       ],
-                      onChanged: _isLoading ? null : (value) {
-                        if (value != null) {
-                          setState(() => _vehicleType = value);
-                        }
-                      },
+                      onChanged: _isLoading
+                          ? null
+                          : (value) {
+                              if (value != null) {
+                                setState(() => _vehicleType = value);
+                              }
+                            },
                     ),
-                    
+
                     if (_uploadError != null) ...[
                       const SizedBox(height: 24),
                       Container(
@@ -358,11 +401,16 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
                         decoration: BoxDecoration(
                           color: context.colors.error.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: context.colors.error.withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: context.colors.error.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Text(
                           _uploadError!,
-                          style: TextStyle(color: context.colors.error, fontSize: 13),
+                          style: TextStyle(
+                            color: context.colors.error,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ],
@@ -376,10 +424,14 @@ class _CaptainDocumentUploadScreenState extends ConsumerState<CaptainDocumentUpl
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: canComplete && !_isLoading ? _completeRegistration : null,
+                  onPressed: canComplete && !_isLoading
+                      ? _completeRegistration
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: context.colors.primary,
-                    disabledBackgroundColor: context.colors.primary.withValues(alpha: 0.5),
+                    disabledBackgroundColor: context.colors.primary.withValues(
+                      alpha: 0.5,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),

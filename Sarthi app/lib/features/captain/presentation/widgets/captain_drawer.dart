@@ -9,10 +9,7 @@ import '../captain_providers.dart';
 class CaptainDrawer extends ConsumerWidget {
   final void Function(String) onCallNumber;
 
-  const CaptainDrawer({
-    super.key,
-    required this.onCallNumber,
-  });
+  const CaptainDrawer({super.key, required this.onCallNumber});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -22,18 +22,20 @@ final searchResultsProvider = FutureProvider<List<Map<String, dynamic>>>((
   return repo.autocomplete(query);
 });
 
-final recentCompletedDropsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final user = ref.watch(currentUserProvider).value;
-  if (user == null) return [];
+final recentCompletedDropsProvider = FutureProvider<List<Map<String, dynamic>>>(
+  (ref) async {
+    final user = ref.watch(currentUserProvider).value;
+    if (user == null) return [];
 
-  try {
-    final recentSearches = user.recentSearches;
-    if (recentSearches != null && recentSearches.isNotEmpty) {
-      return List<Map<String, dynamic>>.from(recentSearches);
+    try {
+      final recentSearches = user.recentSearches;
+      if (recentSearches != null && recentSearches.isNotEmpty) {
+        return List<Map<String, dynamic>>.from(recentSearches);
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Failed to fetch recent drops: $e');
+      return [];
     }
-    return [];
-  } catch (e) {
-    debugPrint('Failed to fetch recent drops: $e');
-    return [];
-  }
-});
+  },
+);

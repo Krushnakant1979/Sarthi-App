@@ -13,7 +13,11 @@ class RatingScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black,
+            size: 20,
+          ),
           onPressed: () => context.pop(),
         ),
       ),
@@ -27,10 +31,7 @@ class RatingScreen extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.blue.shade50,
-                  Colors.white,
-                ],
+                colors: [Colors.blue.shade50, Colors.white],
               ),
             ),
             child: Center(
@@ -42,7 +43,7 @@ class RatingScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          
+
           // Section 1
           const Text(
             'How We Calculate Your Rating',
@@ -55,11 +56,7 @@ class RatingScreen extends StatelessWidget {
           const SizedBox(height: 12),
           const Text(
             'Your Sarthi App rating is an average based on your past trips, measured out of 5 stars. All ratings are completely anonymous—neither you nor your Captain will ever see the individual rating left for a specific ride.',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.black87,
-              height: 1.5,
-            ),
+            style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.5),
           ),
           const SizedBox(height: 32),
 
@@ -75,11 +72,7 @@ class RatingScreen extends StatelessWidget {
           const SizedBox(height: 12),
           const Text(
             "At Sarthi App, mutual respect is key. Both riders and Captains rate each other from 1 to 5 stars. Here's how you can ensure a great experience for everyone on the road:",
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.black87,
-              height: 1.5,
-            ),
+            style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.5),
           ),
           const SizedBox(height: 32),
 
@@ -89,16 +82,18 @@ class RatingScreen extends StatelessWidget {
             iconBgColor: Colors.blue.shade100,
             iconColor: Colors.blue.shade800,
             title: 'Respect Your Captain',
-            description: "Understanding the effort that goes into every ride helps build a stronger community. Treating your Captain's time and vehicle with respect ensures a premium experience.",
+            description:
+                "Understanding the effort that goes into every ride helps build a stronger community. Treating your Captain's time and vehicle with respect ensures a premium experience.",
           ),
           const SizedBox(height: 24),
-          
+
           _buildRatingItem(
             icon: Icons.watch_later_outlined,
             iconBgColor: Colors.teal.shade100,
             iconColor: Colors.teal.shade800,
             title: 'Punctuality Matters',
-            description: "Double-check your pickup location before booking and be ready when your Captain arrives. Being on time helps everyone reach their destination smoothly.",
+            description:
+                "Double-check your pickup location before booking and be ready when your Captain arrives. Being on time helps everyone reach their destination smoothly.",
           ),
           const SizedBox(height: 24),
 
@@ -107,7 +102,8 @@ class RatingScreen extends StatelessWidget {
             iconBgColor: Colors.purple.shade100,
             iconColor: Colors.purple.shade800,
             title: 'Safety First',
-            description: "Always prioritize safety. Both you and your Captain share the responsibility of following traffic laws to ensure a secure and comfortable journey.",
+            description:
+                "Always prioritize safety. Both you and your Captain share the responsibility of following traffic laws to ensure a secure and comfortable journey.",
           ),
           const SizedBox(height: 24),
 
@@ -116,7 +112,8 @@ class RatingScreen extends StatelessWidget {
             iconBgColor: Colors.green.shade100,
             iconColor: Colors.green.shade800,
             title: 'Common Courtesy',
-            description: "A simple 'Hello' or 'Thank you' can brighten someone's day. Treat your Captain with the same politeness you expect in return.",
+            description:
+                "A simple 'Hello' or 'Thank you' can brighten someone's day. Treat your Captain with the same politeness you expect in return.",
           ),
           const SizedBox(height: 40),
         ],

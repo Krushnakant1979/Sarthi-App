@@ -23,7 +23,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black,
+            size: 20,
+          ),
           onPressed: () => context.pop(),
         ),
         // Only show Clear All when there are notifications
@@ -65,28 +69,47 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 ? _buildEmptyState()
                 : ListView.separated(
                     itemCount: notifications.length,
-                    separatorBuilder: (_, _) => Divider(height: 1, color: context.colors.divider, indent: 72),
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      color: context.colors.divider,
+                      indent: 72,
+                    ),
                     itemBuilder: (context, index) {
                       return Container(
                         color: Colors.white,
                         child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 8,
+                          ),
                           leading: Container(
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: context.colors.primary.withValues(alpha: 0.08),
+                              color: context.colors.primary.withValues(
+                                alpha: 0.08,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Icon(Icons.campaign_rounded, color: context.colors.primary, size: 22),
+                            child: Icon(
+                              Icons.campaign_rounded,
+                              color: context.colors.primary,
+                              size: 22,
+                            ),
                           ),
                           title: Text(
                             notifications[index],
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
                           ),
                           subtitle: Text(
                             'Admin Update',
-                            style: TextStyle(color: context.colors.hint, fontSize: 12),
+                            style: TextStyle(
+                              color: context.colors.hint,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       );
@@ -129,10 +152,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           const SizedBox(height: 8),
           Text(
             'Offers and updates will appear here.',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
           ),
           const SizedBox(height: 80),
         ],

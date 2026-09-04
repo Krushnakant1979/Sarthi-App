@@ -20,7 +20,8 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
 
   Future<void> _pickAndUploadImage(WidgetRef ref, String uid) async {
     setState(() {
-      _isLoading = true;      });
+      _isLoading = true;
+    });
 
     try {
       final picker = ImagePicker();
@@ -52,9 +53,7 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
       final downloadUrl = await userRepo.uploadProfilePicture(uid, tempFile);
 
       // Update Firestore profile
-      await userRepo.updateUser(uid, {
-        'profilePictureUrl': downloadUrl,
-      });
+      await userRepo.updateUser(uid, {'profilePictureUrl': downloadUrl});
 
       // Invalidate provider to fetch updated user
       ref.invalidate(currentUserProvider);
@@ -68,7 +67,6 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
         );
       }
     } catch (e) {
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -159,7 +157,10 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
               decoration: InputDecoration(
                 labelText: 'Current Password',
                 focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: context.colors.primary, width: 2),
+                  borderSide: BorderSide(
+                    color: context.colors.primary,
+                    width: 2,
+                  ),
                 ),
               ),
             ),
@@ -170,7 +171,10 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
               decoration: InputDecoration(
                 labelText: 'New $title',
                 focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: context.colors.primary, width: 2),
+                  borderSide: BorderSide(
+                    color: context.colors.primary,
+                    width: 2,
+                  ),
                 ),
               ),
             ),
@@ -415,7 +419,9 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: user.verificationStatus == 'verified'
-                                    ? const Color(0xFF16A34A).withValues(alpha: 0.1)
+                                    ? const Color(
+                                        0xFF16A34A,
+                                      ).withValues(alpha: 0.1)
                                     : const Color(
                                         0xFFF59E0B,
                                       ).withValues(alpha: 0.1),
@@ -446,7 +452,8 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
                                   Text(
                                     user.verificationStatus.toUpperCase(),
                                     style: TextStyle(
-                                      color: user.verificationStatus == 'verified'
+                                      color:
+                                          user.verificationStatus == 'verified'
                                           ? const Color(0xFF16A34A)
                                           : const Color(0xFFF59E0B),
                                       fontWeight: FontWeight.w700,
@@ -463,10 +470,14 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
                                 vertical: 8,
                               ),
                               decoration: BoxDecoration(
-                                color: context.colors.rapidoYellow.withValues(alpha: 0.2),
+                                color: context.colors.rapidoYellow.withValues(
+                                  alpha: 0.2,
+                                ),
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: context.colors.rapidoYellow.withValues(alpha: 0.5),
+                                  color: context.colors.rapidoYellow.withValues(
+                                    alpha: 0.5,
+                                  ),
                                 ),
                               ),
                               child: Row(
@@ -479,9 +490,10 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    user.ratingCount > 0 
-                                      ? (user.ratingScore / user.ratingCount).toStringAsFixed(1)
-                                      : 'New',
+                                    user.ratingCount > 0
+                                        ? (user.ratingScore / user.ratingCount)
+                                              .toStringAsFixed(1)
+                                        : 'New',
                                     style: TextStyle(
                                       color: context.colors.primary,
                                       fontWeight: FontWeight.w800,
@@ -674,7 +686,9 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
                   );
                 },
                 loading: () => Center(
-                  child: CircularProgressIndicator(color: context.colors.liveTeal),
+                  child: CircularProgressIndicator(
+                    color: context.colors.liveTeal,
+                  ),
                 ),
                 error: (e, s) => Center(
                   child: Text(

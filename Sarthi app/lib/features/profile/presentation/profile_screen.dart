@@ -54,19 +54,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final result = await context.push('/search');
     if (result != null && result is Map<String, dynamic>) {
       try {
-        await ref.read(userRepositoryProvider).updateUser(uid, {
-          type: result,
-        });
+        await ref.read(userRepositoryProvider).updateUser(uid, {type: result});
         ref.invalidate(currentUserProvider);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Address updated successfully!'), backgroundColor: Color(0xFF16A34A)),
+            const SnackBar(
+              content: Text('Address updated successfully!'),
+              backgroundColor: Color(0xFF16A34A),
+            ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update address: $e'), backgroundColor: context.colors.error),
+            SnackBar(
+              content: Text('Failed to update address: $e'),
+              backgroundColor: context.colors.error,
+            ),
           );
         }
       }
@@ -201,7 +205,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 return const Center(child: Text('Could not load profile.'));
               }
               return Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -218,16 +222,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               controller: _nameController,
                               autofocus: true,
                               textCapitalization: TextCapitalization.words,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: const Color(0xFFF3F4F6),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: const Color(0xFFF3F4F6),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
                                 ),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
@@ -275,7 +282,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   borderSide: BorderSide.none,
                                 ),
                                 isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                               ),
                               style: const TextStyle(
                                 fontSize: 15,
@@ -419,10 +429,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required Widget child,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: const [
           BoxShadow(
             color: Color(0x14000000),
@@ -434,13 +444,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: context.colors.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: context.colors.primary, size: 20),
+            child: Icon(icon, color: context.colors.primary, size: 16),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -450,7 +460,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     color: Color(0xFF9CA3AF),
                     fontWeight: FontWeight.w500,
                   ),
@@ -471,17 +481,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     bool isError = false,
     required VoidCallback onTap,
   }) {
-    final bgColor = isError ? context.colors.error.withValues(alpha: 0.1) : const Color(0xFFF3F4F6);
+    final bgColor = isError
+        ? context.colors.error.withValues(alpha: 0.1)
+        : const Color(0xFFF3F4F6);
     final iconColor = isError ? context.colors.error : context.colors.primary;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: const [
             BoxShadow(
               color: Color(0x14000000),
@@ -493,13 +505,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: bgColor,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: iconColor, size: 20),
+              child: Icon(icon, color: iconColor, size: 16),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -507,14 +519,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 label,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 14,
+                  fontSize: 13,
                 ),
               ),
             ),
             Icon(
               Icons.chevron_right_rounded,
               color: Colors.grey[400],
-              size: 20,
+              size: 18,
             ),
           ],
         ),

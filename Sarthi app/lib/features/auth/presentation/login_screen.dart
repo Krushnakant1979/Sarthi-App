@@ -33,7 +33,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    );
     _fadeController.forward();
   }
 
@@ -176,7 +179,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     const SizedBox(height: 4),
                     Text(
                       'Sign in to continue your journey',
-                      style: TextStyle(fontSize: 14, color: context.colors.hint),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: context.colors.hint,
+                      ),
                     ),
                     const SizedBox(height: 28),
 
@@ -315,7 +321,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       children: [
                         Text(
                           "Don't have an account?",
-                          style: TextStyle(color: context.colors.hint, fontSize: 14),
+                          style: TextStyle(
+                            color: context.colors.hint,
+                            fontSize: 14,
+                          ),
                         ),
                         TextButton(
                           onPressed: () => context.push('/signup'),

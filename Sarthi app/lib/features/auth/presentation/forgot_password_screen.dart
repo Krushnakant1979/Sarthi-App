@@ -99,7 +99,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                           Text(
                             'We\'ll send a reset link to your email',
                             style: TextStyle(
-                              color: context.colors.primary.withValues(alpha: 0.75),
+                              color: context.colors.primary.withValues(
+                                alpha: 0.75,
+                              ),
                               fontSize: 13,
                             ),
                           ),
@@ -170,7 +172,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             decoration: BoxDecoration(
               color: context.colors.error.withValues(alpha: 0.08),
               borderRadius: BorderRadius.zero,
-              border: Border.all(color: context.colors.error.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: context.colors.error.withValues(alpha: 0.3),
+              ),
             ),
             child: Row(
               children: [
@@ -183,10 +187,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 Expanded(
                   child: Text(
                     _errorMessage!,
-                    style: TextStyle(
-                      color: context.colors.error,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: context.colors.error, fontSize: 13),
                   ),
                 ),
               ],
