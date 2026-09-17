@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../auth/presentation/auth_providers.dart';
-import '../../../auth/domain/app_user.dart';
+import '../../../shared/auth/presentation/auth_providers.dart';
+import '../../../shared/auth/domain/app_user.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ─── Brand Colors ──────────────────────────────────────────────────────────────

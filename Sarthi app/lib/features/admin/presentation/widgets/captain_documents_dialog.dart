@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../auth/domain/app_user.dart';
+import '../../../shared/auth/domain/app_user.dart';
 import '../admin_design.dart';
 import 'admin_badges.dart';
 import 'package:google_fonts/google_fonts.dart';

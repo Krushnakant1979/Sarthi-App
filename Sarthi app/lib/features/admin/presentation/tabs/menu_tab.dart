@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../auth/presentation/auth_providers.dart';
+import '../../../shared/auth/presentation/auth_providers.dart';
 import '../screens/support_screen.dart';
 import '../screens/analytics_screen.dart';
 import '../screens/settings_screen.dart';

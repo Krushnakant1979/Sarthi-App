@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../auth/presentation/auth_providers.dart';
+import '../../shared/auth/presentation/auth_providers.dart';
 import 'admin_providers.dart';
 import 'admin_design.dart';
 import 'tabs/overview_tab.dart';

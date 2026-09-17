@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/ola_maps_repository.dart';
-import '../../auth/presentation/auth_providers.dart';
+import '../../../shared/auth/presentation/auth_providers.dart';
 
 final olaMapsRepositoryProvider = Provider<OlaMapsRepository>((ref) {
   return OlaMapsRepository();

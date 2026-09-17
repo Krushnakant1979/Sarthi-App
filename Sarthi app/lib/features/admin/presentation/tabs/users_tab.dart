@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../../auth/domain/app_user.dart';
+import '../../../shared/auth/domain/app_user.dart';
 import '../admin_providers.dart';
 import '../admin_design.dart';
 import '../admin_dashboard_screen.dart';

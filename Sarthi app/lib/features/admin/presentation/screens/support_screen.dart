@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import '../../../auth/domain/app_user.dart';
+import '../../../shared/auth/domain/app_user.dart';
 import '../admin_design.dart';
 import '../admin_providers.dart';
 import 'package:google_fonts/google_fonts.dart';

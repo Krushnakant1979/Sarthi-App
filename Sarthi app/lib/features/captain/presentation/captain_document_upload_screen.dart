@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../../core/design/tokens.dart';
-import '../../auth/presentation/auth_providers.dart';
+import '../../shared/auth/presentation/auth_providers.dart';
 
 class CaptainDocumentUploadScreen extends ConsumerStatefulWidget {
   const CaptainDocumentUploadScreen({super.key});

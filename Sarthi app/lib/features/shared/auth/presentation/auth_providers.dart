@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../data/auth_repository.dart';
 import '../data/user_repository.dart';
 import '../domain/app_user.dart';
-import '../../../app/app_config.dart';
+import '../../../../app/app_config.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository();

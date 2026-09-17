@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'auth_providers.dart';
 import '../domain/app_user.dart';
-import '../../../app/app_config.dart';
-import '../../../core/design/tokens.dart';
+import '../../../../app/app_config.dart';
+import '../../../../core/design/tokens.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -125,7 +125,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
             children: [
               // ── Header Banner ──────────────────────────────────────────
               Container(
-                height: 200,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: context.colors.rapidoYellow,
@@ -135,7 +134,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
                   ),
                 ),
                 child: SafeArea(
-                  child: Row(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: Row(
                     children: [
                       IconButton(
                         icon: Icon(
@@ -189,6 +191,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
                   ),
                 ),
               ),
+            ),
 
               // ── Form ─────────────────────────────────────────────────
               Padding(

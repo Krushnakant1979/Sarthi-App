@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../admin_providers.dart';
 import '../admin_design.dart';
-import '../../../auth/domain/app_user.dart';
+import '../../../shared/auth/domain/app_user.dart';
 import '../admin_dashboard_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 

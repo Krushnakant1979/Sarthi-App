@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'app/router.dart';
 import 'app/app_config.dart';
 import 'core/design/theme.dart';
+import 'core/utils/location_service.dart';
 
 void main() {
   // Default entry point, useful when running from an IDE without specific flavor configuration.
@@ -15,6 +17,10 @@ Future<void> runSarthiApp(AppType appType) async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await Firebase.initializeApp();
+
+  // Pre-warm the GPS chip so the first fix in map/search arrives instantly.
+  // Fire-and-forget: we don't block app startup on this.
+  unawaited(LocationService.warmUp());
 
   runApp(
     ProviderScope(

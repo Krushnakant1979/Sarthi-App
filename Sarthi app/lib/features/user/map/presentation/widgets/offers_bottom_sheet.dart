@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../../core/design/tokens.dart';
+import '../../../../../core/design/tokens.dart';
 import '../../../rides/data/ride_repository.dart';
 
 class OffersBottomSheet extends StatefulWidget {

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import '../../../core/design/tokens.dart';
-import '../../auth/presentation/auth_providers.dart';
+import '../../../../core/design/tokens.dart';
+import '../../../shared/auth/presentation/auth_providers.dart';
 
 class SupportTicketsScreen extends ConsumerStatefulWidget {
   const SupportTicketsScreen({super.key});

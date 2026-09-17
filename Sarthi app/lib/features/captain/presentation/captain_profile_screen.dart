@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../../core/design/tokens.dart';
-import '../../auth/presentation/auth_providers.dart';
+import '../../shared/auth/presentation/auth_providers.dart';
 
 class CaptainProfileScreen extends ConsumerStatefulWidget {
   const CaptainProfileScreen({super.key});

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/design/tokens.dart';
-import '../../auth/presentation/auth_providers.dart';
+import '../../../../core/design/tokens.dart';
+import '../../../shared/auth/presentation/auth_providers.dart';
 
 class ProfileTab extends ConsumerWidget {
   final void Function(int) onNavTapped;

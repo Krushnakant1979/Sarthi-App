@@ -9,7 +9,7 @@ import 'captain_providers.dart';
 import '../../../ola_maps_bridge/ola_maps_view.dart';
 import '../../../core/utils/location_service.dart';
 import '../../../core/design/tokens.dart';
-import '../../map/data/ola_maps_repository.dart';
+import '../../user/map/data/ola_maps_repository.dart';
 
 import 'widgets/captain_drawer.dart';
 
@@ -73,6 +73,20 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     final granted = await _locationService.requestPermission();
     if (!granted) return;
 
+    // ── Fast path: snap camera to last-known instantly (no satellite fix) ──
+    final lastKnown = await _locationService.getLastKnownPosition();
+    if (lastKnown != null) {
+      _lastValidPosition = lastKnown;
+      _mapController?.moveCamera(lastKnown.latitude, lastKnown.longitude,
+          zoom: 16.0);
+      _mapController?.updateUserLocation(
+        lastKnown.latitude,
+        lastKnown.longitude,
+        heading: lastKnown.heading,
+      );
+    }
+
+    // ── Accurate fix: refine position (6s timeout, cached internally) ──
     final pos = await _locationService.getCurrentPosition();
     if (pos != null) {
       _lastValidPosition = pos;
@@ -188,7 +202,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         if (mounted) setState(() => _isOnline = true); // Revert on failure
       }
       if (!mounted) return;
-      _mapController?.clearRoute();
+      _clearNavigationTarget();
     }
   }
 
@@ -251,6 +265,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     if (lat == null || lng == null || position == null || !mounted) return;
 
     try {
+      if (_updateRouteSeq != currentSeq || _navigationTarget == null) return;
+
       // ALWAYS add the target marker immediately so it's visible even if routing fails
       await _mapController!.addMarker(
         lat,
@@ -265,13 +281,15 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         lat,
         lng,
       );
-      if (!mounted || _updateRouteSeq != currentSeq) return;
+      if (!mounted || _updateRouteSeq != currentSeq || _navigationTarget == null) return;
       final points = (route['points'] as List?)
           ?.map((point) => Map<String, dynamic>.from(point as Map))
           .toList();
       if (points == null || points.length < 2) return;
 
       await _mapController!.clearRoute();
+      if (!mounted || _updateRouteSeq != currentSeq || _navigationTarget == null) return;
+
       // Re-add marker after clearRoute
       await _mapController!.addMarker(
         lat,
@@ -286,7 +304,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       );
       // Fallback redraw after 500ms to ensure it wasn't swallowed by a style reload
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && _updateRouteSeq == currentSeq) {
+        if (mounted && _updateRouteSeq == currentSeq && _navigationTarget != null) {
           _mapController?.drawPolyline(
             polyline: route['polyline'] as String?,
             points: points,
@@ -304,14 +322,14 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       }
       _lastRouteOrigin = position;
       _lastRouteAt = DateTime.now();
-      if (mounted) {
+      if (mounted && _updateRouteSeq == currentSeq && _navigationTarget != null) {
         setState(() {
           _navigationDistanceMeters = route['distance_meters'] as int?;
           _navigationDurationSeconds = route['duration_seconds'] as int?;
         });
       }
     } catch (e) {
-      if (mounted && showError) {
+      if (mounted && showError && _updateRouteSeq == currentSeq && _navigationTarget != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not load navigation route: $e')),
         );
@@ -497,6 +515,20 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     }
   }
 
+  void _clearNavigationTarget() {
+    _navigationTarget = null;
+    _lastRouteOrigin = null;
+    _lastRouteAt = null;
+    _updateRouteSeq++;
+    _mapController?.clearRoute();
+    if (mounted) {
+      setState(() {
+        _navigationDistanceMeters = null;
+        _navigationDurationSeconds = null;
+      });
+    }
+  }
+
   String get _enteredOtp => _otpController.text;
 
   @override
@@ -510,7 +542,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       if (ride != null) {
         _renderActiveRide(ride);
       } else if (previous?.value != null) {
-        _mapController?.clearRoute();
+        _clearNavigationTarget();
       }
     });
 
@@ -527,6 +559,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
             isPickup: true,
           );
         }
+      } else if (activeRideAsync.value == null) {
+        // Clear route if no incoming requests and no active ride
+        _clearNavigationTarget();
       }
     });
 
@@ -605,90 +640,156 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(
                 children: [
-                  // Menu button
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 8,
-                          offset: Offset(0, 3),
+                  // Menu button — navy gradient circle
+                  GestureDetector(
+                    onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                      ],
-                    ),
-                    child: IconButton(
-                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                      icon: Icon(
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0B2144).withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
                         Icons.menu_rounded,
-                        color: context.colors.primary,
+                        color: Colors.white,
                         size: 22,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  // Title card
+                  const SizedBox(width: 10),
+                  // Title card — matching user app pill style
                   Expanded(
                     child: Container(
                       height: 46,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: const [
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
                           BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 8,
-                            offset: Offset(0, 3),
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.local_taxi_rounded,
-                            color: context.colors.primary,
-                            size: 20,
+                          // Sarthi logo box
+                          Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF0B2144).withValues(alpha: 0.25),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.electric_rickshaw_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
                           ),
                           const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Captain Dashboard',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          ShaderMask(
+                            shaderCallback: (bounds) => const LinearGradient(
+                              colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
+                            ).createShader(bounds),
+                            child: const Text(
+                              'Captain',
                               style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                                color: context.colors.primary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
                               ),
                             ),
                           ),
+                          const Spacer(),
+                          // Online/Offline status badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: activeRideAsync.value != null
+                                  ? const Color(0xFF2563EB).withValues(alpha: 0.1)
+                                  : _isOnline
+                                  ? context.colors.liveTeal.withValues(alpha: 0.1)
+                                  : const Color(0xFF9CA3AF).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: activeRideAsync.value != null
+                                    ? const Color(0xFF2563EB).withValues(alpha: 0.3)
+                                    : _isOnline
+                                    ? context.colors.liveTeal.withValues(alpha: 0.3)
+                                    : const Color(0xFF9CA3AF).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: activeRideAsync.value != null
+                                        ? const Color(0xFF2563EB)
+                                        : _isOnline
+                                        ? context.colors.liveTeal
+                                        : const Color(0xFF9CA3AF),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  activeRideAsync.value != null
+                                      ? 'On Trip'
+                                      : _isOnline
+                                      ? 'Online'
+                                      : 'Offline',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: activeRideAsync.value != null
+                                        ? const Color(0xFF2563EB)
+                                        : _isOnline
+                                        ? context.colors.liveTeal
+                                        : const Color(0xFF9CA3AF),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 4),
                           // Online toggle
                           Transform.scale(
-                            scale: 0.8,
+                            scale: 0.75,
                             child: Switch(
                               value: _isOnline,
                               activeThumbColor: context.colors.liveTeal,
                               onChanged: activeRideAsync.value != null
                                   ? null
                                   : _toggleOnline,
-                            ),
-                          ),
-                          Text(
-                            activeRideAsync.value != null
-                                ? 'On trip'
-                                : _isOnline
-                                ? 'Online'
-                                : 'Offline',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _isOnline
-                                  ? context.colors.liveTeal
-                                  : const Color(0xFF9CA3AF),
                             ),
                           ),
                         ],
@@ -716,12 +817,12 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               height: 46,
               decoration: BoxDecoration(
                 color: context.colors.rapidoYellow,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
                   BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 3),
+                    color: const Color(0xFFD8AD00).withValues(alpha: 0.45),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
@@ -753,16 +854,16 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
             maxChildSize: 0.95,
             builder: (context, scrollController) {
               return Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(30),
                   ),
-                  boxShadow: const [
+                  boxShadow: [
                     BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 20,
-                      offset: Offset(0, -4),
+                      color: Color(0x260B2545),
+                      blurRadius: 28,
+                      offset: Offset(0, -8),
                     ),
                   ],
                 ),
@@ -776,13 +877,13 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                         activeRide,
                       );
                     } else if (!_isOnline) {
-                      sheetContent = _buildOfflineSheet();
+                      sheetContent = _buildOfflineSheet(context);
                     } else {
                       sheetContent = incomingRequestsAsync.when(
                         data: (requests) {
                           final nearbyRequests = _nearbyRequests(requests);
                           if (nearbyRequests.isEmpty) {
-                            return _buildSearchingSheet();
+                            return _buildSearchingSheet(context);
                           }
                           return _buildIncomingRequestSheet(
                             context,
@@ -827,7 +928,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               final screenHeight = MediaQuery.of(
                                 context,
                               ).size.height;
-                              // Calculate exact fraction
+                              // Calculate exact fraction matching content height
                               final target = (size.height / screenHeight).clamp(
                                 0.25,
                                 0.95,
@@ -876,123 +977,216 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
   // ── Drag handle ─────────────────────────────────────────────
   Widget _dragHandle() => Center(
     child: Container(
-      width: 44,
+      width: 48,
       height: 4,
-      margin: const EdgeInsets.only(top: 12, bottom: 20),
+      margin: const EdgeInsets.only(top: 14, bottom: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFFDDE3EA),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFCBD5E1), Color(0xFFE2E8F0)],
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
     ),
   );
 
   // ── Offline sheet ────────────────────────────────────────────
-  Widget _buildOfflineSheet() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+  Widget _buildOfflineSheet(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           _dragHandle(),
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF9CA3AF).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF9CA3AF).withValues(alpha: 0.3),
-                ),
+          // Hero dark card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.wifi_off_rounded,
-                    size: 16,
-                    color: Color(0xFF9CA3AF),
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'You are offline',
-                    style: TextStyle(
-                      color: Color(0xFF9CA3AF),
-                      fontWeight: FontWeight.w600,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0B2144).withValues(alpha: 0.3),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 1.5,
                     ),
                   ),
-                ],
-              ),
+                  child: const Icon(
+                    Icons.electric_rickshaw_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'You are Offline',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Go online to start receiving\nride requests near you',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
-          Text(
-            'Go online to start\nreceiving ride requests',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: context.colors.primary,
-              height: 1.4,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF9CA3AF).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF9CA3AF).withValues(alpha: 0.2),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Toggle the switch at the top to go online',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFF9CA3AF)),
+                SizedBox(width: 6),
+                Text(
+                  'Toggle the switch above to go online',
+                  style: TextStyle(
+                    color: Color(0xFF9CA3AF),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ── Searching sheet ──────────────────────────────────────────
-  Widget _buildSearchingSheet() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+  Widget _buildSearchingSheet(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           _dragHandle(),
+          // Searching card with gradient border effect
           Container(
-            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: context.colors.liveTeal.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: context.colors.liveTeal.withValues(alpha: 0.25),
+              gradient: LinearGradient(
+                colors: [
+                  context.colors.liveTeal.withValues(alpha: 0.15),
+                  context.colors.liveTeal.withValues(alpha: 0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: context.colors.liveTeal.withValues(alpha: 0.35),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: context.colors.liveTeal.withValues(alpha: 0.1),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
+            padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: context.colors.liveTeal,
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: context.colors.liveTeal.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: context.colors.liveTeal.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: context.colors.liveTeal,
+                    ),
                   ),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Searching for Users',
+                        'Searching for Riders',
                         style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
                           color: context.colors.primary,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         'You\'re online and available',
                         style: TextStyle(
-                          color: Color(0xFF6B7280),
+                          color: context.colors.liveTeal.withValues(alpha: 0.8),
                           fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: context.colors.liveTeal,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: context.colors.liveTeal.withValues(alpha: 0.5),
+                        blurRadius: 6,
+                        spreadRadius: 2,
                       ),
                     ],
                   ),
@@ -1002,8 +1196,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ── Incoming request sheet ───────────────────────────────────
   Widget _buildIncomingRequestSheet(
@@ -1015,40 +1210,50 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     final dest = request['destination']?['address'] ?? 'Unknown';
     final distM = request['distanceMeters'] as int?;
 
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + bottomInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _dragHandle(),
 
-            // Alert header
+            // Alert header — green gradient
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF16A34A).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF16A34A).withValues(alpha: 0.3),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.notifications_active_rounded,
-                    color: Color(0xFF16A34A),
+                    color: Colors.white,
                     size: 18,
                   ),
                   SizedBox(width: 8),
                   Text(
                     'New Ride Request!',
                     style: TextStyle(
-                      color: context.colors.primary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      letterSpacing: -0.2,
                     ),
                   ),
                 ],
@@ -1056,66 +1261,95 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Route card
+            // Route card — premium with dotted connector
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFD),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: const Color(0xFFE5E7EB)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
                   Row(
                     children: [
                       Container(
-                        width: 10,
-                        height: 10,
+                        width: 12,
+                        height: 12,
                         decoration: BoxDecoration(
                           color: context.colors.rapidoYellow,
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: context.colors.rapidoYellow.withValues(alpha: 0.4),
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: context.colors.rapidoYellow.withValues(alpha: 0.4),
+                              blurRadius: 6,
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Text(
-                          'Current Location',
+                          'Pickup Location',
                           style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: Color(0xFF0F172A),
                           ),
                         ),
                       ),
                     ],
                   ),
                   Padding(
-                    padding: const EdgeInsets.only(left: 4),
+                    padding: const EdgeInsets.only(left: 5, top: 3, bottom: 3),
                     child: Column(
                       children: List.generate(
-                        3,
+                        4,
                         (_) => Container(
                           width: 2,
-                          height: 6,
+                          height: 5,
                           margin: const EdgeInsets.symmetric(vertical: 2),
-                          color: const Color(0xFFD1D5DB),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFCBD5E1),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
                       ),
                     ),
                   ),
                   Row(
                     children: [
-                      Icon(
-                        Icons.flag_rounded,
-                        color: context.colors.error,
-                        size: 20,
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: context.colors.error,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: context.colors.error.withValues(alpha: 0.4),
+                            width: 3,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           dest,
                           style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: Color(0xFF0F172A),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1171,9 +1405,16 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                           },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: context.colors.error,
+                      side: BorderSide(color: context.colors.error.withValues(alpha: 0.5)),
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
-                    child: const Text('Skip'),
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1196,6 +1437,11 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       backgroundColor: context.colors.rapidoYellow,
                       foregroundColor: context.colors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      shadowColor: context.colors.rapidoYellow.withValues(alpha: 0.4),
                     ),
                     child: _isRideActionLoading
                         ? SizedBox(
@@ -1210,7 +1456,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                             'Accept Ride',
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.1,
                             ),
                           ),
                   ),
@@ -1229,6 +1476,13 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     WidgetRef ref,
     Map<String, dynamic> activeRide,
   ) {
+    final colors = context.colors;
+    const navy = Color(0xFF0B2545);
+    const navyLight = Color(0xFF173E69);
+    const blue = Color(0xFF2563EB);
+    const green = Color(0xFF16B77A);
+    const yellow = Color(0xFFFFD633);
+
     final status = activeRide['status'] as String;
     final rideId = activeRide['id'] as String;
     final fare = activeRide['fareEstimate'];
@@ -1250,136 +1504,409 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         ? null
         : (_navigationDistanceMeters! / 1000).toStringAsFixed(1);
 
+    void handleArrivedPress(String fromStatus) {
+      final pickupLat = pickup?['lat'];
+      final pickupLng = pickup?['lng'];
+      
+      final double? pLat = pickupLat is double ? pickupLat : (pickupLat is int ? pickupLat.toDouble() : null);
+      final double? pLng = pickupLng is double ? pickupLng : (pickupLng is int ? pickupLng.toDouble() : null);
+
+      if (pLat != null && pLng != null && _lastValidPosition != null) {
+        final distance = Geolocator.distanceBetween(
+          _lastValidPosition!.latitude,
+          _lastValidPosition!.longitude,
+          pLat,
+          pLng,
+        );
+
+        if (distance > 150) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('You must be near the pickup location (within 150m) to mark as arrived.'),
+              backgroundColor: colors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+      }
+
+      _runRideAction(
+        () => ref.read(captainRepositoryProvider).transitionRide(
+              rideId: rideId,
+              captainId: captainId!,
+              fromStatus: fromStatus,
+              toStatus: 'arrived',
+            ),
+      );
+    }
+
+    // ── color scheme per status ──────────────────────────────────
+    final Color statusColor;
+    final String statusLabel;
+    final IconData statusIcon;
+    switch (status) {
+      case 'accepted':
+        statusColor = blue;
+        statusLabel = 'Navigate to Pickup';
+        statusIcon = Icons.route_rounded;
+        break;
+      case 'arriving':
+        statusColor = colors.warning;
+        statusLabel = 'Arriving at Pickup';
+        statusIcon = Icons.near_me_rounded;
+        break;
+      case 'arrived':
+        statusColor = green;
+        statusLabel = 'Arrived — Verify OTP';
+        statusIcon = Icons.location_on_rounded;
+        break;
+      case 'in_progress':
+        statusColor = colors.liveTeal;
+        statusLabel = 'Trip in Progress';
+        statusIcon = Icons.electric_moped_rounded;
+        break;
+      default:
+        statusColor = colors.textMuted;
+        statusLabel = status.toUpperCase();
+        statusIcon = Icons.info_outline_rounded;
+    }
+
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _dragHandle(),
+            const SizedBox(height: 2),
 
-            // Status chip
-            _captainStatusChip(status),
-            const SizedBox(height: 12),
-
-            // Ride info card
-            if (status != 'in_progress') ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFD),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: context.colors.primary.withValues(
-                              alpha: 0.1,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.person_rounded,
-                            color: context.colors.primary,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                riderName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Text(
-                                riderPhone?.isNotEmpty == true
-                                    ? '$riderPhone • $targetAddress'
-                                    : targetAddress,
-                                style: const TextStyle(
-                                  color: Color(0xFF6B7280),
-                                  fontSize: 12,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '₹$fare',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: context.colors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
+            // ── Status banner ───────────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    statusColor.withValues(alpha: 0.12),
+                    statusColor.withValues(alpha: 0.06),
                   ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: statusColor.withValues(alpha: 0.25), width: 1.2),
               ),
-              const SizedBox(height: 12),
-            ],
-            if (etaMinutes != null && navigationKm != null)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.route_rounded, color: Color(0xFF2563EB)),
-                    const SizedBox(width: 10),
-                    Text(
-                      '$etaMinutes min • $navigationKm km',
-                      style: const TextStyle(
-                        color: Color(0xFF1D4ED8),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      isHeadingToPickup ? 'to pickup' : 'to destination',
-                      style: const TextStyle(
-                        color: Color(0xFF1D4ED8),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 12),
-            if (status != 'in_progress') ...[
-              Row(
+              child: Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: riderPhone?.isNotEmpty == true
-                          ? () => _callNumber(riderPhone!)
-                          : null,
-                      icon: const Icon(Icons.call_rounded, size: 18),
-                      label: const Text('Call'),
+                  Container(
+                    width: 3.5,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(3),
                     ),
                   ),
                   const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(statusIcon, color: statusColor, size: 13),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                  // Fare badge in status bar
+                  if (fare != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(
+                          color: const Color(0xFFFCD34D),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Text(
+                        '₹$fare',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: navy,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // ── Rider info card — premium navy gradient ──────────────
+            if (status != 'in_progress') ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [navy, navyLight],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: navy.withValues(alpha: 0.22),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Avatar circle with initials
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            yellow.withValues(alpha: 0.25),
+                            yellow.withValues(alpha: 0.10),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: yellow.withValues(alpha: 0.5), width: 1.5),
+                      ),
+                      child: Center(
+                        child: Text(
+                          riderName.isNotEmpty
+                              ? riderName[0].toUpperCase()
+                              : 'R',
+                          style: const TextStyle(
+                            color: yellow,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Name + phone
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            riderName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: Colors.white,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.phone_rounded,
+                                size: 10,
+                                color: Colors.white.withValues(alpha: 0.55),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                riderPhone?.isNotEmpty == true
+                                    ? riderPhone!
+                                    : 'No phone',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.65),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Call button
+                    if (riderPhone?.isNotEmpty == true)
+                      GestureDetector(
+                        onTap: () => _callNumber(riderPhone!),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.call_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+
+              // ── Route / destination strip ─────────────────────────
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: colors.cardBorder.withValues(alpha: 0.7)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: navy.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: isHeadingToPickup
+                            ? green.withValues(alpha: 0.12)
+                            : yellow.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        isHeadingToPickup
+                            ? Icons.my_location_rounded
+                            : Icons.flag_rounded,
+                        color: isHeadingToPickup ? green : const Color(0xFFF59E0B),
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isHeadingToPickup ? 'PICKUP' : 'DROP-OFF',
+                            style: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.9,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            targetAddress,
+                            style: TextStyle(
+                              color: colors.text,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.1,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+
+            // ── ETA strip (blue pill) ───────────────────────────────
+            if (etaMinutes != null && navigationKm != null) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [blue, Color(0xFF1D4ED8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: blue.withValues(alpha: 0.28),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // ETA chip
+                    _etaChip(
+                      icon: Icons.timer_rounded,
+                      value: '$etaMinutes min',
+                    ),
+                    const SizedBox(width: 6),
+                    // Distance chip
+                    _etaChip(
+                      icon: Icons.straighten_rounded,
+                      value: '$navigationKm km',
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25)),
+                      ),
+                      child: Text(
+                        isHeadingToPickup ? 'to pickup' : 'to drop',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+
+            // ── Action row: Cancel + Report ─────────────────────────
+            if (status != 'in_progress') ...[
+              Row(
+                children: [
+                  // Cancel
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _isRideActionLoading || captainId == null
@@ -1393,19 +1920,31 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                     'Are you sure you want to cancel this ride? This may negatively impact your rating.',
                                   ),
                                   actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext, false),
-                                      child: const Text('No'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext, true),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: context.colors.error,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      child: const Text('Yes, Cancel'),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextButton(
+                                            onPressed: () => Navigator.pop(
+                                                dialogContext, false),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: colors.text,
+                                            ),
+                                            child: const Text('No'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: ElevatedButton(
+                                            onPressed: () => Navigator.pop(
+                                                dialogContext, true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: colors.error,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: const Text('Yes'),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -1423,169 +1962,220 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               );
                             },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: context.colors.error,
-                        side: BorderSide(color: context.colors.error),
+                        foregroundColor: colors.error,
+                        side: BorderSide(
+                            color: colors.error.withValues(alpha: 0.55),
+                            width: 1.2),
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(11),
+                        ),
                       ),
                       child: const Text(
                         'Cancel',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: 'Report ride issue',
-                    onPressed: captainId == null
-                        ? null
-                        : () => _reportIssue(rideId, captainId),
-                    icon: const Icon(Icons.report_problem_outlined),
-                    style: IconButton.styleFrom(
-                      backgroundColor: context.colors.rapidoYellow,
-                      foregroundColor: Colors.black,
+                  // Report issue
+                  Container(
+                    height: 38,
+                    width: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(11),
+                      border: Border.all(
+                        color: const Color(0xFFFCD34D).withValues(alpha: 0.7),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: yellow.withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Report ride issue',
+                      onPressed: captainId == null
+                          ? null
+                          : () => _reportIssue(rideId, captainId),
+                      icon: const Icon(Icons.report_problem_outlined, size: 18),
+                      color: const Color(0xFFF59E0B),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
             ],
 
-            // Action by status
+            // ── Primary CTA ─────────────────────────────────────────
             if (status == 'accepted')
-              ElevatedButton.icon(
-                onPressed: _isRideActionLoading || captainId == null
-                    ? null
-                    : () => _runRideAction(
-                        () => ref
-                            .read(captainRepositoryProvider)
-                            .transitionRide(
-                              rideId: rideId,
-                              captainId: captainId,
-                              fromStatus: 'accepted',
-                              toStatus: 'arrived',
-                            ),
-                      ),
-                icon: const Icon(Icons.location_on_rounded),
-                label: const Text('Arrived at Pickup'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: context.colors.rapidoYellow,
-                  foregroundColor: context.colors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isRideActionLoading || captainId == null
+                      ? null
+                      : () => handleArrivedPress('accepted'),
+                  icon: const Icon(Icons.location_on_rounded, size: 18),
+                  label: const Text(
+                    'Arrived at Pickup',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: yellow,
+                    foregroundColor: navy,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    elevation: 0,
+                    shadowColor: yellow.withValues(alpha: 0.4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               )
             else if (status == 'arriving')
-              ElevatedButton.icon(
-                onPressed: _isRideActionLoading || captainId == null
-                    ? null
-                    : () => _runRideAction(
-                        () => ref
-                            .read(captainRepositoryProvider)
-                            .transitionRide(
-                              rideId: rideId,
-                              captainId: captainId,
-                              fromStatus: 'arriving',
-                              toStatus: 'arrived',
-                            ),
-                      ),
-                icon: const Icon(Icons.location_on_rounded),
-                label: const Text('I have Arrived'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: context.colors.rapidoYellow,
-                  foregroundColor: context.colors.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isRideActionLoading || captainId == null
+                      ? null
+                      : () => handleArrivedPress('arriving'),
+                  icon: const Icon(Icons.location_on_rounded, size: 18),
+                  label: const Text(
+                    'I have Arrived',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: yellow,
+                    foregroundColor: navy,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               )
             else if (status == 'arrived') ...[
+              // OTP verification card
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: context.colors.primary.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: context.colors.primary.withValues(alpha: 0.2),
+                  gradient: LinearGradient(
+                    colors: [
+                      green.withValues(alpha: 0.06),
+                      const Color(0xFF2563EB).withValues(alpha: 0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                      color: green.withValues(alpha: 0.2), width: 1.5),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Enter User'
-                      's OTP',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: context.colors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Ask the user for their 4-digit OTP',
-                      style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
-                    ),
-                    const SizedBox(height: 12),
-                    // Single OTP input, centered and reduced in size
-                    Center(
-                      child: SizedBox(
-                        width: 240,
-                        child: TextField(
-                          controller: _otpController,
-                          focusNode: _otpFocusNode,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+                            ),
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: const Icon(
+                            Icons.lock_open_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 11),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Rider OTP',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                color: colors.primary,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            Text(
+                              'Ask the rider for their 4-digit code',
+                              style: TextStyle(
+                                color: colors.textMuted,
+                                fontSize: 11,
+                              ),
+                            ),
                           ],
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 16.0,
-                            color: context.colors.primary,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'OTP',
-                            hintStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0,
-                              color: Color(0xFF9CA3AF),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFD1D5DB),
-                                width: 1.5,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: context.colors.primary,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                          onChanged: (val) {
-                            setState(() {}); // Refresh button state
-                            if (val.length == 4) {
-                              FocusScope.of(context).unfocus();
-                            }
-                          },
-                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // OTP input — full width, large digits
+                    TextField(
+                      controller: _otpController,
+                      focusNode: _otpFocusNode,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 20.0,
+                        color: colors.primary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: '• • • •',
+                        hintStyle: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 10,
+                          color: colors.hint,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                              color: colors.cardBorder, width: 1.5),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                              color: colors.primary, width: 2),
                         ),
                       ),
+                      onChanged: (val) {
+                        setState(() {}); // Refresh button state
+                        if (val.length == 4) {
+                          FocusScope.of(context).unfocus();
+                        }
+                      },
+                      onSubmitted: (_) => FocusScope.of(context).unfocus(),
                     ),
                     const SizedBox(height: 12),
+                    // Verify button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed:
-                            _enteredOtp.length == 4 &&
+                        onPressed: _enteredOtp.length == 4 &&
                                 !_isRideActionLoading &&
                                 captainId != null
                             ? () => _runRideAction(() async {
@@ -1611,13 +2201,20 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               })
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: context.colors.rapidoYellow,
-                          foregroundColor: context.colors.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          backgroundColor: const Color(0xFF16A34A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
                         child: const Text(
-                          'Verify OTP',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                          'Verify OTP & Start Ride',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                     ),
@@ -1689,63 +2286,61 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               'Confirm only after reaching the destination and collecting the fare.',
                               style: TextStyle(fontSize: 14),
                             ),
-                            actionsPadding: const EdgeInsets.only(
-                              left: 16,
-                              right: 16,
-                              bottom: 16,
-                              top: 8,
-                            ),
+                            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                             actions: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        Navigator.pop(dialogContext, false),
-                                    style: ElevatedButton.styleFrom(
-                                      minimumSize: Size.zero,
-                                      backgroundColor: const Color(
-                                        0xFFEF4444,
-                                      ), // Red color
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 10,
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext, false),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: context.colors.text,
+                                        side: BorderSide(
+                                          color: context.colors.cardBorder,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
                                       ),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      elevation: 0,
-                                    ),
-                                    child: const Text(
-                                      'Not yet',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                                      child: const Text(
+                                        'No',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        Navigator.pop(dialogContext, true),
-                                    style: ElevatedButton.styleFrom(
-                                      minimumSize: Size.zero,
-                                      backgroundColor:
-                                          context.colors.rapidoYellow,
-                                      foregroundColor: Colors.black,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 10,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext, true),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            context.colors.rapidoYellow,
+                                        foregroundColor:
+                                            context.colors.primary,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
                                       ),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      elevation: 0,
-                                    ),
-                                    child: const Text(
-                                      'Complete trip',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
+                                      child: const Text(
+                                        'Yes',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1781,6 +2376,33 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     );
   }
 
+  Widget _etaChip({required IconData icon, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 11.5,
+              letterSpacing: -0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _captainMetricCard({
     required IconData icon,
     required String value,
@@ -1791,19 +2413,33 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              gradient: LinearGradient(
+                colors: [
+                  color.withValues(alpha: 0.15),
+                  color.withValues(alpha: 0.08),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: 18),
+            child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 10),
           Column(
@@ -1812,70 +2448,21 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
                   color: context.colors.primary,
+                  letterSpacing: -0.2,
                 ),
               ),
               Text(
                 label,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF9CA3AF),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _captainStatusChip(String status) {
-    Color color;
-    String label;
-    IconData icon;
-    switch (status) {
-      case 'accepted':
-        color = const Color(0xFF2563EB);
-        label = 'Navigate to Pickup';
-        icon = Icons.route_rounded;
-        break;
-      case 'arriving':
-        color = context.colors.warning;
-        label = 'Arriving at Pickup';
-        icon = Icons.near_me_rounded;
-        break;
-      case 'arrived':
-        color = const Color(0xFF16A34A);
-        label = 'Arrived — Verify OTP';
-        icon = Icons.location_on_rounded;
-        break;
-      case 'in_progress':
-        color = context.colors.liveTeal;
-        label = 'Trip in Progress';
-        icon = Icons.electric_moped_rounded;
-        break;
-      default:
-        color = const Color(0xFF9CA3AF);
-        label = status.toUpperCase();
-        icon = Icons.info_outline_rounded;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-            ),
           ),
         ],
       ),

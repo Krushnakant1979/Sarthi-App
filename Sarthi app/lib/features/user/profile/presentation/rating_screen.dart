@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/design/tokens.dart';
+import '../../../../core/design/tokens.dart';
 
 class RatingScreen extends StatelessWidget {
   const RatingScreen({super.key});

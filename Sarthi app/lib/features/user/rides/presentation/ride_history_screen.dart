@@ -153,7 +153,8 @@ final paginatedRideHistoryProvider =
 
 class RideHistoryScreen extends ConsumerStatefulWidget {
   final VoidCallback? onBack;
-  const RideHistoryScreen({super.key, this.onBack});
+  final VoidCallback? onProfileTap;
+  const RideHistoryScreen({super.key, this.onBack, this.onProfileTap});
 
   @override
   ConsumerState<RideHistoryScreen> createState() => _RideHistoryScreenState();
@@ -204,10 +205,12 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
 
     final displayedRides = historyState.rides.where((ride) {
       final status = ride['status'] as String? ?? '';
-      if (activeStatusFilter == RideStatusFilter.completed)
+      if (activeStatusFilter == RideStatusFilter.completed) {
         return status == 'completed';
-      if (activeStatusFilter == RideStatusFilter.cancelled)
+      }
+      if (activeStatusFilter == RideStatusFilter.cancelled) {
         return status == 'cancelled';
+      }
       return true;
     }).toList();
 
@@ -322,27 +325,38 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
                   ],
                 ),
                 const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0B2144), Color(0xFF3B82F6)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                GestureDetector(
+                  onTap: () {
+                    if (widget.onProfileTap != null) {
+                      widget.onProfileTap!();
+                    } else if (widget.onBack != null) {
+                      widget.onBack!();
+                    } else {
+                      context.push('/profile');
+                    }
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0B2144), Color(0xFF3B82F6)],
                       ),
-                    ],
-                  ),
-                  child: const CircleAvatar(
-                    radius: 15,
-                    backgroundColor: Colors.transparent,
-                    child: Icon(
-                      Icons.person_rounded,
-                      color: Colors.white,
-                      size: 18,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const CircleAvatar(
+                      radius: 15,
+                      backgroundColor: Colors.transparent,
+                      child: Icon(
+                        Icons.person_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ),
@@ -357,36 +371,57 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(4),
+                    height: 52,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF0B2144,
-                          ).withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(26),
                     ),
-                    child: Row(
+                    child: Stack(
                       children: [
-                        _buildDateFilterTab(
-                          'Today',
-                          RideFilter.today,
-                          activeFilter,
+                        AnimatedAlign(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          alignment: activeFilter == RideFilter.today
+                              ? Alignment.centerLeft
+                              : activeFilter == RideFilter.last30Days
+                              ? Alignment.center
+                              : Alignment.centerRight,
+                          child: FractionallySizedBox(
+                            widthFactor: 1 / 3,
+                            child: Container(
+                              margin: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0B2144),
+                                borderRadius: BorderRadius.circular(22),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.12),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        _buildDateFilterTab(
-                          'Last 30 Days',
-                          RideFilter.last30Days,
-                          activeFilter,
-                        ),
-                        _buildDateFilterTab(
-                          'All Time',
-                          RideFilter.allTime,
-                          activeFilter,
+                        Row(
+                          children: [
+                            _buildDateFilterTab(
+                              'Today',
+                              RideFilter.today,
+                              activeFilter,
+                            ),
+                            _buildDateFilterTab(
+                              'Last 30 Days',
+                              RideFilter.last30Days,
+                              activeFilter,
+                            ),
+                            _buildDateFilterTab(
+                              'All Time',
+                              RideFilter.allTime,
+                              activeFilter,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -784,35 +819,16 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
     return Expanded(
       child: GestureDetector(
         onTap: () => ref.read(rideFilterProvider.notifier).state = filter,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          decoration: BoxDecoration(
-            gradient: isActive
-                ? const LinearGradient(
-                    colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                  )
-                : null,
-            color: isActive ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF0B2144).withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            text,
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 250),
             style: TextStyle(
-              fontSize: 11,
               fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-              color: isActive ? Colors.white : const Color(0xFF94A3B8),
+              fontSize: 12,
+              color: isActive ? Colors.white : Colors.grey.shade700,
             ),
+            child: Text(text),
           ),
         ),
       ),
@@ -844,7 +860,8 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
     return GestureDetector(
       onTap: () => ref.read(rideStatusFilterProvider.notifier).state = filter,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           gradient: isActive
@@ -876,21 +893,21 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ...[
-              Icon(
-                icon,
-                size: 11,
-                color: isActive ? Colors.white : activeColor,
-              ),
-              const SizedBox(width: 5),
-            ],
-            Text(
-              text,
+            Icon(
+              icon,
+              size: 11,
+              color: isActive ? Colors.white : activeColor,
+            ),
+            const SizedBox(width: 5),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: FontWeight.w600,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
                 color: isActive ? Colors.white : const Color(0xFF64748B),
               ),
+              child: Text(text),
             ),
           ],
         ),

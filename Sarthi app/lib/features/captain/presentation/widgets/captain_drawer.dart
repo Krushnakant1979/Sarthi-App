@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/design/tokens.dart';
 import '../captain_providers.dart';
 
 class CaptainDrawer extends ConsumerWidget {
@@ -15,128 +14,176 @@ class CaptainDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final activeRide = ref.watch(currentCaptainRideProvider).value;
     return Drawer(
-      width: 215,
+      width: 240,
       backgroundColor: Colors.transparent,
       elevation: 0,
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
-          color: Colors.white.withValues(alpha: 0.85),
+          color: Colors.white.withValues(alpha: 0.92),
           child: SafeArea(
             child: Column(
               children: [
+                // ── Premium header ─────────────────────────────────
                 Container(
-                  padding: const EdgeInsets.all(24),
-                  alignment: Alignment.centerLeft,
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.local_taxi_rounded,
-                        size: 48,
-                        color: context.colors.primary,
+                      // Avatar circle
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.electric_rickshaw_rounded,
+                          size: 28,
+                          color: Colors.white,
+                        ),
                       ),
-                      SizedBox(height: 12),
-                      Text(
+                      const SizedBox(height: 14),
+                      const Text(
                         'Captain Panel',
                         style: TextStyle(
                           fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: context.colors.primary,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: -0.4,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         'Manage your rides',
-                        style: TextStyle(color: Color(0xFF6B7280)),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const Divider(height: 1, color: Color(0xFFF3F4F6)),
+
+                const SizedBox(height: 8),
+
+                // ── Active ride tile ────────────────────────────────
                 if (activeRide != null)
-                  ListTile(
-                    leading: const Icon(
-                      Icons.navigation_rounded,
-                      color: Color(0xFF2563EB),
-                    ),
-                    title: const Text(
-                      'Active Ride',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      activeRide['status']?.toString().replaceAll('_', ' ') ??
-                          'In progress',
-                    ),
+                  _buildDrawerTile(
+                    context,
+                    icon: Icons.navigation_rounded,
+                    iconColor: const Color(0xFF2563EB),
+                    label: 'Active Ride',
+                    subtitle: activeRide['status']
+                            ?.toString()
+                            .replaceAll('_', ' ')
+                            .capitalizeFirst() ??
+                        'In progress',
                     onTap: () => Scaffold.of(context).closeDrawer(),
                   ),
-                ListTile(
-                  leading: Icon(
-                    Icons.history_rounded,
-                    color: context.colors.primary,
-                  ),
-                  title: const Text(
-                    'My Trips',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
+
+                // ── Nav tiles ───────────────────────────────────────
+                _buildDrawerTile(
+                  context,
+                  icon: Icons.history_rounded,
+                  iconColor: const Color(0xFF2563EB),
+                  label: 'My Trips',
                   onTap: () {
                     Scaffold.of(context).closeDrawer();
                     context.push('/captain/trips');
                   },
                 ),
-                ListTile(
-                  leading: Icon(
-                    Icons.person_rounded,
-                    color: context.colors.primary,
-                  ),
-                  title: const Text(
-                    'My Profile',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                _buildDrawerTile(
+                  context,
+                  icon: Icons.person_rounded,
+                  iconColor: const Color(0xFF2563EB),
+                  label: 'My Profile',
                   onTap: () {
                     Scaffold.of(context).closeDrawer();
                     context.push('/captain/profile');
                   },
                 ),
-                ListTile(
-                  leading: Icon(
-                    Icons.support_agent_rounded,
-                    color: context.colors.primary,
-                  ),
-                  title: const Text(
-                    'Support',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                _buildDrawerTile(
+                  context,
+                  icon: Icons.support_agent_rounded,
+                  iconColor: const Color(0xFF2563EB),
+                  label: 'Support',
                   onTap: () {
                     Scaffold.of(context).closeDrawer();
                     context.push('/support');
                   },
                 ),
+
                 const Spacer(),
-                const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                ListTile(
-                  leading: Icon(
-                    Icons.logout_rounded,
-                    color: context.colors.error,
-                  ),
-                  title: Text(
-                    'Log Out',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: context.colors.error,
+
+                // ── Logout ──────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                  child: GestureDetector(
+                    onTap: () async {
+                      Scaffold.of(context).closeDrawer();
+                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                      if (uid != null) {
+                        await ref
+                            .read(captainRepositoryProvider)
+                            .setAvailability(uid, false);
+                      }
+                      await FirebaseAuth.instance.signOut();
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.logout_rounded,
+                            color: Color(0xFFEF4444),
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Log Out',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFEF4444),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  onTap: () async {
-                    Scaffold.of(context).closeDrawer();
-                    final uid = FirebaseAuth.instance.currentUser?.uid;
-                    if (uid != null) {
-                      await ref
-                          .read(captainRepositoryProvider)
-                          .setAvailability(uid, false);
-                    }
-                    await FirebaseAuth.instance.signOut();
-                  },
                 ),
-                const SizedBox(height: 12),
               ],
             ),
           ),
@@ -144,4 +191,78 @@ class CaptainDrawer extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _buildDrawerTile(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 1),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF6B7280),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: Color(0xFFCBD5E1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+extension _StringExt on String {
+  String capitalizeFirst() =>
+      isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 }
