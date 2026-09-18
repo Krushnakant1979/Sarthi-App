@@ -675,7 +675,7 @@ class _CaptainProfileScreenState extends ConsumerState<CaptainProfileScreen> {
                           child: _buildProfileItem(
                             Icons.badge_outlined,
                             'Captain ID',
-                            user.uid,
+                            user.publicId,
                             null,
                             isReadOnly: true,
                           ),

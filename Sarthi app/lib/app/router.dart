@@ -128,6 +128,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         return getInitialLocation();
       }
 
+      // 6. Prevent cross-app routing if a hardcoded '/' is used
+      if (loc == '/') {
+        if (appConfig.appType == AppType.captain) return '/captain';
+        if (appConfig.appType == AppType.admin) return '/admin';
+      }
+
       return null;
     },
     routes: [

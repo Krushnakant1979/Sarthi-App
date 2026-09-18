@@ -816,11 +816,11 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: context.colors.rapidoYellow,
+                color: context.colors.primary,
                 borderRadius: BorderRadius.circular(15),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFD8AD00).withValues(alpha: 0.45),
+                    color: context.colors.primary.withValues(alpha: 0.45),
                     blurRadius: 14,
                     offset: const Offset(0, 5),
                   ),
@@ -829,17 +829,17 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               child: IconButton(
                 onPressed: _isRecentering ? null : _recenter,
                 icon: _isRecentering
-                    ? SizedBox(
+                    ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
-                          color: context.colors.primary,
+                          color: Colors.white,
                         ),
                       )
-                    : Icon(
+                    : const Icon(
                         Icons.my_location_rounded,
-                        color: context.colors.primary,
+                        color: Colors.white,
                         size: 22,
                       ),
               ),
@@ -1220,19 +1220,19 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
           children: [
             _dragHandle(),
 
-            // Alert header — green gradient
+            // Alert header — blue gradient
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+                gradient: LinearGradient(
+                  colors: [context.colors.primary, context.colors.primary.withValues(alpha: 0.85)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF16A34A).withValues(alpha: 0.3),
+                    color: context.colors.primary.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -1434,22 +1434,22 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                             }
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: context.colors.rapidoYellow,
-                      foregroundColor: context.colors.primary,
+                      backgroundColor: context.colors.primary,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      shadowColor: context.colors.rapidoYellow.withValues(alpha: 0.4),
+                      shadowColor: context.colors.primary.withValues(alpha: 0.4),
                     ),
                     child: _isRideActionLoading
-                        ? SizedBox(
+                        ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: context.colors.primary,
+                              color: Colors.white,
                             ),
                           )
                         : const Text(

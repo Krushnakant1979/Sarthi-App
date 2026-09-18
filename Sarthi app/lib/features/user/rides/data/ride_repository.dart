@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import '../../../../core/analytics/analytics_logger.dart';
 
 class RideRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -54,6 +55,13 @@ class RideRepository {
       'discountAmount': discountAmount,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    AnalyticsLogger.logRideRequested(
+      rideId: docRef.id,
+      vehicleType: vehicleType,
+      estimatedFare: estimatedFare.toDouble(),
+      distanceMeters: distanceMeters.toDouble(),
+    );
 
     return docRef.id;
   }
@@ -125,6 +133,10 @@ class RideRepository {
       updates.addAll(extraData);
     }
     await _firestore.collection('ride_requests').doc(rideId).update(updates);
+
+    if (newStatus == 'completed') {
+      AnalyticsLogger.logRideCompleted(rideId: rideId);
+    }
   }
 
   Future<List<Map<String, dynamic>>> getActiveOffers() async {

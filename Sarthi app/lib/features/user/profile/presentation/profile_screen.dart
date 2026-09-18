@@ -308,7 +308,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                     const SizedBox(height: 12),
 
-                    // Role chip
                     _infoCard(
                       icon: Icons.badge_outlined,
                       label: 'Account Type',
@@ -329,6 +328,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             color: context.colors.primary,
                             letterSpacing: 0.5,
                           ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // User ID
+                    _infoCard(
+                      icon: Icons.fingerprint,
+                      label: 'User ID',
+                      child: Text(
+                        user.publicId,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),

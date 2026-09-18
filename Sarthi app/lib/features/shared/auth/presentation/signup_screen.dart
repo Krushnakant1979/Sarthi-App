@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'auth_providers.dart';
 import '../domain/app_user.dart';
 import '../../../../app/app_config.dart';
-import '../../../../core/design/tokens.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -13,37 +12,18 @@ class SignupScreen extends ConsumerStatefulWidget {
   ConsumerState<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends ConsumerState<SignupScreen>
-    with SingleTickerProviderStateMixin {
+class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-
-  late final AnimationController _fadeController;
-  late final Animation<double> _fadeAnimation;
 
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
-  void initState() {
-    super.initState();
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeOut,
-    );
-    _fadeController.forward();
-  }
-
-  @override
   void dispose() {
-    _fadeController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -101,7 +81,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
       }
 
       if (mounted) {
-        context.go('/');
+        final currentApp = ref.read(appConfigProvider).appType;
+        if (currentApp == AppType.admin) {
+          context.go('/admin');
+        } else if (currentApp == AppType.captain) {
+          context.go('/captain');
+        } else {
+          context.go('/');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -116,263 +103,213 @@ class _SignupScreenState extends ConsumerState<SignupScreen>
 
   @override
   Widget build(BuildContext context) {
+    final appType = ref.watch(appConfigProvider).appType;
+    final isSpecialApp = appType != AppType.user;
+    final appRole = appType == AppType.admin ? 'Admin' : 'Captain';
+
     return Scaffold(
-      backgroundColor: context.colors.background,
-      body: FadeTransition(
-        opacity: _fadeAnimation,
+      backgroundColor: const Color(0xFFF9FAFB),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+          onPressed: () => context.pop(),
+        ),
+      ),
+      body: SafeArea(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 10.0),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Header Banner ──────────────────────────────────────────
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: context.colors.rapidoYellow,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.zero,
-                    bottomRight: Radius.zero,
-                  ),
-                ),
-                child: SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40),
-                    child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          color: context.colors.primary,
-                        ),
-                        onPressed: () => context.pop(),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Create Account',
-                              style: TextStyle(
-                                color: context.colors.primary,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Join Sarthi App for fast, affordable rides',
-                              style: TextStyle(
-                                color: context.colors.primary.withValues(
-                                  alpha: 0.75,
-                                ),
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(right: 24),
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: context.colors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.zero,
-                        ),
-                        child: Icon(
-                          Icons.person_add_alt_1_rounded,
-                          color: context.colors.primary,
-                          size: 26,
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 10),
+              Text(
+                isSpecialApp ? 'Create Account - $appRole' : 'Create Account',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                  letterSpacing: -0.5,
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+              const Text(
+                'Join Sarthi App for fast, affordable rides',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 40),
 
-              // ── Form ─────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+              _LightTextField(
+                controller: _nameController,
+                label: 'Full Name',
+                keyboardType: TextInputType.name,
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 24),
+
+              _LightTextField(
+                controller: _emailController,
+                label: 'Email address',
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 24),
+
+              _LightTextField(
+                controller: _phoneController,
+                label: 'Phone Number (Optional)',
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 24),
+
+              _LightTextField(
+                controller: _passwordController,
+                label: 'Password',
+                obscureText: _obscurePassword,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
+                onSubmitted: (_) => _signup(),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Error
+              if (_errorMessage != null) ...[
+                Text(
+                  _errorMessage!,
+                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Password strength hint
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
                   children: [
-                    // Full Name
-                    TextField(
-                      controller: _nameController,
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Full Name',
-                        prefixIcon: Icon(Icons.person_outline_rounded),
+                    const Icon(Icons.info_outline_rounded, color: Color(0xFF059669), size: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Use at least 6 characters for your password.',
+                        style: TextStyle(color: Color(0xFF064E3B), fontSize: 12),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Email
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Email address',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Phone (optional)
-                    TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number (Optional)',
-                        prefixIcon: Icon(Icons.phone_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Password
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _signup(),
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                          ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-
-                    // Error
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: context.colors.error.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.zero,
-                          border: Border.all(
-                            color: context.colors.error.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: context.colors.error,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: TextStyle(
-                                  color: context.colors.error,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 28),
-
-                    // Password strength hint
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: context.colors.liveTeal.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.zero,
-                        border: Border.all(
-                          color: context.colors.liveTeal.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline_rounded,
-                            color: context.colors.liveTeal,
-                            size: 16,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Use at least 6 characters for your password.',
-                            style: TextStyle(
-                              color: context.colors.liveTeal,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _signup,
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                color: context.colors.primary,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : const Text('Create Account'),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Already have an account?',
-                          style: TextStyle(
-                            color: context.colors.hint,
-                            fontSize: 14,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => context.pop(),
-                          child: Text(
-                            'Sign In',
-                            style: TextStyle(
-                              color: context.colors.primary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
               ),
+
+              const SizedBox(height: 32),
+
+              ElevatedButton(
+                onPressed: _isLoading ? null : _signup,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0B2144), // Navy Blue
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 0,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Create Account',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+              ),
+
+              const SizedBox(height: 32),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Already have an account? ',
+                    style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                  ),
+                  GestureDetector(
+                    onTap: () => context.pop(),
+                    child: const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        color: Color(0xFF2563EB),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LightTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final Widget? suffixIcon;
+  final TextCapitalization textCapitalization;
+  final void Function(String)? onSubmitted;
+
+  const _LightTextField({
+    required this.controller,
+    required this.label,
+    this.obscureText = false,
+    this.keyboardType,
+    this.suffixIcon,
+    this.textCapitalization = TextCapitalization.none,
+    this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      onFieldSubmitted: onSubmitted,
+      style: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        filled: false,
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFFCBD5E1)),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.black, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        suffixIcon: suffixIcon,
       ),
     );
   }

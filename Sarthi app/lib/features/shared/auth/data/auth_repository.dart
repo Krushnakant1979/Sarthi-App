@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../../core/analytics/analytics_logger.dart';
 
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -11,10 +12,14 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(
+    final cred = await _auth.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
+    if (cred.user != null) {
+      AnalyticsLogger.logAuthSuccess(cred.user!.uid, 'email');
+    }
+    return cred;
   }
 
   Future<UserCredential> _createUserWithEmailAndPassword(
@@ -36,6 +41,7 @@ class AuthRepository {
     final cred = await _createUserWithEmailAndPassword(email, password);
     if (cred.user != null) {
       await cred.user!.updateDisplayName(name);
+      AnalyticsLogger.logAuthSuccess(cred.user!.uid, 'email_signup');
     }
     return cred;
   }

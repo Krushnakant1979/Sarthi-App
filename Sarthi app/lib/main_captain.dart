@@ -1,6 +1,6 @@
-﻿import 'main.dart';
+import 'bootstrap.dart';
 import 'app/app_config.dart';
 
 void main() {
-  runSarthiApp(AppType.captain);
+  bootstrap(env: 'dev', appType: AppType.captain);
 }
