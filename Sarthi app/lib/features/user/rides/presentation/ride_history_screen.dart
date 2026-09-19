@@ -372,58 +372,57 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
                 children: [
                   Container(
                     height: 52,
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
+                      color: const Color(0xFFF1F5F9), // Light grey
                       borderRadius: BorderRadius.circular(26),
                     ),
-                    child: Stack(
-                      children: [
-                        AnimatedAlign(
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeInOut,
-                          alignment: activeFilter == RideFilter.today
-                              ? Alignment.centerLeft
-                              : activeFilter == RideFilter.last30Days
-                              ? Alignment.center
-                              : Alignment.centerRight,
-                          child: FractionallySizedBox(
-                            widthFactor: 1 / 3,
-                            child: Container(
-                              margin: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0B2144),
-                                borderRadius: BorderRadius.circular(22),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.12),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final tabWidth = constraints.maxWidth / 3;
+                        final activeIndex = activeFilter == RideFilter.today
+                            ? 0
+                            : activeFilter == RideFilter.last30Days
+                                ? 1
+                                : 2;
+                        return Stack(
+                          children: [
+                            AnimatedPositioned(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOutCubic,
+                              left: activeIndex * tabWidth,
+                              top: 0,
+                              bottom: 0,
+                              width: tabWidth,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0F62FE),
+                                  borderRadius: BorderRadius.circular(22),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            _buildDateFilterTab(
-                              'Today',
-                              RideFilter.today,
-                              activeFilter,
-                            ),
-                            _buildDateFilterTab(
-                              'Last 30 Days',
-                              RideFilter.last30Days,
-                              activeFilter,
-                            ),
-                            _buildDateFilterTab(
-                              'All Time',
-                              RideFilter.allTime,
-                              activeFilter,
+                            Row(
+                              children: [
+                                _buildDateFilterTab(
+                                  'Today',
+                                  RideFilter.today,
+                                  activeFilter,
+                                ),
+                                _buildDateFilterTab(
+                                  'Last 30 days',
+                                  RideFilter.last30Days,
+                                  activeFilter,
+                                ),
+                                _buildDateFilterTab(
+                                  'All time',
+                                  RideFilter.allTime,
+                                  activeFilter,
+                                ),
+                              ],
                             ),
                           ],
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -610,203 +609,105 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
     int cancelled,
     double totalFare,
   ) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF060D1F), Color(0xFF0B2144), Color(0xFF0F3460)],
-            ),
-          ),
-        ),
-        Positioned(
-          right: -40,
-          top: -40,
-          child: Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  const Color(0xFF3B82F6).withValues(alpha: 0.25),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          left: -30,
-          bottom: 40,
-          child: Container(
-            width: 140,
-            height: 140,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  const Color(0xFF8B5CF6).withValues(alpha: 0.2),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ),
-        Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-        Positioned(
-          bottom: 16,
-          left: 16,
-          right: 16,
-          child: FadeTransition(
-            opacity: _headerFadeAnim,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFBBF24),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.history_rounded,
-                        size: 10,
-                        color: Color(0xFF0B2144),
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        'Trip History',
-                        style: TextStyle(
-                          color: Color(0xFF0B2144),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _build3DStatCard(
-                      icon: Icons.check_circle_rounded,
-                      value: '$completed',
-                      label: 'Completed',
-                      color1: const Color(0xFF059669),
-                      color2: const Color(0xFF10B981),
-                    ),
-                    const SizedBox(width: 6),
-                    _build3DStatCard(
-                      icon: Icons.cancel_rounded,
-                      value: '$cancelled',
-                      label: 'Cancelled',
-                      color1: const Color(0xFFDC2626),
-                      color2: const Color(0xFFEF4444),
-                    ),
-                    const SizedBox(width: 6),
-                    _build3DStatCard(
-                      icon: Icons.currency_rupee_rounded,
-                      value: totalFare > 0
-                          ? '\u20b9${totalFare.toStringAsFixed(0)}'
-                          : '\u20b90',
-                      label: 'Total Spent',
-                      color1: const Color(0xFF7C3AED),
-                      color2: const Color(0xFFA78BFA),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+    return Container(
+      color: const Color(0xFF0B2144),
+      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _build3DStatCard(context, completed, cancelled, totalFare),
+        ],
+      ),
     );
   }
 
-  Widget _build3DStatCard({
+  Widget _build3DStatCard(
+    BuildContext context,
+    int completed,
+    int cancelled,
+    double totalFare,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF16325B), // Slightly lighter than background
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildStatItem(
+            icon: Icons.check_rounded,
+            iconColor: Colors.white,
+            iconBg: const Color(0xFF22C55E),
+            value: '$completed',
+            label: 'Completed',
+          ),
+          Container(width: 1, height: 40, color: Colors.white.withOpacity(0.15)),
+          _buildStatItem(
+            icon: Icons.close_rounded,
+            iconColor: Colors.white,
+            iconBg: const Color(0xFFEF4444),
+            value: '$cancelled',
+            label: 'Cancelled',
+          ),
+          Container(width: 1, height: 40, color: Colors.white.withOpacity(0.15)),
+          _buildStatItem(
+            icon: Icons.account_balance_wallet_rounded,
+            iconColor: Colors.white,
+            iconBg: null,
+            value: '₹${totalFare.toInt()}',
+            label: 'Total spent',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
     required IconData icon,
+    required Color iconColor,
+    required Color? iconBg,
     required String value,
     required String label,
-    required Color color1,
-    required Color color2,
   }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withValues(alpha: 0.12),
-              Colors.white.withValues(alpha: 0.06),
-            ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (iconBg != null)
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: iconBg,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: iconColor, size: 14),
+          )
+        else
+          Icon(icon, color: iconColor, size: 20),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            height: 1.1,
           ),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.18),
-            width: 1,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.6),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: color1.withValues(alpha: 0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [color1, color2]),
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: [
-                  BoxShadow(
-                    color: color1.withValues(alpha: 0.4),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: 12),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
-                fontSize: 8,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 
@@ -820,15 +721,21 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
       child: GestureDetector(
         onTap: () => ref.read(rideFilterProvider.notifier).state = filter,
         behavior: HitTestBehavior.opaque,
-        child: Center(
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 250),
-            style: TextStyle(
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-              fontSize: 12,
-              color: isActive ? Colors.white : Colors.grey.shade700,
+        child: Container(
+          height: double.infinity,
+          color: Colors.transparent,
+          child: Center(
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              style: TextStyle(
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 13,
+                color: isActive ? Colors.white : const Color(0xFF64748B),
+                fontFamily: 'Inter',
+              ),
+              child: Text(text),
             ),
-            child: Text(text),
           ),
         ),
       ),
@@ -841,73 +748,58 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
     RideStatusFilter activeFilter,
   ) {
     final isActive = filter == activeFilter;
+    
     Color activeColor;
-    IconData? icon;
+    Widget iconWidget;
+
     switch (filter) {
       case RideStatusFilter.all:
-        activeColor = const Color(0xFF0B2144);
-        icon = Icons.grid_view_rounded;
+        activeColor = const Color(0xFF0F62FE); // Blue
+        iconWidget = Icon(Icons.filter_list_rounded, color: isActive ? activeColor : const Color(0xFF64748B), size: 12);
         break;
       case RideStatusFilter.completed:
-        activeColor = const Color(0xFF059669);
-        icon = Icons.check_circle_rounded;
+        activeColor = const Color(0xFF22C55E); // Green
+        iconWidget = Container(
+          decoration: BoxDecoration(color: activeColor, shape: BoxShape.circle),
+          padding: const EdgeInsets.all(2),
+          child: const Icon(Icons.check_rounded, color: Colors.white, size: 8),
+        );
         break;
       case RideStatusFilter.cancelled:
-        activeColor = const Color(0xFFDC2626);
-        icon = Icons.cancel_rounded;
+        activeColor = const Color(0xFFEF4444); // Red
+        iconWidget = Container(
+          decoration: BoxDecoration(color: activeColor, shape: BoxShape.circle),
+          padding: const EdgeInsets.all(2),
+          child: const Icon(Icons.close_rounded, color: Colors.white, size: 8),
+        );
         break;
     }
+
+    final borderColor = isActive ? activeColor : const Color(0xFFCBD5E1);
+    final textColor = isActive ? activeColor : const Color(0xFF64748B);
+
     return GestureDetector(
       onTap: () => ref.read(rideStatusFilterProvider.notifier).state = filter,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          gradient: isActive
-              ? LinearGradient(
-                  colors: [activeColor, activeColor.withValues(alpha: 0.75)],
-                )
-              : null,
-          color: isActive ? null : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? activeColor : const Color(0xFFE2E8F0),
-          ),
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: activeColor.withValues(alpha: 0.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: borderColor, width: 1.0),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 11,
-              color: isActive ? Colors.white : activeColor,
-            ),
-            const SizedBox(width: 5),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
+            iconWidget,
+            const SizedBox(width: 4),
+            Text(
+              text,
               style: TextStyle(
+                color: textColor,
                 fontSize: 11,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-                color: isActive ? Colors.white : const Color(0xFF64748B),
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
               ),
-              child: Text(text),
             ),
           ],
         ),
@@ -993,367 +885,166 @@ class _RideCardState extends State<_RideCard> {
     final status = ride['status'] as String? ?? 'unknown';
     final fare = ride['fareEstimate'];
     final dest = ride['destination']?['address'] ?? 'Unknown destination';
+    final destName = ride['destination']?['name'] ?? dest.split(',').first;
     final createdAt = ride['createdAt'];
     final distM = ride['distanceMeters'] as int?;
-    final paymentMethod = ride['paymentMethod'] ?? 'Cash';
-    final vehicleType = ride['vehicleType']?.toString().toLowerCase() ?? 'auto';
+    final vehicleType = ride['vehicleType']?.toString().toLowerCase() ?? 'cab';
 
     final pickup = ride['pickup'] as Map<String, dynamic>?;
-    final pickupText = pickup != null
-        ? (pickup['address'] as String? ?? 'Your Location')
-        : 'Unknown pickup';
+    final pickupFull = pickup != null ? (pickup['address'] as String? ?? 'Your Location') : 'Unknown pickup';
+    final pickupName = pickup != null ? (pickup['name'] ?? pickupFull.split(',').first) : 'Unknown pickup';
 
     String formattedDate = '';
-    if (createdAt is Timestamp) {
-      formattedDate = DateFormat('MMM d, h:mm a').format(createdAt.toDate());
+    if (createdAt != null) {
+      formattedDate = DateFormat('MMM d • h:mm a').format(createdAt.toDate());
     }
 
     final bool isCancelled = status == 'cancelled';
     final bool isCompleted = status == 'completed';
 
-    final statusGradient = isCompleted
-        ? [const Color(0xFF059669), const Color(0xFF10B981)]
-        : isCancelled
-        ? [const Color(0xFFDC2626), const Color(0xFFEF4444)]
-        : [const Color(0xFFF59E0B), const Color(0xFFFBBF24)];
-
-    final statusLabel = isCompleted
-        ? 'Completed'
-        : isCancelled
-        ? 'Cancelled'
-        : status.toUpperCase();
-    final statusIcon = isCompleted
-        ? Icons.check_circle_rounded
-        : isCancelled
-        ? Icons.cancel_rounded
-        : Icons.info_rounded;
+    final statusColor = isCompleted ? const Color(0xFF22C55E) : (isCancelled ? const Color(0xFFEF4444) : const Color(0xFFF59E0B));
+    final statusBg = isCompleted ? const Color(0xFFDCFCE7) : (isCancelled ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7));
+    
+    final statusLabel = isCompleted ? 'Completed' : (isCancelled ? 'Cancelled' : status.toUpperCase());
+    final statusIcon = isCompleted ? Icons.check_circle_rounded : (isCancelled ? Icons.cancel_rounded : Icons.info_rounded);
 
     String durationText = '--';
+    String distText = '--';
     if (distM != null) {
       final mins = (distM / 1000 * 3).round();
       durationText = '$mins min';
+      distText = '${(distM / 1000).toStringAsFixed(1)} km';
     }
 
-    final vehicleLabel = vehicleType == 'bike'
-        ? 'Bike'
-        : vehicleType == 'cab'
-        ? 'Cab'
-        : 'Auto';
-    final vehicleGradient = vehicleType == 'bike'
-        ? [const Color(0xFF1D4ED8), const Color(0xFF3B82F6)]
-        : vehicleType == 'cab'
-        ? [const Color(0xFF6D28D9), const Color(0xFFA78BFA)]
-        : [const Color(0xFF065F46), const Color(0xFF10B981)];
-    final vehicleIcon = vehicleType == 'bike'
-        ? Icons.two_wheeler_rounded
-        : vehicleType == 'cab'
-        ? Icons.directions_car_rounded
-        : Icons.electric_rickshaw_rounded;
+    final vehicleLabel = vehicleType == 'bike' ? 'Bike' : (vehicleType == 'cab' ? 'Cab' : 'Auto');
+    final vehicleIcon = vehicleType == 'bike' ? Icons.two_wheeler_rounded : (vehicleType == 'cab' ? Icons.directions_car_rounded : Icons.electric_rickshaw_rounded);
 
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
-      onTap: () => _showRideDetail(
-        context,
-        ride,
-        formattedDate,
-        statusGradient,
-        statusLabel,
-        statusIcon,
-        pickupText,
-        dest,
-        fare,
-        distM,
-        durationText,
-        paymentMethod,
-        vehicleLabel,
-        vehicleGradient,
-        vehicleIcon,
-      ),
+      onTap: () => _showRideDetail(context, ride), 
       child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 120),
+        scale: _pressed ? 0.98 : 1.0,
+        duration: const Duration(milliseconds: 100),
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFF1F5F9)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0B2144).withValues(alpha: 0.07),
-                blurRadius: 20,
-                spreadRadius: 1,
-                offset: const Offset(0, 6),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      vehicleGradient[0].withValues(alpha: 0.08),
-                      vehicleGradient[1].withValues(alpha: 0.04),
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
+              // Top Row
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(vehicleIcon, color: const Color(0xFF2563EB), size: 18),
                   ),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: vehicleGradient,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: vehicleGradient[0].withValues(alpha: 0.35),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(vehicleIcon, size: 12, color: Colors.white),
-                          const SizedBox(width: 4),
-                          Text(
-                            vehicleLabel,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      formattedDate,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: statusGradient),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: statusGradient[0].withValues(alpha: 0.3),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(statusIcon, size: 9, color: Colors.white),
-                          const SizedBox(width: 3),
-                          Text(
-                            statusLabel,
-                            style: const TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  children: [
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Column(
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                  border: Border.all(
-                                    color: const Color(0xFF0B2144),
-                                    width: 2.5,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Container(
-                                  width: 2,
-                                  margin: const EdgeInsets.symmetric(
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        const Color(
-                                          0xFF0B2144,
-                                        ).withValues(alpha: 0.5),
-                                        const Color(
-                                          0xFFEF4444,
-                                        ).withValues(alpha: 0.5),
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFFEF4444),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  pickupText,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1E293B),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  dest,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1E293B),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(height: 1, color: const Color(0xFFF1F5F9)),
-                    const SizedBox(height: 12),
-                    Row(
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _metricPill(
-                          Icons.currency_rupee_rounded,
-                          fare != null ? '\u20b9$fare' : '\u20b90',
-                          const Color(0xFF059669),
-                        ),
-                        const SizedBox(width: 8),
-                        if (distM != null) ...[
-                          _metricPill(
-                            Icons.straighten_rounded,
-                            '${(distM / 1000).toStringAsFixed(1)} km',
-                            const Color(0xFF0B2144),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        _metricPill(
-                          Icons.access_time_rounded,
-                          durationText,
-                          const Color(0xFF7C3AED),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFF0B2144,
-                                ).withValues(alpha: 0.3),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Details',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              SizedBox(width: 3),
-                              Icon(
-                                Icons.arrow_forward_rounded,
-                                size: 10,
-                                color: Colors.white,
-                              ),
-                            ],
-                          ),
+                        Text(vehicleLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF0F172A))),
+                        Text(formattedDate, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusBg,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(statusIcon, size: 12, color: statusColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: statusColor),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Timeline
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    children: [
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF2563EB), width: 2.5),
+                        ),
+                      ),
+                      Container(
+                        width: 2,
+                        height: 24,
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        color: const Color(0xFFCBD5E1), // Simulated dashed line
+                      ),
+                      const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF0F172A)),
+                    ],
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(pickupName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(pickupFull, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 12),
+                        Text(destName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(dest, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(color: Color(0xFFF1F5F9), height: 1),
+              const SizedBox(height: 12),
+              // Bottom Row
+              Row(
+                children: [
+                  Text(isCompleted ? 'Paid ' : 'Est. ', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                  Text(fare != null ? '₹$fare' : '₹--', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  Container(width: 1, height: 10, color: const Color(0xFFCBD5E1), margin: const EdgeInsets.symmetric(horizontal: 8)),
+                  const Icon(Icons.route_outlined, size: 12, color: Color(0xFF64748B)),
+                  const SizedBox(width: 4),
+                  Text(distText, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                  Container(width: 1, height: 10, color: const Color(0xFFCBD5E1), margin: const EdgeInsets.symmetric(horizontal: 8)),
+                  const Icon(Icons.schedule_rounded, size: 12, color: Color(0xFF64748B)),
+                  const SizedBox(width: 4),
+                  Text(durationText, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                  const Spacer(),
+                  const Text('Details >', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF2563EB))),
+                ],
               ),
             ],
           ),
@@ -1362,49 +1053,45 @@ class _RideCardState extends State<_RideCard> {
     );
   }
 
-  Widget _metricPill(IconData icon, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 10, color: color),
-          const SizedBox(width: 3),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  void _showRideDetail(BuildContext context, Map<String, dynamic> ride) {
+    final status = ride['status'] as String? ?? 'unknown';
+    final fare = ride['fareEstimate'];
+    final dest = ride['destination']?['address'] ?? 'Unknown destination';
+    final destName = ride['destination']?['name'] ?? dest.split(',').first;
+    final createdAt = ride['createdAt'];
+    final distM = ride['distanceMeters'] as int?;
+    final vehicleType = ride['vehicleType']?.toString().toLowerCase() ?? 'cab';
+    final paymentMethod = ride['paymentMethod'] ?? 'Cash';
 
-  void _showRideDetail(
-    BuildContext context,
-    Map<String, dynamic> ride,
-    String formattedDate,
-    List<Color> statusGradient,
-    String statusLabel,
-    IconData statusIcon,
-    String pickupText,
-    String dest,
-    dynamic fare,
-    int? distM,
-    String durationText,
-    String paymentMethod,
-    String vehicleLabel,
-    List<Color> vehicleGradient,
-    IconData vehicleIcon,
-  ) {
+    final pickup = ride['pickup'] as Map<String, dynamic>?;
+    final pickupFull = pickup != null ? (pickup['address'] as String? ?? 'Your Location') : 'Unknown pickup';
+    final pickupName = pickup != null ? (pickup['name'] ?? pickupFull.split(',').first) : 'Unknown pickup';
+
+    String durationText = '--';
+    if (distM != null) {
+      final mins = (distM / 1000 * 3).round();
+      durationText = '$mins min';
+    }
+
+    final vehicleLabel = vehicleType == 'bike' ? 'Bike' : (vehicleType == 'cab' ? 'Cab' : 'Auto');
+    final vehicleIcon = vehicleType == 'bike' ? Icons.two_wheeler_rounded : (vehicleType == 'cab' ? Icons.directions_car_rounded : Icons.electric_rickshaw_rounded);
+    
+    String formattedDate = '';
+    if (createdAt != null) {
+      formattedDate = DateFormat('d Sep • h:mm a').format(createdAt.toDate());
+    }
+
+    final bool isCancelled = status == 'cancelled';
+    final bool isCompleted = status == 'completed';
+
+    final statusColor = isCompleted ? const Color(0xFF22C55E) : (isCancelled ? const Color(0xFFEF4444) : const Color(0xFFF59E0B));
+    final statusBg = isCompleted ? const Color(0xFFDCFCE7) : (isCancelled ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7));
+    
+    final statusLabel = isCompleted ? 'Completed' : (isCancelled ? 'Cancelled' : status.toUpperCase());
+    final statusIcon = isCompleted ? Icons.check_circle_rounded : (isCancelled ? Icons.cancel_rounded : Icons.info_rounded);
+
+    final rideId = (ride['id'] as String?)?.substring(0, 8).toUpperCase() ?? '--';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1413,277 +1100,219 @@ class _RideCardState extends State<_RideCard> {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
+          padding: const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+              // Drag handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      vehicleGradient[0].withValues(alpha: 0.1),
-                      vehicleGradient[1].withValues(alpha: 0.04),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              const SizedBox(height: 24),
+              
+              // Header
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF), // Light blue
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(vehicleIcon, color: const Color(0xFF2563EB), size: 28),
                   ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$vehicleLabel ride',
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          formattedDate,
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusBg,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(statusIcon, size: 14, color: statusColor),
+                        const SizedBox(width: 6),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: statusColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Locations
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: vehicleGradient,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: vehicleGradient[0].withValues(alpha: 0.4),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                    Column(
+                      children: [
+                        const SizedBox(height: 6),
+                        Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFF2563EB), width: 3.5),
                           ),
-                        ],
-                      ),
-                      child: Icon(vehicleIcon, color: Colors.white, size: 26),
+                        ),
+                        Container(
+                          width: 2,
+                          height: 40,
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          color: const Color(0xFFCBD5E1), // Dashed line effect
+                        ),
+                        const Icon(Icons.location_on_rounded, size: 18, color: Color(0xFF0F172A)),
+                      ],
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '$vehicleLabel Ride',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            formattedDate,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF64748B),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: statusGradient),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: statusGradient[0].withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(statusIcon, color: Colors.white, size: 11),
-                          const SizedBox(width: 4),
-                          Text(
-                            statusLabel,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
+                          const Text('PICKUP', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8), letterSpacing: 0.5)),
+                          const SizedBox(height: 2),
+                          Text(pickupName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 2),
+                          Text(pickupFull, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          
+                          const SizedBox(height: 16),
+                          
+                          const Text('DROP-OFF', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8), letterSpacing: 0.5)),
+                          const SizedBox(height: 2),
+                          Text(destName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 2),
+                          Text(dest, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  24,
-                  20,
-                  24,
-                  24 + MediaQuery.of(ctx).padding.bottom,
+              const SizedBox(height: 16),
+
+              // Stats Row
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF), // Very light blue
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        children: [
+                          const Icon(Icons.currency_rupee_rounded, size: 18, color: Color(0xFF2563EB)),
+                          const SizedBox(height: 4),
+                          Text(fare != null ? '₹$fare' : '₹--', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                          const SizedBox(height: 2),
+                          Text(isCompleted ? 'Paid amount' : 'Fare estimate', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 40, color: const Color(0xFFBFDBFE)),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          const Icon(Icons.map_outlined, size: 18, color: Color(0xFF2563EB)),
+                          const SizedBox(height: 4),
+                          Text(distM != null ? '${(distM / 1000).toStringAsFixed(1)} km' : '--', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                          const SizedBox(height: 2),
+                          const Text('Distance', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                    Container(width: 1, height: 40, color: const Color(0xFFBFDBFE)),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFF2563EB)),
+                          const SizedBox(height: 4),
+                          Text(durationText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                          const SizedBox(height: 2),
+                          const Text('Duration', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Details List
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Column(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                  border: Border.all(
-                                    color: const Color(0xFF0B2144),
-                                    width: 3,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Container(
-                                  width: 2,
-                                  color: const Color(0xFFE2E8F0),
-                                ),
-                              ),
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFFEF4444),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  pickupText,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1E293B),
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 18),
-                                Text(
-                                  dest,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Container(height: 1, color: const Color(0xFFF1F5F9)),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        _detailCard(
-                          Icons.currency_rupee_rounded,
-                          fare != null ? '\u20b9$fare' : '--',
-                          'Fare',
-                          const Color(0xFF059669),
-                        ),
-                        const SizedBox(width: 10),
-                        _detailCard(
-                          Icons.straighten_rounded,
-                          distM != null
-                              ? '${(distM / 1000).toStringAsFixed(1)} km'
-                              : '--',
-                          'Distance',
-                          const Color(0xFF0B2144),
-                        ),
-                        const SizedBox(width: 10),
-                        _detailCard(
-                          Icons.access_time_rounded,
-                          durationText,
-                          'Duration',
-                          const Color(0xFF7C3AED),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _detailCard(
-                          vehicleIcon,
-                          vehicleLabel,
-                          'Vehicle',
-                          vehicleGradient[0],
-                        ),
-                        const SizedBox(width: 10),
-                        _detailCard(
-                          Icons.payment_rounded,
-                          paymentMethod,
-                          'Payment',
-                          const Color(0xFFF59E0B),
-                        ),
-                        const SizedBox(width: 10),
-                        _detailCard(
-                          Icons.tag_rounded,
-                          (ride['id'] as String?)
-                                  ?.substring(0, 8)
-                                  .toUpperCase() ??
-                              '--',
-                          'Ride ID',
-                          const Color(0xFF64748B),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0B2144),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Close',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildDetailRow(Icons.directions_car_outlined, 'Vehicle', vehicleLabel),
+                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    _buildDetailRow(Icons.payment_outlined, 'Payment method', paymentMethod),
+                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    _buildDetailRow(Icons.tag_rounded, 'Ride ID', rideId, isMonospace: true),
                   ],
                 ),
               ),
+              
+              const SizedBox(height: 24),
+              // Close button
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F62FE), // Bright blue
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              SizedBox(height: MediaQuery.of(ctx).padding.bottom),
             ],
           ),
         );
@@ -1691,41 +1320,26 @@ class _RideCardState extends State<_RideCard> {
     );
   }
 
-  Widget _detailCard(IconData icon, String value, String label, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.12)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
+  Widget _buildDetailRow(IconData icon, String label, String value, {bool isMonospace = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF64748B)),
+          const SizedBox(width: 16),
+          Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF475569))),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14, 
+              fontWeight: FontWeight.w700, 
+              color: const Color(0xFF0F172A),
+              fontFamily: isMonospace ? 'monospace' : null,
+              letterSpacing: isMonospace ? 1.0 : null,
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 8.5,
-                color: Color(0xFF94A3B8),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

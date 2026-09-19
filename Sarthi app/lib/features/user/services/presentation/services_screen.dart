@@ -240,64 +240,66 @@ class _ServicesScreenState extends State<ServicesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                _SectionHeader(
-                  icon: Icons.electric_bolt_rounded,
-                  title: 'Ride & Delivery',
-                  subtitle: 'Choose what fits your journey',
-                  color: const Color(0xFF2563EB),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ride & delivery',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Choose a ride or send a parcel.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 18),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: GridView.count(
-                    padding: EdgeInsets.zero,
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 1.18,
-                    children: const [
-                      _Premium3DServiceCard(
-                        title: 'Bike',
-                        subtitle: 'Fast & affordable',
-                        imagePath: 'assets/images/3d_scooter_hero.jpg',
-                        gradientColors: [Color(0xFF1D4ED8), Color(0xFF3B82F6)],
-                        tag: 'Popular',
-                        tagColor: Color(0xFFFBBF24),
-                        etaText: '2 min',
-                      ),
-                      _Premium3DServiceCard(
-                        title: 'Auto',
-                        subtitle: 'Easy city rides',
-                        imagePath: 'assets/images/3d_auto_hero.jpg',
-                        gradientColors: [Color(0xFF065F46), Color(0xFF10B981)],
-                        tag: 'Eco',
-                        tagColor: Color(0xFF34D399),
-                        etaText: '3 min',
-                      ),
-                      _Premium3DServiceCard(
-                        title: 'Cab',
-                        subtitle: 'Comfortable trips',
-                        imagePath: 'assets/images/3d_car_hero.jpg',
-                        gradientColors: [Color(0xFF6D28D9), Color(0xFFA78BFA)],
-                        tag: 'Premium',
-                        tagColor: Color(0xFFC4B5FD),
-                        etaText: '4 min',
-                      ),
-                      _Premium3DServiceCard(
-                        title: 'Parcel',
-                        subtitle: 'Send packages safely',
-                        imagePath: 'assets/images/3d_parcel_delivery.jpg',
-                        gradientColors: [Color(0xFFC2410C), Color(0xFFFB923C)],
-                        tag: 'Fast',
-                        tagColor: Color(0xFFFED7AA),
-                        etaText: '5 min',
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 24),
+                
+                GridView.count(
+                  padding: EdgeInsets.zero,
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.9,
+                  children: const [
+                    _ServiceCard(
+                      title: 'Bike',
+                      subtitle: 'Quick solo rides',
+                      imagePath: 'assets/images/3d_scooter_hero.jpg',
+                      tag: 'Popular',
+                    ),
+                    _ServiceCard(
+                      title: 'Auto',
+                      subtitle: 'Everyday city rides',
+                      imagePath: 'assets/images/3d_auto_hero.jpg',
+                    ),
+                    _ServiceCard(
+                      title: 'Cab',
+                      subtitle: 'Comfort for every trip',
+                      imagePath: 'assets/images/3d_car_hero.jpg',
+                    ),
+                    _ServiceCard(
+                      title: 'Parcel',
+                      subtitle: 'Send packages locally',
+                      imagePath: 'assets/images/3d_parcel_delivery_new.png',
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 14),
+                
+                const SizedBox(height: 24),
+                
                 // Rotating promo banner
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -314,32 +316,34 @@ class _ServicesScreenState extends State<ServicesScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                _SectionHeader(
-                  icon: Icons.star_rounded,
-                  title: 'Why Sarthi?',
-                  subtitle: 'Built for your safety and comfort',
-                  color: const Color(0xFFF59E0B),
+                
+                const SizedBox(height: 32),
+                
+                const Text(
+                  'Why Sarthi?',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.5,
+                  ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
+                
                 const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _FeatureCard3D(
-                      icon: Icons.verified_user_rounded,
-                      label: 'Verified Captains',
-                      color: Color(0xFF2563EB),
+                    _FeatureItem(
+                      icon: Icons.phone_android_rounded,
+                      label: 'Easy booking',
                     ),
-                    SizedBox(width: 6),
-                    _FeatureCard3D(
+                    _FeatureItem(
                       icon: Icons.location_on_rounded,
-                      label: 'Live Tracking',
-                      color: Color(0xFF059669),
+                      label: 'Live tracking',
                     ),
-                    SizedBox(width: 6),
-                    _FeatureCard3D(
-                      icon: Icons.support_agent_rounded,
-                      label: '24/7 Support',
-                      color: Color(0xFF7C3AED),
+                    _FeatureItem(
+                      icon: Icons.headset_mic_rounded,
+                      label: 'Help & support',
                     ),
                   ],
                 ),
@@ -353,74 +357,18 @@ class _ServicesScreenState extends State<ServicesScreen> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  const _SectionHeader({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: color, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF0F172A),
-                letterSpacing: -0.3,
-              ),
-            ),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 10,
-                color: Color(0xFF94A3B8),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _Premium3DServiceCard extends StatelessWidget {
+class _ServiceCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String imagePath;
-  final List<Color> gradientColors;
-  final String tag;
-  final Color tagColor;
-  final String etaText;
-  const _Premium3DServiceCard({
+  final String? tag;
+  const _ServiceCard({
     required this.title,
     required this.subtitle,
     required this.imagePath,
-    required this.gradientColors,
-    required this.tag,
-    required this.tagColor,
-    required this.etaText,
+    this.tag,
   });
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -430,133 +378,103 @@ class _Premium3DServiceCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF1F5F9)),
           boxShadow: [
             BoxShadow(
-              color: gradientColors[0].withValues(alpha: 0.12),
-              blurRadius: 14,
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 10,
               offset: const Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              height: 92,
-              decoration: const BoxDecoration(
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
-                color: Colors.transparent,
-              ),
+            Expanded(
               child: Stack(
                 children: [
-                  // Centered smaller vehicle image - transparent background visible through
                   Center(
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 6, left: 4, right: 4),
+                      padding: const EdgeInsets.only(top: 12, left: 8, right: 8),
                       child: Image.asset(
                         imagePath,
-                        height: 86,
                         fit: BoxFit.contain,
                         errorBuilder: (c, e, s) => const Icon(
                           Icons.directions_car_rounded,
-                          color: Colors.white54,
+                          color: Colors.black12,
                           size: 48,
                         ),
                       ),
                     ),
                   ),
-                  // Tag badge top-left
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: tagColor.withValues(alpha: 0.95),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        tag,
-                        style: TextStyle(
-                          fontSize: 6,
-                          fontWeight: FontWeight.w800,
-                          color: gradientColors[0],
+                  if (tag != null)
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          tag!,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF2563EB),
+                          ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 5, 7, 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 11,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.2,
-                            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 12, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            subtitle,
-                            style: const TextStyle(
-                              fontSize: 7,
-                              color: Color(0xFF94A3B8),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: gradientColors,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
                         ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: gradientColors[0].withValues(alpha: 0.4),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
                           ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.arrow_forward_rounded,
-                        color: Colors.white,
-                        size: 9,
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEFF6FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 16,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -566,76 +484,41 @@ class _Premium3DServiceCard extends StatelessWidget {
   }
 }
 
-
-
-class _FeatureCard3D extends StatelessWidget {
+class _FeatureItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color color;
-  const _FeatureCard3D({
+
+  const _FeatureItem({
     required this.icon,
     required this.label,
-    required this.color,
   });
+
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(11),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.12),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: Color(0xFFEFF6FF),
+              shape: BoxShape.circle,
             ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
+            child: Icon(icon, color: const Color(0xFF2563EB), size: 24),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
+              height: 1.2,
             ),
-          ],
-          border: Border.all(color: color.withValues(alpha: 0.12)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color, color.withValues(alpha: 0.7)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.35),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: 14),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
-                  height: 1.1,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

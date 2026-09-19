@@ -129,10 +129,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           _pickup = {
             'lat': lastKnown.latitude,
             'lng': lastKnown.longitude,
-            'description': 'Detecting location...',
+            'description': 'Current location',
             'placeId': null,
           };
-          _pickupController.text = 'Detecting location...';
+          _pickupController.text = 'Current location';
         });
       }
 
@@ -147,7 +147,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         position.longitude,
       );
       if (mounted && (_pickup == null || force ||
-          _pickup!['description'] == 'Detecting location...')) {
+          _pickup!['description'] == 'Current location')) {
         setState(() {
           _pickup = {
             'lat': position.latitude,

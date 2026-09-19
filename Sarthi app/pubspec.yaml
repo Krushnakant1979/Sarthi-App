@@ -82,11 +82,11 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/sarthi-captain app logo.png"
+  image_path: "assets/images/Sarthi logo 2.png"
 
 flutter_native_splash:
   color: "#ffffff"
-  image: "assets/dummy.jpg"
+  image: "assets/images/Sarthi logo 2.png"
   android: true
   ios: true
 

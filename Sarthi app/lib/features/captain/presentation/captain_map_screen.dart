@@ -188,10 +188,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       final requests = _nearbyRequests(
         ref.read(incomingRequestsProvider).value ?? const [],
       );
-      if (requests.isNotEmpty && requests.first['pickup'] is Map) {
+      if (requests.isNotEmpty && requests.first['destination'] is Map) {
         await _renderRouteToTarget(
-          Map<String, dynamic>.from(requests.first['pickup'] as Map),
-          isPickup: true,
+          Map<String, dynamic>.from(requests.first['destination'] as Map),
+          isPickup: false,
         );
       }
     } else {
@@ -215,8 +215,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     final nearby = requests.where((request) {
       final pickup = request['pickup'];
       if (pickup is! Map) return false;
-      final lat = (pickup['lat'] as num?)?.toDouble();
-      final lng = (pickup['lng'] as num?)?.toDouble();
+      final lat = double.tryParse(pickup['lat']?.toString() ?? '');
+      final lng = double.tryParse(pickup['lng']?.toString() ?? '');
       if (lat == null || lng == null) return false;
       return Geolocator.distanceBetween(
             position.latitude,
@@ -233,14 +233,14 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       final aDistance = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,
-        (aPickup['lat'] as num).toDouble(),
-        (aPickup['lng'] as num).toDouble(),
+            double.tryParse(aPickup['lat']?.toString() ?? '') ?? 0.0,
+            double.tryParse(aPickup['lng']?.toString() ?? '') ?? 0.0,
       );
       final bDistance = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,
-        (bPickup['lat'] as num).toDouble(),
-        (bPickup['lng'] as num).toDouble(),
+            double.tryParse(bPickup['lat']?.toString() ?? '') ?? 0.0,
+            double.tryParse(bPickup['lng']?.toString() ?? '') ?? 0.0,
       );
       return aDistance.compareTo(bDistance);
     });
@@ -252,17 +252,35 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     required bool isPickup,
     bool fitCamera = true,
     bool showError = true,
+    bool force = false,
+    Map<String, dynamic>? originData,
   }) async {
+    final lat = double.tryParse(target['lat']?.toString() ?? '');
+    final lng = double.tryParse(target['lng']?.toString() ?? '');
+    final originLat = originData != null ? double.tryParse(originData['lat']?.toString() ?? '') : null;
+    final originLng = originData != null ? double.tryParse(originData['lng']?.toString() ?? '') : null;
+
+    if (lat == null || lng == null || !mounted) return;
+
+    if (!force && _navigationTarget != null) {
+      final oldLat = double.tryParse(_navigationTarget!['lat']?.toString() ?? '');
+      final oldLng = double.tryParse(_navigationTarget!['lng']?.toString() ?? '');
+      if (oldLat == lat && oldLng == lng && _navigationTargetIsPickup == isPickup) {
+        return; // Already rendering this exact route
+      }
+    }
+
     _navigationTarget = target;
     _navigationTargetIsPickup = isPickup;
     _updateRouteSeq++;
     final currentSeq = _updateRouteSeq;
     if (!_mapReady || _mapController == null) return;
-    final lat = (target['lat'] as num?)?.toDouble();
-    final lng = (target['lng'] as num?)?.toDouble();
-    final position =
-        _lastValidPosition ?? await _locationService.getCurrentPosition();
-    if (lat == null || lng == null || position == null || !mounted) return;
+
+    final position = _lastValidPosition ?? await _locationService.getCurrentPosition();
+    final startLat = originLat ?? position?.latitude;
+    final startLng = originLng ?? position?.longitude;
+    
+    if (startLat == null || startLng == null) return;
 
     try {
       if (_updateRouteSeq != currentSeq || _navigationTarget == null) return;
@@ -274,10 +292,19 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         title: target['address']?.toString() ?? 'Route target',
         isPickup: isPickup,
       );
+      
+      if (originLat != null && originLng != null) {
+        await _mapController!.addMarker(
+          originLat,
+          originLng,
+          title: originData!['address']?.toString() ?? 'Pickup',
+          isPickup: true,
+        );
+      }
 
       final route = await OlaMapsRepository().getDirections(
-        position.latitude,
-        position.longitude,
+        startLat,
+        startLng,
         lat,
         lng,
       );
@@ -297,6 +324,14 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         title: target['address']?.toString() ?? 'Route target',
         isPickup: isPickup,
       );
+      if (originLat != null && originLng != null) {
+        await _mapController!.addMarker(
+          originLat,
+          originLng,
+          title: originData!['address']?.toString() ?? 'Pickup',
+          isPickup: true,
+        );
+      }
       await _mapController!.drawPolyline(
         polyline: route['polyline'] as String?,
         points: points,
@@ -314,8 +349,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       });
       if (fitCamera) {
         await _mapController!.fitBounds(
-          position.latitude,
-          position.longitude,
+          startLat,
+          startLng,
           lat,
           lng,
         );
@@ -341,7 +376,11 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     final target = _navigationTarget;
     final lastOrigin = _lastRouteOrigin;
     final lastAt = _lastRouteAt;
+    final activeRide = ref.read(currentCaptainRideProvider).value;
+    
     if (target == null || !_mapReady) return;
+    if (activeRide == null) return; // Do not dynamically reroute static incoming requests
+    
     if (lastOrigin != null &&
         Geolocator.distanceBetween(
               lastOrigin.latitude,
@@ -361,18 +400,20 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       isPickup: _navigationTargetIsPickup,
       fitCamera: false,
       showError: false,
+      force: true,
     );
   }
 
   Future<void> _renderActiveRide(Map<String, dynamic> ride) async {
     final status = ride['status'] as String?;
-    final target = status == 'in_progress'
+    final isGoingToDestination = status == 'in_progress' || status == 'arrived';
+    final target = isGoingToDestination
         ? ride['destination']
         : ride['pickup'];
     if (target is Map) {
       await _renderRouteToTarget(
         Map<String, dynamic>.from(target),
-        isPickup: status != 'in_progress',
+        isPickup: !isGoingToDestination,
       );
     }
   }
@@ -529,37 +570,53 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     }
   }
 
-  String get _enteredOtp => _otpController.text;
+  String _enteredOtp = '';
 
   @override
   Widget build(BuildContext context) {
     final incomingRequestsAsync = ref.watch(incomingRequestsProvider);
     final activeRideAsync = ref.watch(currentCaptainRideProvider);
 
-    // Drop a marker for the pickup location when active ride changes
     ref.listen(currentCaptainRideProvider, (previous, next) {
+      if (next.isLoading && !next.hasValue) return; // Ignore initial load
+      
       final ride = next.value;
+
+      if (ride == null || ride['id'] != previous?.value?['id'] || ride['status'] != 'arrived') {
+        if (_enteredOtp.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() { _enteredOtp = ''; });
+          });
+        }
+      }
+
       if (ride != null) {
         _renderActiveRide(ride);
-      } else if (previous?.value != null) {
+      } else if (previous?.value != null && !next.isLoading) {
         _clearNavigationTarget();
       }
     });
 
     ref.listen(incomingRequestsProvider, (previous, next) {
+      if (next.isLoading && !next.hasValue) return;
+      
       final requests = next.value;
       final nearby = requests == null
           ? const <Map<String, dynamic>>[]
           : _nearbyRequests(requests);
+          
       if (_isOnline && nearby.isNotEmpty && activeRideAsync.value == null) {
-        final pickup = nearby.first['pickup'];
-        if (pickup is Map) {
+        final req = nearby.first;
+        final pickup = req['pickup'];
+        final destination = req['destination'];
+        if (pickup is Map && destination is Map) {
           _renderRouteToTarget(
-            Map<String, dynamic>.from(pickup),
-            isPickup: true,
+            Map<String, dynamic>.from(destination),
+            isPickup: false,
+            originData: Map<String, dynamic>.from(pickup),
           );
         }
-      } else if (activeRideAsync.value == null) {
+      } else if (activeRideAsync.value == null && !next.isLoading) {
         // Clear route if no incoming requests and no active ride
         _clearNavigationTarget();
       }
@@ -619,14 +676,17 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     final requests = _nearbyRequests(
                       ref.read(incomingRequestsProvider).value ?? const [],
                     );
-                    if (requests.isNotEmpty &&
-                        requests.first['pickup'] is Map) {
-                      await _renderRouteToTarget(
-                        Map<String, dynamic>.from(
-                          requests.first['pickup'] as Map,
-                        ),
-                        isPickup: true,
-                      );
+                    if (requests.isNotEmpty) {
+                      final req = requests.first;
+                      final pickup = req['pickup'];
+                      final destination = req['destination'];
+                      if (pickup is Map && destination is Map) {
+                        await _renderRouteToTarget(
+                          Map<String, dynamic>.from(destination),
+                          isPickup: false,
+                          originData: Map<String, dynamic>.from(pickup),
+                        );
+                      }
                     }
                   }
                 }
@@ -638,236 +698,180 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(
-                children: [
-                  // Menu button — navy gradient circle
-                  GestureDetector(
-                    onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                    child: Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0B2144).withValues(alpha: 0.35),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.menu_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Title card — matching user app pill style
-                  Expanded(
-                    child: Container(
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: Row(
-                        children: [
-                          // Sarthi logo box
-                          Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF0B2144).withValues(alpha: 0.25),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.electric_rickshaw_rounded,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ShaderMask(
-                            shaderCallback: (bounds) => const LinearGradient(
-                              colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                            ).createShader(bounds),
-                            child: const Text(
-                              'Captain',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                color: Colors.white,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          // Online/Offline status badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: activeRideAsync.value != null
-                                  ? const Color(0xFF2563EB).withValues(alpha: 0.1)
-                                  : _isOnline
-                                  ? context.colors.liveTeal.withValues(alpha: 0.1)
-                                  : const Color(0xFF9CA3AF).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: activeRideAsync.value != null
-                                    ? const Color(0xFF2563EB).withValues(alpha: 0.3)
-                                    : _isOnline
-                                    ? context.colors.liveTeal.withValues(alpha: 0.3)
-                                    : const Color(0xFF9CA3AF).withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: activeRideAsync.value != null
-                                        ? const Color(0xFF2563EB)
-                                        : _isOnline
-                                        ? context.colors.liveTeal
-                                        : const Color(0xFF9CA3AF),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  activeRideAsync.value != null
-                                      ? 'On Trip'
-                                      : _isOnline
-                                      ? 'Online'
-                                      : 'Offline',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: activeRideAsync.value != null
-                                        ? const Color(0xFF2563EB)
-                                        : _isOnline
-                                        ? context.colors.liveTeal
-                                        : const Color(0xFF9CA3AF),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          // Online toggle
-                          Transform.scale(
-                            scale: 0.75,
-                            child: Switch(
-                              value: _isOnline,
-                              activeThumbColor: context.colors.liveTeal,
-                              onChanged: activeRideAsync.value != null
-                                  ? null
-                                  : _toggleOnline,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Recenter button ──────────────────────────────────────
-          ValueListenableBuilder<double>(
-            valueListenable: _sheetExtent,
-            builder: (context, extent, child) {
-              final screenHeight = MediaQuery.of(context).size.height;
-              return Positioned(
-                bottom: (screenHeight * extent) + 16,
-                right: 16,
-                child: child!,
-              );
-            },
-            child: Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: context.colors.primary,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: context.colors.primary.withValues(alpha: 0.45),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                onPressed: _isRecentering ? null : _recenter,
-                icon: _isRecentering
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.my_location_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-              ),
-            ),
-          ),
-
-          // -- Bottom Sheet -----------------------------------------
-          DraggableScrollableSheet(
-            controller: _sheetController,
-            initialChildSize: (_targetSheetFraction ?? 0.45).clamp(0.25, 1.0),
-            minChildSize: 0.25,
-            maxChildSize: 0.95,
-            builder: (context, scrollController) {
-              return Container(
-                decoration: const BoxDecoration(
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(30),
-                  ),
+                  borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Color(0x260B2545),
-                      blurRadius: 28,
-                      offset: Offset(0, -8),
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: activeRideAsync.when(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    // Menu button
+                    GestureDetector(
+                      onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                      child: Container(
+                        color: Colors.transparent, // expand hit area
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(
+                          Icons.menu_rounded,
+                          color: Colors.black87,
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Sarthi CAPTAIN Logo
+                    const Icon(
+                      Icons.electric_rickshaw_rounded,
+                      color: Color(0xFF3B82F6),
+                      size: 26,
+                    ),
+                    const SizedBox(width: 6),
+                    const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sarthi',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            color: Colors.black87,
+                            height: 1.1,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        Text(
+                          'CAPTAIN',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 8,
+                            color: Color(0xFF64748B),
+                            letterSpacing: 1.5,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    // Online indicator
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: activeRideAsync.valueOrNull != null
+                            ? const Color(0xFFEFF6FF)
+                            : _isOnline
+                                ? const Color(0xFFDCFCE7)
+                                : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: activeRideAsync.valueOrNull != null
+                                  ? const Color(0xFF3B82F6)
+                                  : _isOnline
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFF9CA3AF),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            activeRideAsync.valueOrNull != null
+                                ? 'On Trip'
+                                : _isOnline
+                                    ? 'Online'
+                                    : 'Offline',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: activeRideAsync.valueOrNull != null
+                                  ? const Color(0xFF3B82F6)
+                                  : _isOnline
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Online toggle
+                    Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: _isOnline,
+                        activeColor: Colors.white,
+                        activeTrackColor: const Color(0xFF22C55E),
+                        inactiveThumbColor: Colors.white,
+                        inactiveTrackColor: const Color(0xFFD1D5DB),
+                        onChanged: activeRideAsync.valueOrNull != null ? null : _toggleOnline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Bottom Sheet & Recenter button ────────────────────────
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Recenter button
+                Padding(
+                  padding: const EdgeInsets.only(right: 16, bottom: 16),
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: context.colors.primary,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                          color: context.colors.primary.withValues(alpha: 0.45),
+                          blurRadius: 14,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      onPressed: _isRecentering ? null : _recenter,
+                      icon: _isRecentering
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.my_location_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                    ),
+                  ),
+                ),
+
+                // Bottom Sheet Content
+                activeRideAsync.when(
                   data: (activeRide) {
                     Widget sheetContent;
                     if (activeRide != null) {
@@ -891,83 +895,56 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                             nearbyRequests.first,
                           );
                         },
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (e, s) => Center(child: Text('Error: $e')),
+                        loading: () => const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        error: (e, s) => Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Text('Error: $e'),
+                          ),
+                        ),
                       );
                     }
 
-                    // Determine a key for the current state for AnimatedSwitcher
-                    final stateKey = activeRide != null
-                        ? 'active_${activeRide['status']}'
-                        : _isOnline
-                        ? 'searching_${incomingRequestsAsync.value?.isNotEmpty == true}'
-                        : 'offline';
-
-                    return SingleChildScrollView(
-                      controller: scrollController,
-                      physics: const ClampingScrollPhysics(),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 150),
-                        switchInCurve: Curves.easeOut,
-                        switchOutCurve: Curves.easeIn,
-                        transitionBuilder: (child, animation) =>
-                            FadeTransition(opacity: animation, child: child),
-                        layoutBuilder: (currentChild, previousChildren) =>
-                            Stack(
-                              alignment: Alignment.topCenter,
-                              children: <Widget>[
-                                ...previousChildren,
-                                ?currentChild,
-                              ],
-                            ),
-                        child: KeyedSubtree(
-                          key: ValueKey(stateKey),
-                          child: MeasureSize(
-                            onChange: (size) {
-                              final screenHeight = MediaQuery.of(
-                                context,
-                              ).size.height;
-                              // Calculate exact fraction matching content height
-                              final target = (size.height / screenHeight).clamp(
-                                0.25,
-                                0.95,
-                              );
-                              if (_targetSheetFraction == null ||
-                                  (_targetSheetFraction! - target).abs() >
-                                      0.01) {
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (mounted) {
-                                    setState(
-                                      () => _targetSheetFraction = target,
-                                    );
-                                    if (_sheetController.isAttached) {
-                                      _sheetController.animateTo(
-                                        target,
-                                        duration: const Duration(
-                                          milliseconds: 250,
-                                        ),
-                                        curve: Curves.easeOutCubic,
-                                      );
-                                    }
-                                  }
-                                });
-                              }
-                            },
-                            child: sheetContent,
-                          ),
+                    return Container(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.90,
+                      ),
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(30),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0x260B2545),
+                            blurRadius: 28,
+                            offset: Offset(0, -8),
+                          ),
+                        ],
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        child: sheetContent,
                       ),
                     );
                   },
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, s) => Center(child: Text('Error: $e')),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                  error: (e, s) => Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Text('Error: $e'),
+                  ),
                 ),
-              );
-            },
+              ],
+            ),
           ),
         ],
       ),
@@ -991,11 +968,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
 
   // ── Offline sheet ────────────────────────────────────────────
   Widget _buildOfflineSheet(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).padding.bottom;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1096,11 +1072,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
 
   // ── Searching sheet ──────────────────────────────────────────
   Widget _buildSearchingSheet(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).padding.bottom;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1206,267 +1181,30 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     WidgetRef ref,
     Map<String, dynamic> request,
   ) {
-    final fare = request['fareEstimate'];
-    final dest = request['destination']?['address'] ?? 'Unknown';
-    final distM = request['distanceMeters'] as int?;
-
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + bottomInset),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _dragHandle(),
-
-            // Alert header — blue gradient
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [context.colors.primary, context.colors.primary.withValues(alpha: 0.85)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: context.colors.primary.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.notifications_active_rounded,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'New Ride Request!',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Route card — premium with dotted connector
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFD),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: context.colors.rapidoYellow,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: context.colors.rapidoYellow.withValues(alpha: 0.4),
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: context.colors.rapidoYellow.withValues(alpha: 0.4),
-                              blurRadius: 6,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Pickup Location',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 5, top: 3, bottom: 3),
-                    child: Column(
-                      children: List.generate(
-                        4,
-                        (_) => Container(
-                          width: 2,
-                          height: 5,
-                          margin: const EdgeInsets.symmetric(vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCBD5E1),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: context.colors.error,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: context.colors.error.withValues(alpha: 0.4),
-                            width: 3,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          dest,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                            color: Color(0xFF0F172A),
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Metrics row
-            Row(
-              children: [
-                Expanded(
-                  child: _captainMetricCard(
-                    icon: Icons.currency_rupee_rounded,
-                    value: '₹$fare',
-                    label: 'Fare',
-                    color: context.colors.primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                if (distM != null)
-                  Expanded(
-                    child: _captainMetricCard(
-                      icon: Icons.straighten_rounded,
-                      value: '${(distM / 1000).toStringAsFixed(1)} km',
-                      label: 'Distance',
-                      color: context.colors.rapidoYellow,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _isRideActionLoading
-                        ? null
-                        : () {
-                            final uid = FirebaseAuth.instance.currentUser?.uid;
-                            if (uid != null) {
-                              _runRideAction(
-                                () => ref
-                                    .read(captainRepositoryProvider)
-                                    .rejectRide(request['id'] as String, uid),
-                              );
-                            }
-                          },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: context.colors.error,
-                      side: BorderSide(color: context.colors.error.withValues(alpha: 0.5)),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'Skip',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: _isRideActionLoading
-                        ? null
-                        : () {
-                            final uid = FirebaseAuth.instance.currentUser?.uid;
-                            if (uid != null) {
-                              _runRideAction(
-                                () => ref
-                                    .read(captainRepositoryProvider)
-                                    .acceptRide(request['id'] as String, uid),
-                              );
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: context.colors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      shadowColor: context.colors.primary.withValues(alpha: 0.4),
-                    ),
-                    child: _isRideActionLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Accept Ride',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.1,
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+    return IncomingRequestSheetWidget(
+      request: request,
+      dragHandle: _dragHandle(),
+      isActionLoading: _isRideActionLoading,
+      onSkip: () {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          _runRideAction(
+            () => ref
+                .read(captainRepositoryProvider)
+                .rejectRide(request['id'] as String, uid),
+          );
+        }
+      },
+      onAccept: () {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          _runRideAction(
+            () => ref
+                .read(captainRepositoryProvider)
+                .acceptRide(request['id'] as String, uid),
+          );
+        }
+      },
     );
   }
 
@@ -1476,25 +1214,26 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     WidgetRef ref,
     Map<String, dynamic> activeRide,
   ) {
-    final colors = context.colors;
-    const navy = Color(0xFF0B2545);
-    const navyLight = Color(0xFF173E69);
-    const blue = Color(0xFF2563EB);
-    const green = Color(0xFF16B77A);
-    const yellow = Color(0xFFFFD633);
-
-    final status = activeRide['status'] as String;
-    final rideId = activeRide['id'] as String;
-    final fare = activeRide['fareEstimate'];
-    final dest = activeRide['destination']?['address'] ?? 'Dropoff';
+    final status = (activeRide['status'] as String?) ?? 'accepted';
+    final rideId = (activeRide['id'] as String?) ?? '';
+    final fare = activeRide['fareEstimate'] ?? activeRide['estimatedFare'];
+    
+    // Safely extract destination
+    final destObj = activeRide['destination'];
+    final dest = destObj is Map ? (destObj['address']?.toString() ?? 'Dropoff') : (destObj?.toString() ?? 'Dropoff');
+    
     final riderName = activeRide['riderName'] as String? ?? 'Rider';
     final riderPhone = activeRide['riderPhone'] as String?;
     final captainId = FirebaseAuth.instance.currentUser?.uid;
     final isHeadingToPickup = status != 'in_progress';
-    final pickup = activeRide['pickup'] as Map?;
+    
+    // Safely extract pickup
+    final pickupObj = activeRide['pickup'];
+    final pickup = pickupObj is Map ? pickupObj : null;
+    
     final targetAddress = isHeadingToPickup
         ? (pickup == null
-              ? 'User pickup location'
+              ? (pickupObj is String ? pickupObj : 'User pickup location')
               : pickup['address']?.toString() ?? 'User pickup location')
         : dest;
     final etaMinutes = _navigationDurationSeconds == null
@@ -1523,7 +1262,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('You must be near the pickup location (within 150m) to mark as arrived.'),
-              backgroundColor: colors.error,
+              backgroundColor: context.colors.error,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -1541,176 +1280,114 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       );
     }
 
-    // ── color scheme per status ──────────────────────────────────
-    final Color statusColor;
-    final String statusLabel;
-    final IconData statusIcon;
-    switch (status) {
-      case 'accepted':
-        statusColor = blue;
-        statusLabel = 'Navigate to Pickup';
-        statusIcon = Icons.route_rounded;
-        break;
-      case 'arriving':
-        statusColor = colors.warning;
-        statusLabel = 'Arriving at Pickup';
-        statusIcon = Icons.near_me_rounded;
-        break;
-      case 'arrived':
-        statusColor = green;
-        statusLabel = 'Arrived — Verify OTP';
-        statusIcon = Icons.location_on_rounded;
-        break;
-      case 'in_progress':
-        statusColor = colors.liveTeal;
-        statusLabel = 'Trip in Progress';
-        statusIcon = Icons.electric_moped_rounded;
-        break;
-      default:
-        statusColor = colors.textMuted;
-        statusLabel = status.toUpperCase();
-        statusIcon = Icons.info_outline_rounded;
-    }
-
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    
+    // Split targetAddress into main and sub
+    final List<String> addressParts = targetAddress.split(',');
+    final mainAddress = addressParts.first;
+    final subAddress = addressParts.length > 1 ? addressParts.sublist(1).join(',').trim() : '';
+
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _dragHandle(),
-            const SizedBox(height: 2),
+            const SizedBox(height: 12),
 
-            // ── Status banner ───────────────────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    statusColor.withValues(alpha: 0.12),
-                    statusColor.withValues(alpha: 0.06),
-                  ],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: statusColor.withValues(alpha: 0.25), width: 1.2),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 3.5,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(statusIcon, color: statusColor, size: 13),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      statusLabel,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12.5,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ),
-                  // Fare badge in status bar
-                  if (fare != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(7),
-                        border: Border.all(
-                          color: const Color(0xFFFCD34D),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Text(
-                        '₹$fare',
+            // Header Row (Heading to pickup / ETA / Fare)
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isHeadingToPickup ? 'Heading to pickup' : 'Heading to drop-off',
                         style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          color: navy,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                          letterSpacing: -0.5,
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-
-            // ── Rider info card — premium navy gradient ──────────────
-            if (status != 'in_progress') ...[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [navy, navyLight],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                      const SizedBox(height: 4),
+                      if (etaMinutes != null && navigationKm != null)
+                        Text(
+                          '$etaMinutes min away · $navigationKm km',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                    ],
                   ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: navy.withValues(alpha: 0.22),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                ),
+                if (fare != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEBF5FF),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
+                    child: Column(
+                      children: [
+                        Text(
+                          '₹$fare',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const Text(
+                          'Ride fare',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Rider info card
+            if (status != 'in_progress')
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9), 
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   children: [
-                    // Avatar circle with initials
                     Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            yellow.withValues(alpha: 0.25),
-                            yellow.withValues(alpha: 0.10),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                      width: 46,
+                      height: 46,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFDBEAFE),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                            color: yellow.withValues(alpha: 0.5), width: 1.5),
                       ),
                       child: Center(
                         child: Text(
-                          riderName.isNotEmpty
-                              ? riderName[0].toUpperCase()
-                              : 'R',
+                          riderName.isNotEmpty ? riderName[0].toUpperCase() : 'R',
                           style: const TextStyle(
-                            color: yellow,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    // Name + phone
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1718,230 +1395,199 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                           Text(
                             riderName,
                             style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                              color: Colors.white,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.phone_rounded,
-                                size: 10,
-                                color: Colors.white.withValues(alpha: 0.55),
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                riderPhone?.isNotEmpty == true
-                                    ? riderPhone!
-                                    : 'No phone',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.65),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Call button
-                    if (riderPhone?.isNotEmpty == true)
-                      GestureDetector(
-                        onTap: () => _callNumber(riderPhone!),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.call_rounded,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-
-              // ── Route / destination strip ─────────────────────────
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: colors.cardBorder.withValues(alpha: 0.7)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: navy.withValues(alpha: 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: isHeadingToPickup
-                            ? green.withValues(alpha: 0.12)
-                            : yellow.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        isHeadingToPickup
-                            ? Icons.my_location_rounded
-                            : Icons.flag_rounded,
-                        color: isHeadingToPickup ? green : const Color(0xFFF59E0B),
-                        size: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isHeadingToPickup ? 'PICKUP' : 'DROP-OFF',
-                            style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.9,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            targetAddress,
-                            style: TextStyle(
-                              color: colors.text,
-                              fontSize: 12,
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              letterSpacing: -0.1,
+                              color: Colors.black87,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const Text(
+                            'Your rider',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-            ],
-
-            // ── ETA strip (blue pill) ───────────────────────────────
-            if (etaMinutes != null && navigationKm != null) ...[
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [blue, Color(0xFF1D4ED8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: blue.withValues(alpha: 0.28),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    // ETA chip
-                    _etaChip(
-                      icon: Icons.timer_rounded,
-                      value: '$etaMinutes min',
-                    ),
-                    const SizedBox(width: 6),
-                    // Distance chip
-                    _etaChip(
-                      icon: Icons.straighten_rounded,
-                      value: '$navigationKm km',
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(7),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.25)),
-                      ),
-                      child: Text(
-                        isHeadingToPickup ? 'to pickup' : 'to drop',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
+                    if (riderPhone?.isNotEmpty == true)
+                      OutlinedButton.icon(
+                        onPressed: () => _callNumber(riderPhone!),
+                        icon: const Icon(Icons.phone, size: 16),
+                        label: const Text('Call'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF3B82F6),
+                          side: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  minimumSize: Size.zero,
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 6),
-            ],
+            
+            if (status != 'in_progress')
+              const SizedBox(height: 20),
 
-            // ── Action row: Cancel + Report ─────────────────────────
-            if (status != 'in_progress') ...[
+            // Location
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 2),
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Color(0xFF10B981),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isHeadingToPickup ? 'PICKUP LOCATION' : 'DROP-OFF LOCATION',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF64748B),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        mainAddress,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      if (subAddress.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subAddress,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+            const Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1),
+            const SizedBox(height: 16),
+
+            // Action row: Cancel + Help
+            if (status != 'in_progress')
               Row(
                 children: [
-                  // Cancel
                   Expanded(
-                    child: OutlinedButton(
+                    child: TextButton.icon(
                       onPressed: _isRideActionLoading || captainId == null
                           ? null
                           : () async {
                               final confirmed = await showDialog<bool>(
                                 context: context,
                                 builder: (dialogContext) => AlertDialog(
-                                  title: const Text('Cancel Ride?'),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                                  contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                                  actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                  title: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.withValues(alpha: 0.1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.warning_amber_rounded,
+                                          color: Colors.red,
+                                          size: 24,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      const Expanded(
+                                        child: Text(
+                                          'Cancel Ride?',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                   content: const Text(
-                                    'Are you sure you want to cancel this ride? This may negatively impact your rating.',
+                                    'Are you sure you want to cancel this ride? This action cannot be undone and may affect your cancellation rate.',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.black54,
+                                      height: 1.5,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                   actions: [
                                     Row(
                                       children: [
                                         Expanded(
                                           child: TextButton(
-                                            onPressed: () => Navigator.pop(
-                                                dialogContext, false),
+                                            onPressed: () => Navigator.pop(dialogContext, false),
                                             style: TextButton.styleFrom(
-                                              foregroundColor: colors.text,
+                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(14),
+                                              ),
+                                              backgroundColor: const Color(0xFFF1F5F9),
                                             ),
-                                            child: const Text('No'),
+                                            child: const Text(
+                                              'No, Keep It',
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
+                                        const SizedBox(width: 12),
                                         Expanded(
                                           child: ElevatedButton(
-                                            onPressed: () => Navigator.pop(
-                                                dialogContext, true),
+                                            onPressed: () => Navigator.pop(dialogContext, true),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: colors.error,
+                                              backgroundColor: Colors.red,
                                               foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(14),
+                                              ),
                                             ),
-                                            child: const Text('Yes'),
+                                            child: const Text(
+                                              'Yes, Cancel',
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -1961,114 +1607,50 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                     ),
                               );
                             },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colors.error,
-                        side: BorderSide(
-                            color: colors.error.withValues(alpha: 0.55),
-                            width: 1.2),
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(11),
-                        ),
+                      icon: const Icon(Icons.cancel_outlined, size: 18),
+                      label: const Text(
+                        'Cancel ride',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFEF4444),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  // Report issue
                   Container(
-                    height: 38,
-                    width: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(11),
-                      border: Border.all(
-                        color: const Color(0xFFFCD34D).withValues(alpha: 0.7),
-                        width: 1.2,
+                    width: 1,
+                    height: 24,
+                    color: const Color(0xFFE2E8F0),
+                  ),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => _reportIssue(rideId, captainId ?? ''),
+                      icon: const Icon(Icons.health_and_safety_outlined, size: 18),
+                      label: const Text(
+                        'Help & safety',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: yellow.withValues(alpha: 0.25),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Report ride issue',
-                      onPressed: captainId == null
-                          ? null
-                          : () => _reportIssue(rideId, captainId),
-                      icon: const Icon(Icons.report_problem_outlined, size: 18),
-                      color: const Color(0xFFF59E0B),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF3B82F6),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-            ],
+            
+            if (status != 'in_progress')
+              const SizedBox(height: 16),
 
-            // ── Primary CTA ─────────────────────────────────────────
-            if (status == 'accepted')
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isRideActionLoading || captainId == null
-                      ? null
-                      : () => handleArrivedPress('accepted'),
-                  icon: const Icon(Icons.location_on_rounded, size: 18),
-                  label: const Text(
-                    'Arrived at Pickup',
-                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: yellow,
-                    foregroundColor: navy,
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    elevation: 0,
-                    shadowColor: yellow.withValues(alpha: 0.4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              )
-            else if (status == 'arriving')
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isRideActionLoading || captainId == null
-                      ? null
-                      : () => handleArrivedPress('arriving'),
-                  icon: const Icon(Icons.location_on_rounded, size: 18),
-                  label: const Text(
-                    'I have Arrived',
-                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: yellow,
-                    foregroundColor: navy,
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              )
-            else if (status == 'arrived') ...[
-              // OTP verification card
+            // OTP Block (if arrived)
+            if (status == 'arrived') ...[
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      green.withValues(alpha: 0.06),
+                      const Color(0xFF16B77A).withValues(alpha: 0.06),
                       const Color(0xFF2563EB).withValues(alpha: 0.05),
                     ],
                     begin: Alignment.topLeft,
@@ -2076,7 +1658,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                   ),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                      color: green.withValues(alpha: 0.2), width: 1.5),
+                      color: const Color(0xFF16B77A).withValues(alpha: 0.2), width: 1.5),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2106,14 +1688,14 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 15,
-                                color: colors.primary,
+                                color: context.colors.primary,
                                 letterSpacing: -0.2,
                               ),
                             ),
                             Text(
                               'Ask the rider for their 4-digit code',
                               style: TextStyle(
-                                color: colors.textMuted,
+                                color: context.colors.textMuted,
                                 fontSize: 11,
                               ),
                             ),
@@ -2121,150 +1703,143 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    // OTP input — full width, large digits
-                    TextField(
-                      controller: _otpController,
-                      focusNode: _otpFocusNode,
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.done,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(4),
-                      ],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 20.0,
-                        color: colors.primary,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: '• • • •',
-                        hintStyle: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 10,
-                          color: colors.hint,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 14),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(
-                              color: colors.cardBorder, width: 1.5),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(
-                              color: colors.primary, width: 2),
-                        ),
-                      ),
-                      onChanged: (val) {
-                        setState(() {}); // Refresh button state
-                        if (val.length == 4) {
-                          FocusScope.of(context).unfocus();
-                        }
-                      },
-                      onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                    ),
-                    const SizedBox(height: 12),
-                    // Verify button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _enteredOtp.length == 4 &&
-                                !_isRideActionLoading &&
-                                captainId != null
-                            ? () => _runRideAction(() async {
-                                FocusScope.of(context).unfocus();
-                                try {
-                                  await ref
-                                      .read(captainRepositoryProvider)
-                                      .verifyOtpAndStartRide(
-                                        rideId: rideId,
-                                        captainId: captainId,
-                                        enteredOtp: _enteredOtp,
+                    const SizedBox(height: 18),
+                    StatefulBuilder(
+                      builder: (ctx, setInnerState) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: List.generate(4, (index) {
+                              final isFilled = index < _enteredOtp.length;
+                              final isCurrent = index == _enteredOtp.length;
+
+                              return InkWell(
+                                onTap: () async {
+                                  final entered = await showModalBottomSheet<String>(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    builder: (bctx) {
+                                      return Padding(
+                                        padding: EdgeInsets.only(
+                                            bottom: MediaQuery.of(bctx).viewInsets.bottom),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(24),
+                                          child: TextField(
+                                            keyboardType: TextInputType.number,
+                                            maxLength: 4,
+                                            autofocus: true,
+                                            decoration: const InputDecoration(
+                                              hintText: 'Enter 4-digit OTP',
+                                            ),
+                                            onChanged: (v) {
+                                              if (v.length == 4) {
+                                                Navigator.pop(bctx, v);
+                                              }
+                                            },
+                                          ),
+                                        ),
                                       );
-                                  _otpController.clear();
-                                } catch (error) {
-                                  // Preserve the OTP for transient Firebase/network
-                                  // failures; clear it only when validation failed.
-                                  if (error is StateError) {
-                                    _otpController.clear();
-                                    _otpFocusNode.requestFocus();
+                                    },
+                                  );
+
+                                  if (entered != null && entered.length == 4) {
+                                    setInnerState(() {
+                                      _enteredOtp = entered;
+                                    });
+                                    if (_enteredOtp == activeRide['otp']) {
+                                      _runRideAction(
+                                        () => ref.read(captainRepositoryProvider).transitionRide(
+                                              rideId: rideId,
+                                              captainId: captainId!,
+                                              fromStatus: 'arrived',
+                                              toStatus: 'in_progress',
+                                            ),
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: const Text('Incorrect OTP! Please check with rider.'),
+                                          backgroundColor: context.colors.error,
+                                        ),
+                                      );
+                                      setInnerState(() {
+                                        _enteredOtp = '';
+                                      });
+                                    }
                                   }
-                                  rethrow;
-                                }
-                              })
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF16A34A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width: 48,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: isFilled ? const Color(0xFFF0FDF4) : Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: isFilled
+                                          ? const Color(0xFF16B77A)
+                                          : isCurrent
+                                              ? const Color(0xFF2563EB).withValues(alpha: 0.6)
+                                              : context.colors.cardBorder,
+                                      width: isFilled || isCurrent ? 2.0 : 1.0,
+                                    ),
+                                    boxShadow: isCurrent
+                                        ? [
+                                            BoxShadow(
+                                              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                                              blurRadius: 10,
+                                              spreadRadius: 2,
+                                            )
+                                          ]
+                                        : [],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      isFilled ? _enteredOtp[index] : '',
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                        color: isFilled ? const Color(0xFF16B77A) : Colors.transparent,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
                           ),
-                        ),
-                        child: const Text(
-                          'Verify OTP & Start Ride',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
-            ] else if (status == 'in_progress') ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFD),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+              const SizedBox(height: 16),
+            ],
+
+            // Primary CTA
+            if (status == 'accepted' || status == 'arriving')
+              ElevatedButton.icon(
+                onPressed: _isRideActionLoading || captainId == null
+                    ? null
+                    : () => handleArrivedPress(status),
+                icon: const Icon(Icons.location_on, size: 18, color: Colors.white),
+                label: Text(
+                  status == 'accepted' ? 'Arrived at pickup' : 'I have Arrived',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.flag_rounded,
-                      color: context.colors.error,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Drop-off Location',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            dest,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
-              const SizedBox(height: 14),
+
+            if (status == 'in_progress')
               ElevatedButton.icon(
                 onPressed: _isRideActionLoading || captainId == null
                     ? null
@@ -2292,56 +1867,31 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                 children: [
                                   Expanded(
                                     child: OutlinedButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext, false),
+                                      onPressed: () => Navigator.pop(dialogContext, false),
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: context.colors.text,
-                                        side: BorderSide(
-                                          color: context.colors.cardBorder,
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                       ),
-                                      child: const Text(
-                                        'No',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
+                                      child: const Text('No'),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: ElevatedButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext, true),
+                                      onPressed: () => Navigator.pop(dialogContext, true),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            context.colors.rapidoYellow,
-                                        foregroundColor:
-                                            context.colors.primary,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                        ),
+                                        backgroundColor: const Color(0xFF10B981),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
                                         elevation: 0,
+                                        minimumSize: Size.zero,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                       ),
-                                      child: const Text(
-                                        'Yes',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
+                                      child: const Text('Yes'),
                                     ),
                                   ),
                                 ],
@@ -2350,6 +1900,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                           ),
                         );
                         if (confirmed != true) return;
+                        
                         await _runRideAction(
                           () => ref
                               .read(captainRepositoryProvider)
@@ -2361,15 +1912,21 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               ),
                         );
                       },
-                icon: const Icon(Icons.check_circle_rounded),
-                label: const Text('Complete Trip & Collect Cash'),
+                icon: const Icon(Icons.check_circle_rounded, size: 18, color: Colors.white),
+                label: const Text(
+                  'End Trip',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: context.colors.rapidoYellow,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
-            ],
           ],
         ),
       ),
@@ -2465,6 +2022,411 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── IncomingRequestSheetWidget ───────────────────────────────────────────
+class IncomingRequestSheetWidget extends StatefulWidget {
+  final Map<String, dynamic> request;
+  final Widget dragHandle;
+  final VoidCallback onSkip;
+  final VoidCallback onAccept;
+  final bool isActionLoading;
+
+  const IncomingRequestSheetWidget({
+    Key? key,
+    required this.request,
+    required this.dragHandle,
+    required this.onSkip,
+    required this.onAccept,
+    required this.isActionLoading,
+  }) : super(key: key);
+
+  @override
+  State<IncomingRequestSheetWidget> createState() => _IncomingRequestSheetWidgetState();
+}
+
+class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget> {
+  Timer? _timer;
+  int _secondsLeft = 30;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      if (_secondsLeft > 0) {
+        setState(() => _secondsLeft--);
+      } else {
+        _timer?.cancel();
+        if (!widget.isActionLoading) {
+          widget.onSkip();
+        }
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(IncomingRequestSheetWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.request['id'] != widget.request['id']) {
+      _timer?.cancel();
+      setState(() => _secondsLeft = 30);
+      _startTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fare = widget.request['fareEstimate']?.toString() ?? '0';
+    final pickup = widget.request['pickup']?['address'] ?? 'Unknown location';
+    final distM = widget.request['distanceMeters'] as int?;
+
+    final List<String> pickupParts = pickup.split(',');
+    final mainPickup = pickupParts.first;
+    final subPickup = pickupParts.length > 1 ? pickupParts.sublist(1).join(',').trim() : '';
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            widget.dragHandle,
+            const SizedBox(height: 12),
+
+            // Title Row
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEBF5FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_pin,
+                    color: Color(0xFF3B82F6),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Text(
+                    'New ride request',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ),
+                // Timer circle
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: CircularProgressIndicator(
+                        value: _secondsLeft / 30.0,
+                        backgroundColor: const Color(0xFFE2E8F0),
+                        color: const Color(0xFF3B82F6),
+                        strokeWidth: 3,
+                      ),
+                    ),
+                    Text(
+                      '${_secondsLeft}s',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Metrics Row
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFF1F5F9)),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEBF5FF),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.currency_rupee_rounded,
+                            color: Color(0xFF3B82F6),
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '₹$fare',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const Text(
+                              'Estimated fare',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (distM != null)
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFFF1F5F9)),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.02),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFEBF5FF),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.location_on_rounded,
+                              color: Color(0xFF3B82F6),
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${(distM / 1000).toStringAsFixed(1)} km',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const Text(
+                                'Ride distance',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            // Divider
+            const Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1),
+            const SizedBox(height: 20),
+
+            // Location
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Column(
+                  children: [
+                    const SizedBox(height: 2),
+                    const Icon(
+                      Icons.circle,
+                      color: Color(0xFF3B82F6),
+                      size: 12,
+                    ),
+                    const SizedBox(height: 4),
+                    Column(
+                      children: List.generate(
+                        4,
+                        (_) => Container(
+                          width: 2,
+                          height: 4,
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFCBD5E1),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'PICKUP LOCATION',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF64748B),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        mainPickup,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      if (subPickup.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subPickup,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: widget.isActionLoading ? null : widget.onSkip,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF3B82F6),
+                      side: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: widget.isActionLoading ? null : widget.onAccept,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3B82F6),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 0,
+                      minimumSize: Size.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      shadowColor: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                    ),
+                    child: widget.isActionLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Accept ride',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Icon(Icons.arrow_forward_rounded, size: 20),
+                            ],
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

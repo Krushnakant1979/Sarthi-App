@@ -268,6 +268,12 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
           _followUser = true;
         });
         _mapController?.clearRoute();
+        
+        if (newStatus == 'cancelled') {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(currentRideIdProvider.notifier).state = null;
+          });
+        }
       } else if (newStatus == 'accepted' ||
           newStatus == 'arriving' ||
           newStatus == 'arrived' ||
@@ -822,7 +828,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                       key: ValueKey(displayState),
                                       child: SingleChildScrollView(
                                         controller: scrollController,
-                                        physics: const ClampingScrollPhysics(),
+                                        physics: const AlwaysScrollableScrollPhysics(),
                                         child: MeasureSize(
                                           onChange: (size) {
                                             final screenHeight = MediaQuery.of(context).size.height;
@@ -941,29 +947,37 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
               const SizedBox(height: 12),
 
               // ── 3D Hero Banner ───────────────────────────────────
-              Container(
-                height: 110,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              GestureDetector(
+                onTap: () async {
+                  final result = await context.push('/search');
+                  if (result != null && result is Map<String, dynamic>) {
+                    if (!context.mounted) return;
+                    await _processDestination(context, result);
+                  }
+                },
+                child: Container(
+                  height: 110,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0B2144).withValues(alpha: 0.45),
+                        blurRadius: 24,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 8),
+                      ),
+                      BoxShadow(
+                        color: const Color(0xFF1A3A6B).withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0B2144).withValues(alpha: 0.45),
-                      blurRadius: 24,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 8),
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFF1A3A6B).withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -1090,6 +1104,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                   ],
                 ),
               ),
+            ),
 
               const SizedBox(height: 16),
 
@@ -1317,7 +1332,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       context,
                       Icons.home_rounded,
                       'Home',
-                      homeAddress?['description'] ?? 'Add home address',
+                      (homeAddress != null && homeAddress.containsKey('destination') && homeAddress['destination'] != null) ? (homeAddress['destination']['description'] ?? 'Add home address') : (homeAddress?['description'] ?? 'Add home address'),
                       onTap: () {
                         if (homeAddress != null) {
                           _processDestination(context, homeAddress);
@@ -1339,7 +1354,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       context,
                       Icons.work_rounded,
                       'Work',
-                      workAddress?['description'] ?? 'Add work address',
+                      (workAddress != null && workAddress.containsKey('destination') && workAddress['destination'] != null) ? (workAddress['destination']['description'] ?? 'Add work address') : (workAddress?['description'] ?? 'Add work address'),
                       onTap: () {
                         if (workAddress != null) {
                           _processDestination(context, workAddress);
@@ -2773,171 +2788,168 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     WidgetRef ref,
     dynamic fare,
   ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100), // Restored bottom padding for nav bar
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const _DragHandle(),
-          const SizedBox(height: 14),
-
-          // ── Main Completion Card ─────────────────────────────────
+          const SizedBox(height: 12), // Reduced gap
+          
+          // 1. Checkmark Circle
+          Container(
+            width: 56, // Reduced size
+            height: 56,
+            decoration: const BoxDecoration(
+              color: Color(0xFFD1FADD),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF22C55E),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_rounded, color: Colors.white, size: 28),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // 2. Titles
+          const Text(
+            'Ride completed!',
+            style: TextStyle(
+              fontSize: 22, // Reduced font
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Thanks for riding with Sarthi.',
+            style: TextStyle(
+              fontSize: 13, // Reduced font
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // 3. Card for TOTAL PAID
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16), // Reduced padding
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0B2144), Color(0xFF0F3460)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF0B2144).withValues(alpha: 0.35),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+              color: const Color(0xFFF0F6FF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Column(
               children: [
-                // Success icon with glow ring
-                Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF16A34A).withValues(alpha: 0.15),
-                    border: Border.all(
-                      color: const Color(0xFF22C55E).withValues(alpha: 0.4),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF22C55E).withValues(alpha: 0.2),
-                        blurRadius: 18,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    color: Color(0xFF22C55E),
-                    size: 34,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
                 const Text(
-                  'Ride Completed!',
+                  'TOTAL PAID',
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: -0.4,
+                    fontSize: 11, // Reduced font
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 1.0,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Thank you for riding with Sarthi',
-                  style: TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                Text(
+                  '₹${fare ?? 0}',
+                  style: const TextStyle(
+                    fontSize: 38, // Reduced font
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -1.0,
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Fare pill
-                if (fare != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFBBF24).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFFFBBF24).withValues(alpha: 0.35),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.currency_rupee_rounded,
-                          color: Color(0xFFFBBF24),
-                          size: 16,
-                        ),
-                        Text(
-                          '$fare',
-                          style: const TextStyle(
-                            color: Color(0xFFFBBF24),
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Total Paid',
-                          style: TextStyle(
-                            color: Color(0xFFFBBF24),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
+                const SizedBox(height: 12), // Reduced gap
                 // Divider
                 Container(
                   height: 1,
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: const Color(0xFFE2E8F0),
                 ),
-                const SizedBox(height: 14),
-
-                // Trip summary row
+                const SizedBox(height: 12), // Reduced gap
+                
+                // Status & Payment row
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _CompletedStat(
-                      icon: Icons.check_circle_outline_rounded,
-                      label: 'Status',
-                      value: 'Completed',
-                      color: const Color(0xFF22C55E),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 22),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Status',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          const Text(
+                            'Completed',
+                            style: TextStyle(
+                              fontSize: 14, // Reduced font
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     Container(
                       width: 1,
-                      height: 32,
-                      color: Colors.white.withValues(alpha: 0.10),
+                      height: 44, // Reduced height
+                      color: const Color(0xFFE2E8F0),
                     ),
-                    _CompletedStat(
-                      icon: Icons.payment_rounded,
-                      label: 'Payment',
-                      value: _paymentMethod,
-                      color: const Color(0xFF60A5FA),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          const Icon(Icons.payments_outlined, color: Color(0xFF2563EB), size: 22),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Payment',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          Text(
+                            _paymentMethod,
+                            style: const TextStyle(
+                              fontSize: 14, // Reduced font
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-
-          const SizedBox(height: 14),
-
-          // ── Action Buttons ───────────────────────────────────────
+          const SizedBox(height: 16), // Reduced gap
+          
+          // 4. Buttons
           Row(
             children: [
-              // Done button
               Expanded(
-                child: GestureDetector(
-                  onTap: () {
+                child: OutlinedButton(
+                  onPressed: () {
                     ref.read(currentRideIdProvider.notifier).state = null;
                     setState(() {
                       _destination = null;
@@ -2952,38 +2964,27 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                     });
                     _mapController?.clearRoute();
                   },
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E3A5F),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.12),
-                      ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F172A),
+                    side: const BorderSide(color: Color(0xFF0F172A)),
+                    padding: const EdgeInsets.symmetric(vertical: 14), // Reduced padding
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Center(
-                      child: Text(
-                        'Done',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
+                    textStyle: const TextStyle(
+                      fontSize: 14, // Reduced font
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
+                  child: const Text('Done'),
                 ),
               ),
               const SizedBox(width: 12),
-
-              // Rate Captain button
               Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    final rideState =
-                        ref.read(currentRideStreamProvider).value;
-                    final captainId =
-                        rideState?.data()?['assignedCaptainId'] as String?;
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final rideState = ref.read(currentRideStreamProvider).value;
+                    final captainId = rideState?.data()?['assignedCaptainId'] as String?;
                     if (captainId != null) {
                       _showRatingSheet(context, captainId, ref);
                     } else {
@@ -3003,41 +3004,19 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       _mapController?.clearRoute();
                     }
                   },
-                  child: Container(
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFBBF24).withValues(alpha: 0.4),
-                          blurRadius: 14,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
+                  icon: const Icon(Icons.star_border_rounded, color: Colors.white, size: 20),
+                  label: const Text('Rate captain'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF005AFE),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14), // Reduced padding
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.star_rounded,
-                          color: Color(0xFF0B2144),
-                          size: 18,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Rate Captain',
-                          style: TextStyle(
-                            color: Color(0xFF0B2144),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
+                    textStyle: const TextStyle(
+                      fontSize: 14, // Reduced font
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -3194,54 +3173,156 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
 
   void _showRatingSheet(BuildContext context, String captainId, WidgetRef ref) {
     int selectedStars = 0;
+
+    String getRatingLabel() {
+      switch (selectedStars) {
+        case 1:
+          return 'Terrible ride';
+        case 2:
+          return 'Bad ride';
+        case 3:
+          return 'Okay ride';
+        case 4:
+          return 'Good ride';
+        case 5:
+          return 'Excellent ride';
+        default:
+          return '';
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             return SafeArea(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const _DragHandle(),
+                    const SizedBox(height: 12),
+                    
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Align(
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Rate your captain',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 4),
                     const Text(
-                      'Rate your Captain',
+                      'How was your ride?',
                       style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
+                    
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(5, (index) {
-                        return IconButton(
-                          iconSize: 48,
-                          onPressed: () {
+                        final isSelected = index < selectedStars;
+                        return GestureDetector(
+                          onTap: () {
                             setModalState(() => selectedStars = index + 1);
                           },
-                          icon: Icon(
-                            index < selectedStars
-                                ? Icons.star_rounded
-                                : Icons.star_outline_rounded,
-                            color: context.colors.rapidoYellow,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Icon(
+                              isSelected ? Icons.star_rounded : Icons.star_border_rounded,
+                              size: 44,
+                              color: isSelected ? const Color(0xFFFBBF24) : const Color(0xFF94A3B8),
+                            ),
                           ),
                         );
                       }),
                     ),
-                    const SizedBox(height: 32),
+                    
+                    const SizedBox(height: 24),
+                    
+                    if (selectedStars > 0) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0E7FF),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          getRatingLabel(),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF3730A3),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ] else ...[
+                      const SizedBox(height: 38),
+                    ],
+                    
+                    Text(
+                      selectedStars > 0 ? '$selectedStars out of 5' : 'Select a rating',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    const Text(
+                      'Your feedback helps us improve.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 28),
+                    
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 52,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: context.colors.primary,
+                          backgroundColor: const Color(0xFF005AFE),
                           foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         onPressed: selectedStars == 0
                             ? null
@@ -3255,9 +3336,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text(
-                                          'Rating submitted! Thank you.',
-                                        ),
+                                        content: Text('Rating submitted! Thank you.'),
                                         backgroundColor: Color(0xFF16A34A),
                                       ),
                                     );
@@ -3266,15 +3345,12 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(
-                                          'Failed to submit rating: $e',
-                                        ),
+                                        content: Text('Failed to submit rating: $e'),
                                       ),
                                     );
                                   }
                                 }
-                                ref.read(currentRideIdProvider.notifier).state =
-                                    null;
+                                ref.read(currentRideIdProvider.notifier).state = null;
                                 setState(() {
                                   _destination = null;
                                   _bookingState = 'default';
@@ -3289,10 +3365,10 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                 _mapController?.clearRoute();
                               },
                         child: const Text(
-                          'Submit Rating',
+                          'Submit rating',
                           style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -3747,8 +3823,8 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
       _appliedOfferCode = null;
       _discountAmount = null;
     });
-    double? destLat = (destResult['lat'] as num?)?.toDouble();
-    double? destLng = (destResult['lng'] as num?)?.toDouble();
+    double? destLat = double.tryParse(destResult['lat']?.toString() ?? '');
+    double? destLng = double.tryParse(destResult['lng']?.toString() ?? '');
     final placeId = destResult['placeId'] as String?;
     final destName = destResult['description'] as String? ?? 'Destination';
 
@@ -3767,8 +3843,8 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
       }
     }
 
-    double? pickupLat = (pickupResult?['lat'] as num?)?.toDouble();
-    double? pickupLng = (pickupResult?['lng'] as num?)?.toDouble();
+    double? pickupLat = double.tryParse(pickupResult?['lat']?.toString() ?? '');
+    double? pickupLng = double.tryParse(pickupResult?['lng']?.toString() ?? '');
     final pickupPlaceId = pickupResult?['placeId'] as String?;
 
     if ((pickupLat == null || pickupLng == null) && pickupPlaceId != null) {
@@ -3892,7 +3968,8 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         if (mounted) {
           final polyStr = route['polyline'] as String?;
           final pointsList = (route['points'] as List?)
-              ?.cast<Map<String, dynamic>>();
+              ?.map((p) => Map<String, dynamic>.from(p as Map))
+              .toList();
 
           if (pointsList == null || pointsList.length < 2) {
             throw Exception(
