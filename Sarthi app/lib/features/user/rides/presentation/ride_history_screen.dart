@@ -96,46 +96,98 @@ class PaginatedRideHistoryNotifier
         startDate = now.subtract(const Duration(days: 30));
       }
 
-      Query query = FirebaseFirestore.instance
-          .collection('ride_requests')
-          .where('userId', isEqualTo: uid);
+      bool keepFetching = true;
+      List<Map<String, dynamic>> accumulatedRides = [];
+      bool hasMoreData = true;
+      
+      // We wrap the fetching in a loop to handle client-side filtering.
+      // If we fetch 20 rides and none of them are completed/cancelled,
+      // we need to keep fetching until we find some to display,
+      // otherwise the UI will be stuck showing "0 trips" with no way to scroll.
+      while (keepFetching && currentFetchId == _fetchId) {
+        Query query = FirebaseFirestore.instance
+            .collection('ride_requests')
+            .where('userId', isEqualTo: uid);
 
-      if (filter != RideFilter.allTime) {
-        query = query.where('createdAt', isGreaterThanOrEqualTo: startDate);
+        if (filter != RideFilter.allTime) {
+          query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+        }
+
+        query = query.orderBy('createdAt', descending: sortOrder == RideSortOrder.newestFirst).limit(20);
+
+        if (_lastDoc != null) {
+          query = query.startAfterDocument(_lastDoc!);
+        }
+
+        // Cache-first approach for instant loading on initial fetch
+        if (_lastDoc == null && accumulatedRides.isEmpty && state.rides.isEmpty) {
+          try {
+            final cacheSnap = await query.get(const GetOptions(source: Source.cache));
+            if (cacheSnap.docs.isNotEmpty) {
+              final cacheRides = cacheSnap.docs
+                  .map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    data['id'] = doc.id;
+                    return data;
+                  })
+                  .where((ride) {
+                    final status = ride['status'] as String? ?? '';
+                    return status == 'completed' || status == 'cancelled';
+                  })
+                  .toList();
+              
+              if (cacheRides.isNotEmpty) {
+                // Instantly show cached rides while server query runs
+                state = state.copyWith(rides: cacheRides, isLoading: true, clearError: true);
+              }
+            }
+          } catch (_) {
+            // Ignore cache errors
+          }
+        }
+
+        final snapshot = await query.get(const GetOptions(source: Source.serverAndCache));
+
+        if (currentFetchId != _fetchId) return;
+
+        if (snapshot.docs.isNotEmpty) {
+          _lastDoc = snapshot.docs.last;
+          hasMoreData = snapshot.docs.length == 20;
+          
+          final newRides = snapshot.docs
+              .map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                data['id'] = doc.id;
+                return data;
+              })
+              .where((ride) {
+                final status = ride['status'] as String? ?? '';
+                return status == 'completed' || status == 'cancelled';
+              })
+              .toList();
+              
+          accumulatedRides.addAll(newRides);
+          
+          // Stop fetching if we have accumulated enough valid rides for this page
+          // or if we reached the end of the collection
+          if (accumulatedRides.length >= 10 || !hasMoreData) {
+            keepFetching = false;
+          }
+        } else {
+          hasMoreData = false;
+          keepFetching = false;
+        }
       }
-
-      query = query.orderBy('createdAt', descending: sortOrder == RideSortOrder.newestFirst).limit(50);
-
-      if (_lastDoc != null) {
-        query = query.startAfterDocument(_lastDoc!);
-      }
-
-      final snapshot = await query.get();
 
       if (currentFetchId != _fetchId) return;
 
-      if (snapshot.docs.isNotEmpty) {
-        _lastDoc = snapshot.docs.last;
-        final newRides = snapshot.docs
-            .map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              data['id'] = doc.id;
-              return data;
-            })
-            .where((ride) {
-              final status = ride['status'] as String? ?? '';
-              return status == 'completed' || status == 'cancelled';
-            })
-            .toList();
-
-        state = state.copyWith(
-          rides: [...state.rides, ...newRides],
-          isLoading: false,
-          hasMore: snapshot.docs.length == 50,
-        );
-      } else {
-        state = state.copyWith(isLoading: false, hasMore: false);
-      }
+      state = state.copyWith(
+        rides: _lastDoc == null && state.rides.isNotEmpty 
+            ? accumulatedRides // If it was a refresh, replace the cached items
+            : [...state.rides, ...accumulatedRides],
+        isLoading: false,
+        hasMore: hasMoreData,
+      );
     } catch (e) {
       if (currentFetchId != _fetchId) return;
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -809,14 +861,14 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
 
   Widget _buildEmpty(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(top: 80),
+      padding: const EdgeInsets.only(top: 40),
       alignment: Alignment.topCenter,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            height: 150,
-            width: 150,
+            height: 110,
+            width: 110,
             child: Image.asset(
               'assets/images/sarthi-scooter-transparent.png',
               fit: BoxFit.contain,

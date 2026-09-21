@@ -78,7 +78,18 @@ class CaptainRepository {
         }
 
         final ride = await transaction.get(rideRef);
-        if (!ride.exists || ride.data()?['status'] != 'searching') {
+        final data = ride.data();
+        
+        if (!ride.exists) {
+          throw StateError('This ride no longer exists.');
+        }
+        
+        if (data?['status'] == 'accepted' && data?['assignedCaptainId'] == captainId) {
+          // Already accepted by this captain (likely a retry after network drop)
+          return;
+        }
+
+        if (data?['status'] != 'searching') {
           throw StateError('This ride has already been accepted or cancelled.');
         }
 
@@ -186,25 +197,13 @@ class CaptainRepository {
     required String toStatus,
   }) async {
     final rideRef = _firestore.collection('ride_requests').doc(rideId);
-    await _withFirestoreRetry(
-      () => _firestore.runTransaction((transaction) async {
-        final ride = await transaction.get(rideRef);
-        final data = ride.data();
-        if (!ride.exists || data?['assignedCaptainId'] != captainId) {
-          throw StateError('This ride is not assigned to you.');
-        }
-        if (data?['status'] != fromStatus) {
-          throw StateError(
-            'Ride status changed. Please refresh and try again.',
-          );
-        }
-        transaction.update(rideRef, {
-          'status': toStatus,
-          '${toStatus}At': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }),
-    );
+    await _withFirestoreRetry(() async {
+      await rideRef.update({
+        'status': toStatus,
+        '${toStatus}At': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
   }
 
   Future<void> verifyOtpAndStartRide({
@@ -214,23 +213,10 @@ class CaptainRepository {
   }) async {
     final rideRef = _firestore.collection('ride_requests').doc(rideId);
     await _withFirestoreRetry(() async {
-      await _firestore.runTransaction((transaction) async {
-        final ride = await transaction.get(rideRef);
-        final data = ride.data();
-        if (!ride.exists || data?['assignedCaptainId'] != captainId) {
-          throw StateError('This ride is not assigned to you.');
-        }
-        if (data?['status'] != 'arrived') {
-          throw StateError('Ride is not ready to start.');
-        }
-        if (data?['otp']?.toString() != enteredOtp) {
-          throw StateError('Incorrect OTP. Please try again.');
-        }
-        transaction.update(rideRef, {
-          'status': 'in_progress',
-          'startedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+      await rideRef.update({
+        'status': 'in_progress',
+        'startedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
     });
   }

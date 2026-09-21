@@ -314,8 +314,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
           .toList();
       if (points == null || points.length < 2) return;
 
-      await _mapController!.clearRoute();
       if (!mounted || _updateRouteSeq != currentSeq || _navigationTarget == null) return;
+
+      await _mapController!.clearRoute();
 
       // Re-add marker after clearRoute
       await _mapController!.addMarker(
@@ -395,6 +396,11 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         DateTime.now().difference(lastAt) < const Duration(seconds: 20)) {
       return;
     }
+
+    // Set this immediately to debounce rapid calls from live location stream!
+    _lastRouteOrigin = position;
+    _lastRouteAt = DateTime.now();
+
     await _renderRouteToTarget(
       target,
       isPickup: _navigationTargetIsPickup,
@@ -452,7 +458,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 48),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -574,9 +580,6 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final incomingRequestsAsync = ref.watch(incomingRequestsProvider);
-    final activeRideAsync = ref.watch(currentCaptainRideProvider);
-
     ref.listen(currentCaptainRideProvider, (previous, next) {
       if (next.isLoading && !next.hasValue) return; // Ignore initial load
       
@@ -605,7 +608,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
           ? const <Map<String, dynamic>>[]
           : _nearbyRequests(requests);
           
-      if (_isOnline && nearby.isNotEmpty && activeRideAsync.value == null) {
+      final activeRide = ref.read(currentCaptainRideProvider).value;
+          
+      if (_isOnline && nearby.isNotEmpty && activeRide == null) {
         final req = nearby.first;
         final pickup = req['pickup'];
         final destination = req['destination'];
@@ -616,7 +621,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
             originData: Map<String, dynamic>.from(pickup),
           );
         }
-      } else if (activeRideAsync.value == null && !next.isLoading) {
+      } else if (activeRide == null && !next.isLoading) {
         // Clear route if no incoming requests and no active ride
         _clearNavigationTarget();
       }
@@ -629,91 +634,97 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       body: Stack(
         children: [
           // ── Full-screen Ola Map ──────────────────────────────────
-          OlaMapsView(
-            onMapCreated: (controller) {
-              _mapController = controller;
-              _mapEventSub?.cancel();
-              _mapEventSub = controller.mapEvents.listen((event) async {
-                if (event is Map && event['event'] == 'mapReady') {
-                  _mapReady = true;
-                  // 1. Immediately jump to India to avoid showing the whole world map
-                  controller.moveCamera(20.5937, 78.9629, zoom: 4.5);
+          RepaintBoundary(
+            child: OlaMapsView(
+              onMapCreated: (controller) {
+                _mapController = controller;
+                _mapEventSub?.cancel();
+                _mapEventSub = controller.mapEvents.listen((event) async {
+                  if (event is Map && event['event'] == 'mapReady') {
+                    _mapReady = true;
+                    // 1. Immediately jump to India to avoid showing the whole world map
+                    controller.moveCamera(20.5937, 78.9629, zoom: 4.5);
 
-                  if (!mounted) return;
+                    if (!mounted) return;
 
-                  // 2. Try to get a fast last known location and animate there
-                  final lastKnown = await _locationService
-                      .getLastKnownPosition();
-                  if (lastKnown != null && mounted) {
-                    controller.moveCamera(
-                      lastKnown.latitude,
-                      lastKnown.longitude,
-                      zoom: 14.0,
-                    );
-                  }
+                    // 2. Try to get a fast last known location and animate there
+                    final lastKnown = await _locationService
+                        .getLastKnownPosition();
+                    if (lastKnown != null && mounted) {
+                      controller.moveCamera(
+                        lastKnown.latitude,
+                        lastKnown.longitude,
+                        zoom: 14.0,
+                      );
+                    }
 
-                  // 3. Fetch the accurate current location
-                  final pos = await _locationService.getCurrentPosition();
-                  if (pos != null && mounted) {
-                    _lastValidPosition = pos;
-                    controller.moveCamera(
-                      pos.latitude,
-                      pos.longitude,
-                      zoom: 16.0,
-                    );
-                    // Only drop the blue dot when we have the accurate GPS fix
-                    controller.updateUserLocation(
-                      pos.latitude,
-                      pos.longitude,
-                      heading: pos.heading,
-                    );
-                  }
+                    // 3. Fetch the accurate current location
+                    final pos = await _locationService.getCurrentPosition();
+                    if (pos != null && mounted) {
+                      _lastValidPosition = pos;
+                      controller.moveCamera(
+                        pos.latitude,
+                        pos.longitude,
+                        zoom: 16.0,
+                      );
+                      // Only drop the blue dot when we have the accurate GPS fix
+                      controller.updateUserLocation(
+                        pos.latitude,
+                        pos.longitude,
+                        heading: pos.heading,
+                      );
+                    }
 
-                  final activeRide = ref.read(currentCaptainRideProvider).value;
-                  if (activeRide != null) {
-                    await _renderActiveRide(activeRide);
-                  } else if (_isOnline) {
-                    final requests = _nearbyRequests(
-                      ref.read(incomingRequestsProvider).value ?? const [],
-                    );
-                    if (requests.isNotEmpty) {
-                      final req = requests.first;
-                      final pickup = req['pickup'];
-                      final destination = req['destination'];
-                      if (pickup is Map && destination is Map) {
-                        await _renderRouteToTarget(
-                          Map<String, dynamic>.from(destination),
-                          isPickup: false,
-                          originData: Map<String, dynamic>.from(pickup),
-                        );
+                    final activeRide = ref.read(currentCaptainRideProvider).value;
+                    if (activeRide != null) {
+                      await _renderActiveRide(activeRide);
+                    } else if (_isOnline) {
+                      final requests = _nearbyRequests(
+                        ref.read(incomingRequestsProvider).value ?? const [],
+                      );
+                      if (requests.isNotEmpty) {
+                        final req = requests.first;
+                        final pickup = req['pickup'];
+                        final destination = req['destination'];
+                        if (pickup is Map && destination is Map) {
+                          await _renderRouteToTarget(
+                            Map<String, dynamic>.from(destination),
+                            isPickup: false,
+                            originData: Map<String, dynamic>.from(pickup),
+                          );
+                        }
                       }
                     }
                   }
-                }
-              });
-            },
+                });
+              },
+            ),
           ),
 
           // ── Top bar ──────────────────────────────────────────────
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Container(
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
+            child: RepaintBoundary(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Consumer(
+                    builder: (context, ref, child) {
+                      final activeRideAsync = ref.watch(currentCaptainRideProvider);
+                      return Row(
+                        children: [
                     // Menu button
                     GestureDetector(
                       onTap: () => _scaffoldKey.currentState?.openDrawer(),
@@ -821,6 +832,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       ),
                     ),
                   ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -829,121 +843,129 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
           // ── Bottom Sheet & Recenter button ────────────────────────
           Align(
             alignment: Alignment.bottomCenter,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                // Recenter button
-                Padding(
-                  padding: const EdgeInsets.only(right: 16, bottom: 16),
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: context.colors.primary,
-                      borderRadius: BorderRadius.circular(15),
-                      boxShadow: [
-                        BoxShadow(
-                          color: context.colors.primary.withValues(alpha: 0.45),
-                          blurRadius: 14,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      onPressed: _isRecentering ? null : _recenter,
-                      icon: _isRecentering
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
+            child: RepaintBoundary(
+              child: Consumer(
+                builder: (context, ref, child) {
+                  final activeRideAsync = ref.watch(currentCaptainRideProvider);
+                  final incomingRequestsAsync = ref.watch(incomingRequestsProvider);
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Recenter button
+                      Padding(
+                        padding: const EdgeInsets.only(right: 16, bottom: 16),
+                        child: Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: context.colors.primary,
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: context.colors.primary.withValues(alpha: 0.45),
+                                blurRadius: 14,
+                                offset: const Offset(0, 5),
                               ),
-                            )
-                          : const Icon(
-                              Icons.my_location_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                    ),
-                  ),
-                ),
+                            ],
+                          ),
+                          child: IconButton(
+                            onPressed: _isRecentering ? null : _recenter,
+                            icon: _isRecentering
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.my_location_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                          ),
+                        ),
+                      ),
 
-                // Bottom Sheet Content
-                activeRideAsync.when(
-                  data: (activeRide) {
-                    Widget sheetContent;
-                    if (activeRide != null) {
-                      sheetContent = _buildActiveRideSheet(
-                        context,
-                        ref,
-                        activeRide,
-                      );
-                    } else if (!_isOnline) {
-                      sheetContent = _buildOfflineSheet(context);
-                    } else {
-                      sheetContent = incomingRequestsAsync.when(
-                        data: (requests) {
-                          final nearbyRequests = _nearbyRequests(requests);
-                          if (nearbyRequests.isEmpty) {
-                            return _buildSearchingSheet(context);
+                      // Bottom Sheet Content
+                      activeRideAsync.when(
+                        data: (activeRide) {
+                          Widget sheetContent;
+                          if (activeRide != null) {
+                            sheetContent = _buildActiveRideSheet(
+                              context,
+                              ref,
+                              activeRide,
+                            );
+                          } else if (!_isOnline) {
+                            sheetContent = _buildOfflineSheet(context);
+                          } else {
+                            sheetContent = incomingRequestsAsync.when(
+                              data: (requests) {
+                                final nearbyRequests = _nearbyRequests(requests);
+                                if (nearbyRequests.isEmpty) {
+                                  return _buildSearchingSheet(context);
+                                }
+                                return _buildIncomingRequestSheet(
+                                  context,
+                                  ref,
+                                  nearbyRequests.first,
+                                );
+                              },
+                              loading: () => const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(24.0),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                              error: (e, s) => Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(24.0),
+                                  child: Text('Error: $e'),
+                                ),
+                              ),
+                            );
                           }
-                          return _buildIncomingRequestSheet(
-                            context,
-                            ref,
-                            nearbyRequests.first,
+
+                          return Container(
+                            constraints: BoxConstraints(
+                              maxHeight: MediaQuery.of(context).size.height * 0.90,
+                            ),
+                            width: double.infinity,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(30),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color(0x260B2545),
+                                  blurRadius: 28,
+                                  offset: Offset(0, -8),
+                                ),
+                              ],
+                            ),
+                            child: SingleChildScrollView(
+                              physics: const ClampingScrollPhysics(),
+                              child: sheetContent,
+                            ),
                           );
                         },
-                        loading: () => const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: CircularProgressIndicator(),
-                          ),
+                        loading: () => const Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: CircularProgressIndicator(),
                         ),
-                        error: (e, s) => Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Text('Error: $e'),
-                          ),
+                        error: (e, s) => Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: Text('Error: $e'),
                         ),
-                      );
-                    }
-
-                    return Container(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.90,
                       ),
-                      width: double.infinity,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(30),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0x260B2545),
-                            blurRadius: 28,
-                            offset: Offset(0, -8),
-                          ),
-                        ],
-                      ),
-                      child: SingleChildScrollView(
-                        physics: const ClampingScrollPhysics(),
-                        child: sheetContent,
-                      ),
-                    );
-                  },
-                  loading: () => const Padding(
-                    padding: EdgeInsets.all(24.0),
-                    child: CircularProgressIndicator(),
-                  ),
-                  error: (e, s) => Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Text('Error: $e'),
-                  ),
-                ),
-              ],
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -1680,26 +1702,30 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                           ),
                         ),
                         const SizedBox(width: 11),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Rider OTP',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                                color: context.colors.primary,
-                                letterSpacing: -0.2,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Rider OTP',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  color: context.colors.primary,
+                                  letterSpacing: -0.2,
+                                ),
                               ),
-                            ),
-                            Text(
-                              'Ask the rider for their 4-digit code',
-                              style: TextStyle(
-                                color: context.colors.textMuted,
-                                fontSize: 11,
+                              Text(
+                                'Ask the rider for their 4-digit code',
+                                style: TextStyle(
+                                  color: context.colors.textMuted,
+                                  fontSize: 11,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),

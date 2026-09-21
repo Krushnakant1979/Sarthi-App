@@ -35,7 +35,7 @@ class AllServicesTab extends StatelessWidget {
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Image.asset(
-                  'assets/images/Sarthi 2.png',
+                  'assets/app-logo/Sarthi app user logo.png',
                   fit: BoxFit.contain,
                 ),
               ),

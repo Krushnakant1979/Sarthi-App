@@ -31,7 +31,7 @@ class ProfileTab extends ConsumerWidget {
               Row(
                 children: [
                   Image.asset(
-                    'assets/images/sarthi-logo.png',
+                    'assets/app-logo/Sarthi app user logo.png',
                     height: 20,
                     errorBuilder: (context, error, stackTrace) =>
                         const Icon(Icons.bolt, color: Colors.amber, size: 24),

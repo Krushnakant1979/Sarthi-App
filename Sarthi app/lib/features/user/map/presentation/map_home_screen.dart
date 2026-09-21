@@ -21,6 +21,7 @@ import '../../../captain/data/captain_repository.dart';
 import '../../rides/presentation/ride_history_screen.dart';
 import '../../profile/presentation/profile_tab.dart';
 import '../../../../core/widgets/fade_indexed_stack.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MapHomeScreen extends ConsumerStatefulWidget {
   const MapHomeScreen({super.key});
@@ -341,13 +342,14 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
               Stack(
                 children: [
                   // Background Ola Map
-                  Listener(
-                    onPointerDown: (_) {
-                      if (_followUser) {
-                        setState(() => _followUser = false);
-                      }
-                    },
-                    child: OlaMapsView(
+                  RepaintBoundary(
+                    child: Listener(
+                      onPointerDown: (_) {
+                        if (_followUser) {
+                          setState(() => _followUser = false);
+                        }
+                      },
+                      child: OlaMapsView(
                       onMapCreated: (controller) {
                         _mapController = controller;
                         controller.mapEvents.listen((event) async {
@@ -391,7 +393,8 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       },
                     ),
                   ),
-                  // Safe area aware top location/search shell
+                ),
+                // Safe area aware top location/search shell
                   SafeArea(
                     top: true,
                     bottom: false,
@@ -783,6 +786,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                       otp,
                                       fare,
                                       displayState,
+                                      rideData?['assignedCaptainId'],
                                     );
                                   } else if (displayState == 'in_progress') {
                                     stateContent = _buildInProgressContent(
@@ -1626,6 +1630,9 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
   }
 
   Widget _buildFloatingNavBar() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final tabWidth = screenWidth / 4;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1641,44 +1648,72 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         top: 8,
         bottom: MediaQuery.of(context).padding.bottom,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      child: Stack(
+        alignment: Alignment.centerLeft,
         children: [
-          Expanded(
-            child: _NavItem(
-              selectedIcon: Icons.home_filled,
-              unselectedIcon: Icons.home_outlined,
-              label: 'Home',
-              isSelected: _selectedNavIndex == 0,
-              onTap: () => _onNavTapped(0),
+          // Smooth sliding background indicator
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.fastOutSlowIn,
+            left: tabWidth * _selectedNavIndex,
+            width: tabWidth,
+            top: 0,
+            bottom: 0,
+            child: RepaintBoundary(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  margin: const EdgeInsets.only(top: 4),
+                  decoration: BoxDecoration(
+                    color: context.colors.rapidoYellow,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
             ),
           ),
-          Expanded(
-            child: _NavItem(
-              selectedIcon: Icons.grid_view_rounded,
-              unselectedIcon: Icons.grid_view_outlined,
-              label: 'Services',
-              isSelected: _selectedNavIndex == 1,
-              onTap: () => _onNavTapped(1),
-            ),
-          ),
-          Expanded(
-            child: _NavItem(
-              selectedIcon: Icons.work_rounded,
-              unselectedIcon: Icons.work_outline_rounded,
-              label: 'Trips',
-              isSelected: _selectedNavIndex == 2,
-              onTap: () => _onNavTapped(2),
-            ),
-          ),
-          Expanded(
-            child: _NavItem(
-              selectedIcon: Icons.person,
-              unselectedIcon: Icons.person_outline,
-              label: 'Profile',
-              isSelected: _selectedNavIndex == 3,
-              onTap: () => _onNavTapped(3),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: _NavItem(
+                  selectedIcon: Icons.home_filled,
+                  unselectedIcon: Icons.home_outlined,
+                  label: 'Home',
+                  isSelected: _selectedNavIndex == 0,
+                  onTap: () => _onNavTapped(0),
+                ),
+              ),
+              Expanded(
+                child: _NavItem(
+                  selectedIcon: Icons.grid_view_rounded,
+                  unselectedIcon: Icons.grid_view_outlined,
+                  label: 'Services',
+                  isSelected: _selectedNavIndex == 1,
+                  onTap: () => _onNavTapped(1),
+                ),
+              ),
+              Expanded(
+                child: _NavItem(
+                  selectedIcon: Icons.work_rounded,
+                  unselectedIcon: Icons.work_outline_rounded,
+                  label: 'Trips',
+                  isSelected: _selectedNavIndex == 2,
+                  onTap: () => _onNavTapped(2),
+                ),
+              ),
+              Expanded(
+                child: _NavItem(
+                  selectedIcon: Icons.person,
+                  unselectedIcon: Icons.person_outline,
+                  label: 'Profile',
+                  isSelected: _selectedNavIndex == 3,
+                  onTap: () => _onNavTapped(3),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -2259,6 +2294,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     dynamic otp,
     dynamic fare,
     String status,
+    [String? captainId]
   ) {
     final captainProgressText = status == 'arrived'
         ? 'Ready at your pickup point'
@@ -2370,20 +2406,48 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: context.colors.rapidoYellow,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFFFBBF24).withValues(alpha: 0.55),
+                GestureDetector(
+                  onTap: () async {
+                    if (captainId != null) {
+                      try {
+                        final doc = await FirebaseFirestore.instance.collection('users').doc(captainId).get();
+                        final phone = doc.data()?['phone'] ?? doc.data()?['phoneNumber'];
+                        if (phone != null) {
+                          final url = Uri.parse('tel:$phone');
+                          if (await canLaunchUrl(url)) {
+                            await launchUrl(url);
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not launch dialer')));
+                            }
+                          }
+                        } else {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Captain phone number not available')));
+                          }
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to get captain phone')));
+                        }
+                      }
+                    }
+                  },
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: context.colors.rapidoYellow,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFFBBF24).withValues(alpha: 0.55),
+                      ),
                     ),
-                  ),
-                  child: Icon(
-                    Icons.phone_rounded,
-                    color: context.colors.primary,
-                    size: 18,
+                    child: Icon(
+                      Icons.phone_rounded,
+                      color: context.colors.primary,
+                      size: 18,
+                    ),
                   ),
                 ),
               ],
@@ -4514,15 +4578,8 @@ class _NavItem extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+            Padding(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? context.colors.rapidoYellow
-                    : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Icon(
                 isSelected ? selectedIcon : unselectedIcon,
                 size: 24,

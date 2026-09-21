@@ -265,37 +265,51 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 ),
                 const SizedBox(height: 24),
                 
-                GridView.count(
-                  padding: EdgeInsets.zero,
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.9,
-                  children: const [
-                    _ServiceCard(
-                      title: 'Bike',
-                      subtitle: 'Quick solo rides',
-                      imagePath: 'assets/images/3d_scooter_hero.jpg',
-                      tag: 'Popular',
-                    ),
-                    _ServiceCard(
-                      title: 'Auto',
-                      subtitle: 'Everyday city rides',
-                      imagePath: 'assets/images/3d_auto_hero.jpg',
-                    ),
-                    _ServiceCard(
-                      title: 'Cab',
-                      subtitle: 'Comfort for every trip',
-                      imagePath: 'assets/images/3d_car_hero.jpg',
-                    ),
-                    _ServiceCard(
-                      title: 'Parcel',
-                      subtitle: 'Send packages locally',
-                      imagePath: 'assets/images/3d_parcel_delivery_new.png',
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final crossAxisCount = constraints.maxWidth > 800
+                        ? 4
+                        : constraints.maxWidth > 500
+                            ? 3
+                            : 2;
+                    final aspectRatio = constraints.maxWidth > 800
+                        ? 1.2
+                        : constraints.maxWidth > 500
+                            ? 1.1
+                            : 0.9;
+                    return GridView.count(
+                      padding: EdgeInsets.zero,
+                      crossAxisCount: crossAxisCount,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: aspectRatio,
+                      children: const [
+                        _ServiceCard(
+                          title: 'Bike',
+                          subtitle: 'Quick solo rides',
+                          imagePath: 'assets/images/3d_scooter_hero.jpg',
+                          tag: 'Popular',
+                        ),
+                        _ServiceCard(
+                          title: 'Auto',
+                          subtitle: 'Everyday city rides',
+                          imagePath: 'assets/images/3d_auto_hero.jpg',
+                        ),
+                        _ServiceCard(
+                          title: 'Cab',
+                          subtitle: 'Comfort for every trip',
+                          imagePath: 'assets/images/3d_car_hero.jpg',
+                        ),
+                        _ServiceCard(
+                          title: 'Parcel',
+                          subtitle: 'Send packages locally',
+                          imagePath: 'assets/images/3d_parcel_delivery_new.png',
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 
                 const SizedBox(height: 24),
