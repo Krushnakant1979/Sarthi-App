@@ -7,8 +7,13 @@ import 'package:device_info_plus/device_info_plus.dart';
 
 class OlaMapsView extends StatefulWidget {
   final Function(OlaMapsController) onMapCreated;
+  final bool showUserDot;
 
-  const OlaMapsView({super.key, required this.onMapCreated});
+  const OlaMapsView({
+    super.key,
+    required this.onMapCreated,
+    this.showUserDot = true,
+  });
 
   @override
   State<OlaMapsView> createState() => _OlaMapsViewState();
@@ -54,7 +59,9 @@ class _OlaMapsViewState extends State<OlaMapsView> {
                 id: params.id,
                 viewType: 'sarthi/ola_map',
                 layoutDirection: TextDirection.ltr,
-                creationParams: const <String, dynamic>{},
+                creationParams: <String, dynamic>{
+                  'showUserDot': widget.showUserDot,
+                },
                 creationParamsCodec: const StandardMessageCodec(),
                 onFocus: () => params.onFocusChanged(true),
               )
@@ -62,7 +69,9 @@ class _OlaMapsViewState extends State<OlaMapsView> {
                 id: params.id,
                 viewType: 'sarthi/ola_map',
                 layoutDirection: TextDirection.ltr,
-                creationParams: const <String, dynamic>{},
+                creationParams: <String, dynamic>{
+                  'showUserDot': widget.showUserDot,
+                },
                 creationParamsCodec: const StandardMessageCodec(),
                 onFocus: () => params.onFocusChanged(true),
               );
@@ -135,8 +144,12 @@ class OlaMapsController {
     await _channel.invokeMethod('updateUserLocation', {
       'lat': lat,
       'lng': lng,
-      'heading': ?heading,
+      'heading': heading,
     });
+  }
+
+  Future<void> toggleNativeUserLocation(bool show) async {
+    await _channel.invokeMethod('toggleNativeUserLocation', {'show': show});
   }
 
   Future<void> drawPolyline({
@@ -183,4 +196,5 @@ class OlaMapsController {
   Stream<dynamic> get mapEvents {
     return _eventChannel.receiveBroadcastStream();
   }
+
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/measure_size.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'captain_providers.dart';
 import '../../../ola_maps_bridge/ola_maps_view.dart';
 import '../../../core/utils/location_service.dart';
@@ -292,15 +293,6 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         title: target['address']?.toString() ?? 'Route target',
         isPickup: isPickup,
       );
-      
-      if (originLat != null && originLng != null) {
-        await _mapController!.addMarker(
-          originLat,
-          originLng,
-          title: originData!['address']?.toString() ?? 'Pickup',
-          isPickup: true,
-        );
-      }
 
       final route = await OlaMapsRepository().getDirections(
         startLat,
@@ -325,14 +317,6 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         title: target['address']?.toString() ?? 'Route target',
         isPickup: isPickup,
       );
-      if (originLat != null && originLng != null) {
-        await _mapController!.addMarker(
-          originLat,
-          originLng,
-          title: originData!['address']?.toString() ?? 'Pickup',
-          isPickup: true,
-        );
-      }
       await _mapController!.drawPolyline(
         polyline: route['polyline'] as String?,
         points: points,
@@ -576,6 +560,37 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     }
   }
 
+  Future<void> _startNavigation() async {
+    final target = _navigationTarget;
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active navigation target.')),
+      );
+      return;
+    }
+
+    final lat = double.tryParse(target['lat']?.toString() ?? '');
+    final lng = double.tryParse(target['lng']?.toString() ?? '');
+
+    if (lat == null || lng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid target location.')),
+      );
+      return;
+    }
+
+    final url = Uri.parse('google.navigation:q=$lat,$lng');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not launch Google Maps navigation.')),
+        );
+      }
+    }
+  }
+
   String _enteredOtp = '';
 
   @override
@@ -746,33 +761,38 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       size: 26,
                     ),
                     const SizedBox(width: 6),
-                    const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Sarthi',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                            color: Colors.black87,
-                            height: 1.1,
-                            letterSpacing: -0.5,
+                    const Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sarthi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              color: Colors.black87,
+                              height: 1.1,
+                              letterSpacing: -0.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        Text(
-                          'CAPTAIN',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 8,
-                            color: Color(0xFF64748B),
-                            letterSpacing: 1.5,
-                            height: 1,
+                          Text(
+                            'CAPTAIN',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 8,
+                              color: Color(0xFF64748B),
+                              letterSpacing: 1.5,
+                              height: 1,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const Spacer(),
                     // Online indicator
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -852,40 +872,77 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Recenter button
+                      // Navigation and Recenter buttons
                       Padding(
                         padding: const EdgeInsets.only(right: 16, bottom: 16),
-                        child: Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: context.colors.primary,
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: context.colors.primary.withValues(alpha: 0.45),
-                                blurRadius: 14,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: IconButton(
-                            onPressed: _isRecentering ? null : _recenter,
-                            icon: _isRecentering
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.my_location_rounded,
-                                    color: Colors.white,
-                                    size: 22,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Container(
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: context.colors.primary,
+                                borderRadius: BorderRadius.circular(15),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: context.colors.primary.withValues(alpha: 0.45),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 5),
                                   ),
-                          ),
+                                ],
+                              ),
+                              child: TextButton(
+                                onPressed: _startNavigation,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Navigate',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: context.colors.primary,
+                                borderRadius: BorderRadius.circular(15),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: context.colors.primary.withValues(alpha: 0.45),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
+                              ),
+                              child: IconButton(
+                                onPressed: _isRecentering ? null : _recenter,
+                                icon: _isRecentering
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.my_location_rounded,
+                                        color: Colors.white,
+                                        size: 22,
+                                      ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
 
@@ -1075,12 +1132,15 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               children: [
                 Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFF9CA3AF)),
                 SizedBox(width: 6),
-                Text(
-                  'Toggle the switch above to go online',
-                  style: TextStyle(
-                    color: Color(0xFF9CA3AF),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                Flexible(
+                  child: Text(
+                    'Toggle the switch above to go online',
+                    style: TextStyle(
+                      color: Color(0xFF9CA3AF),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
@@ -1309,10 +1369,13 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     final mainAddress = addressParts.first;
     final subAddress = addressParts.length > 1 ? addressParts.sublist(1).join(',').trim() : '';
 
+    final sw = MediaQuery.of(context).size.width;
+    final sh = MediaQuery.of(context).size.height;
+
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        padding: EdgeInsets.fromLTRB(sw * 0.05, 0, sw * 0.05, sh * 0.03),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1329,8 +1392,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     children: [
                       Text(
                         isHeadingToPickup ? 'Heading to pickup' : 'Heading to drop-off',
-                        style: const TextStyle(
-                          fontSize: 22,
+                        style: TextStyle(
+                          fontSize: sw * 0.055,
                           fontWeight: FontWeight.w800,
                           color: Colors.black87,
                           letterSpacing: -0.5,
@@ -1340,10 +1403,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       if (etaMinutes != null && navigationKm != null)
                         Text(
                           '$etaMinutes min away · $navigationKm km',
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: TextStyle(
+                            fontSize: sw * 0.034,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B),
+                            color: const Color(0xFF64748B),
                           ),
                         ),
                     ],
@@ -1351,7 +1414,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 ),
                 if (fare != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.symmetric(horizontal: sw * 0.04, vertical: sw * 0.02),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEBF5FF),
                       borderRadius: BorderRadius.circular(12),
@@ -1360,18 +1423,18 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       children: [
                         Text(
                           '₹$fare',
-                          style: const TextStyle(
-                            fontSize: 18,
+                          style: TextStyle(
+                            fontSize: sw * 0.045,
                             fontWeight: FontWeight.w800,
                             color: Colors.black87,
                           ),
                         ),
-                        const Text(
+                        Text(
                           'Ride fare',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: sw * 0.025,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B),
+                            color: const Color(0xFF64748B),
                           ),
                         ),
                       ],
@@ -1384,7 +1447,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
             // Rider info card
             if (status != 'in_progress')
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(sw * 0.03),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9), 
                   borderRadius: BorderRadius.circular(16),
@@ -1392,8 +1455,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 child: Row(
                   children: [
                     Container(
-                      width: 46,
-                      height: 46,
+                      width: sw * 0.115,
+                      height: sw * 0.115,
                       decoration: const BoxDecoration(
                         color: Color(0xFFDBEAFE),
                         shape: BoxShape.circle,
@@ -1401,32 +1464,34 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       child: Center(
                         child: Text(
                           riderName.isNotEmpty ? riderName[0].toUpperCase() : 'R',
-                          style: const TextStyle(
-                            fontSize: 20,
+                          style: TextStyle(
+                            fontSize: sw * 0.05,
                             fontWeight: FontWeight.w700,
                             color: Colors.black87,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: sw * 0.03),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             riderName,
-                            style: const TextStyle(
-                              fontSize: 16,
+                            style: TextStyle(
+                              fontSize: sw * 0.04,
                               fontWeight: FontWeight.w700,
                               color: Colors.black87,
                             ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
-                          const Text(
+                          Text(
                             'Your rider',
                             style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF64748B),
+                              fontSize: sw * 0.033,
+                              color: const Color(0xFF64748B),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -1436,16 +1501,16 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     if (riderPhone?.isNotEmpty == true)
                       OutlinedButton.icon(
                         onPressed: () => _callNumber(riderPhone!),
-                        icon: const Icon(Icons.phone, size: 16),
-                        label: const Text('Call'),
+                        icon: Icon(Icons.phone, size: sw * 0.04),
+                        label: Text('Call', style: TextStyle(fontSize: sw * 0.035)),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF3B82F6),
                           side: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  minimumSize: Size.zero,
+                          padding: EdgeInsets.symmetric(horizontal: sw * 0.04, vertical: sw * 0.02),
+                          minimumSize: Size.zero,
                         ),
                       ),
                   ],
@@ -1461,43 +1526,45 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               children: [
                 Container(
                   margin: const EdgeInsets.only(top: 2),
-                  child: const Icon(
+                  child: Icon(
                     Icons.location_on,
-                    color: Color(0xFF10B981),
-                    size: 24,
+                    color: const Color(0xFF10B981),
+                    size: sw * 0.06,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: sw * 0.03),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         isHeadingToPickup ? 'PICKUP LOCATION' : 'DROP-OFF LOCATION',
-                        style: const TextStyle(
-                          fontSize: 10,
+                        style: TextStyle(
+                          fontSize: sw * 0.025,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF64748B),
+                          color: const Color(0xFF64748B),
                           letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         mainAddress,
-                        style: const TextStyle(
-                          fontSize: 15,
+                        style: TextStyle(
+                          fontSize: sw * 0.038,
                           fontWeight: FontWeight.w800,
                           color: Colors.black87,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                       if (subAddress.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
                           subAddress,
-                          style: const TextStyle(
-                            fontSize: 12,
+                          style: TextStyle(
+                            fontSize: sw * 0.03,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B),
+                            color: const Color(0xFF64748B),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1668,7 +1735,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
             // OTP Block (if arrived)
             if (status == 'arrived') ...[
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -1732,8 +1799,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     const SizedBox(height: 18),
                     StatefulBuilder(
                       builder: (ctx, setInnerState) {
+                        final otpBoxW = (sw - sw * 0.1 - sw * 0.08 - (3 * sw * 0.03)) / 4;
+                        final otpBoxH = otpBoxW * 1.15;
                         return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          padding: EdgeInsets.symmetric(horizontal: sw * 0.04),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: List.generate(4, (index) {
@@ -1797,8 +1866,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                 },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  width: 48,
-                                  height: 56,
+                                  width: otpBoxW,
+                                  height: otpBoxH,
                                   decoration: BoxDecoration(
                                     color: isFilled ? const Color(0xFFF0FDF4) : Colors.white,
                                     borderRadius: BorderRadius.circular(14),
@@ -1824,7 +1893,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                     child: Text(
                                       isFilled ? _enteredOtp[index] : '',
                                       style: TextStyle(
-                                        fontSize: 24,
+                                        fontSize: otpBoxW * 0.5,
                                         fontWeight: FontWeight.w800,
                                         color: isFilled ? const Color(0xFF16B77A) : Colors.transparent,
                                       ),
@@ -1840,7 +1909,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              SizedBox(height: bottomInset > 0 ? bottomInset : 16),
             ],
 
             // Primary CTA
@@ -1849,15 +1919,15 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 onPressed: _isRideActionLoading || captainId == null
                     ? null
                     : () => handleArrivedPress(status),
-                icon: const Icon(Icons.location_on, size: 18, color: Colors.white),
+                icon: Icon(Icons.location_on, size: sw * 0.045, color: Colors.white),
                 label: Text(
                   status == 'accepted' ? 'Arrived at pickup' : 'I have Arrived',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: sw * 0.04, fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.symmetric(vertical: sh * 0.02),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -1938,15 +2008,15 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               ),
                         );
                       },
-                icon: const Icon(Icons.check_circle_rounded, size: 18, color: Colors.white),
-                label: const Text(
+                icon: Icon(Icons.check_circle_rounded, size: sw * 0.045, color: Colors.white),
+                label: Text(
                   'End Trip',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: sw * 0.04, fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.symmetric(vertical: sh * 0.02),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -2196,7 +2266,7 @@ class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget>
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: const Color(0xFFF1F5F9)),
@@ -2212,8 +2282,8 @@ class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget>
                     child: Row(
                       children: [
                         Container(
-                          width: 36,
-                          height: 36,
+                          width: 32,
+                          height: 32,
                           decoration: const BoxDecoration(
                             color: Color(0xFFEBF5FF),
                             shape: BoxShape.circle,
@@ -2221,30 +2291,36 @@ class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget>
                           child: const Icon(
                             Icons.currency_rupee_rounded,
                             color: Color(0xFF3B82F6),
-                            size: 18,
+                            size: 16,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '₹$fare',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black87,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '₹$fare',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black87,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            const Text(
-                              'Estimated fare',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF64748B),
-                                fontWeight: FontWeight.w500,
+                              const Text(
+                                'Estimated fare',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -2254,7 +2330,7 @@ class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget>
                 if (distM != null)
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         border: Border.all(color: const Color(0xFFF1F5F9)),
@@ -2270,8 +2346,8 @@ class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget>
                       child: Row(
                         children: [
                           Container(
-                            width: 36,
-                            height: 36,
+                            width: 32,
+                            height: 32,
                             decoration: const BoxDecoration(
                               color: Color(0xFFEBF5FF),
                               shape: BoxShape.circle,
@@ -2279,30 +2355,36 @@ class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget>
                             child: const Icon(
                               Icons.location_on_rounded,
                               color: Color(0xFF3B82F6),
-                              size: 18,
+                              size: 16,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${(distM / 1000).toStringAsFixed(1)} km',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.black87,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${(distM / 1000).toStringAsFixed(1)} km',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.black87,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                              const Text(
-                                'Ride distance',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                  fontWeight: FontWeight.w500,
+                                const Text(
+                                  'Ride distance',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),

@@ -1,0 +1,1 @@
+import re; data = open('C:/temp_ola/com/ola/mapsdk/view/INativeMap.class', 'rb').read(); words = set(); [words.add(m.group(0).decode('utf-8', 'ignore')) for m in re.finditer(b'[a-zA-Z_$][a-zA-Z_-9]*', data) if len(m.group(0)) > 3 and m.group(0).decode('utf-8', 'ignore').isascii()]; print(', '.join(sorted(list(words))))

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import '../../map/presentation/map_home_screen.dart';
+import '../../map/presentation/widgets/sarthi_logo.dart';
 import 'package:go_router/go_router.dart';
 
 enum RideFilter { today, last30Days, allTime }
@@ -365,10 +365,10 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
                         width: 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444),
+                          color: const Color(0xFF0B2144),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF0B2144),
+                            color: Colors.white,
                             width: 1.5,
                           ),
                         ),
@@ -391,7 +391,7 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF0B2144), Color(0xFF3B82F6)],
+                        colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -448,7 +448,7 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
                               width: tabWidth,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF0F62FE),
+                                  color: const Color(0xFF0B2144),
                                   borderRadius: BorderRadius.circular(22),
                                 ),
                               ),
@@ -478,26 +478,67 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _buildStatusChip(
-                        'All',
-                        RideStatusFilter.all,
-                        activeStatusFilter,
-                      ),
-                      const SizedBox(width: 8),
-                      _buildStatusChip(
-                        'Completed',
-                        RideStatusFilter.completed,
-                        activeStatusFilter,
-                      ),
-                      const SizedBox(width: 8),
-                      _buildStatusChip(
-                        'Cancelled',
-                        RideStatusFilter.cancelled,
-                        activeStatusFilter,
-                      ),
-                    ],
+                  Container(
+                    height: 38,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final tabWidth = constraints.maxWidth / 3;
+                        final activeIndex = activeStatusFilter == RideStatusFilter.all
+                            ? 0
+                            : activeStatusFilter == RideStatusFilter.completed
+                                ? 1
+                                : 2;
+                        return Stack(
+                          children: [
+                            AnimatedPositioned(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOutCubic,
+                              left: activeIndex * tabWidth,
+                              top: 0,
+                              bottom: 0,
+                              width: tabWidth,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.04),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                _buildStatusTab(
+                                  'All',
+                                  RideStatusFilter.all,
+                                  activeStatusFilter,
+                                ),
+                                _buildStatusTab(
+                                  'Completed',
+                                  RideStatusFilter.completed,
+                                  activeStatusFilter,
+                                ),
+                                _buildStatusTab(
+                                  'Cancelled',
+                                  RideStatusFilter.cancelled,
+                                  activeStatusFilter,
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -685,7 +726,7 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF16325B), // Slightly lighter than background
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -697,7 +738,7 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
             value: '$completed',
             label: 'Completed',
           ),
-          Container(width: 1, height: 40, color: Colors.white.withOpacity(0.15)),
+          Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.15)),
           _buildStatItem(
             icon: Icons.close_rounded,
             iconColor: Colors.white,
@@ -705,7 +746,7 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
             value: '$cancelled',
             label: 'Cancelled',
           ),
-          Container(width: 1, height: 40, color: Colors.white.withOpacity(0.15)),
+          Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.15)),
           _buildStatItem(
             icon: Icons.account_balance_wallet_rounded,
             iconColor: Colors.white,
@@ -754,7 +795,7 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
@@ -794,66 +835,51 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
     );
   }
 
-  Widget _buildStatusChip(
+  Widget _buildStatusTab(
     String text,
     RideStatusFilter filter,
     RideStatusFilter activeFilter,
   ) {
     final isActive = filter == activeFilter;
     
-    Color activeColor;
-    Widget iconWidget;
+    Color dotColor = Colors.transparent;
+    if (filter == RideStatusFilter.completed) dotColor = const Color(0xFF22C55E);
+    if (filter == RideStatusFilter.cancelled) dotColor = const Color(0xFFEF4444);
+    if (filter == RideStatusFilter.all) dotColor = const Color(0xFF0B2144);
 
-    switch (filter) {
-      case RideStatusFilter.all:
-        activeColor = const Color(0xFF0F62FE); // Blue
-        iconWidget = Icon(Icons.filter_list_rounded, color: isActive ? activeColor : const Color(0xFF64748B), size: 12);
-        break;
-      case RideStatusFilter.completed:
-        activeColor = const Color(0xFF22C55E); // Green
-        iconWidget = Container(
-          decoration: BoxDecoration(color: activeColor, shape: BoxShape.circle),
-          padding: const EdgeInsets.all(2),
-          child: const Icon(Icons.check_rounded, color: Colors.white, size: 8),
-        );
-        break;
-      case RideStatusFilter.cancelled:
-        activeColor = const Color(0xFFEF4444); // Red
-        iconWidget = Container(
-          decoration: BoxDecoration(color: activeColor, shape: BoxShape.circle),
-          padding: const EdgeInsets.all(2),
-          child: const Icon(Icons.close_rounded, color: Colors.white, size: 8),
-        );
-        break;
-    }
-
-    final borderColor = isActive ? activeColor : const Color(0xFFCBD5E1);
-    final textColor = isActive ? activeColor : const Color(0xFF64748B);
-
-    return GestureDetector(
-      onTap: () => ref.read(rideStatusFilterProvider.notifier).state = filter,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor, width: 1.0),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            iconWidget,
-            const SizedBox(width: 4),
-            Text(
-              text,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => ref.read(rideStatusFilterProvider.notifier).state = filter,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: double.infinity,
+          color: Colors.transparent,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (dotColor != Colors.transparent)
+                Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                style: TextStyle(
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 10.5,
+                  color: isActive ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                  fontFamily: 'Inter',
+                ),
+                child: Text(text),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -988,7 +1014,7 @@ class _RideCardState extends State<_RideCard> {
             border: Border.all(color: const Color(0xFFF1F5F9)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -1003,10 +1029,10 @@ class _RideCardState extends State<_RideCard> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
+                      color: const Color(0xFF0B2144).withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(vehicleIcon, color: const Color(0xFF2563EB), size: 18),
+                    child: Icon(vehicleIcon, color: const Color(0xFF0B2144), size: 18),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1051,7 +1077,7 @@ class _RideCardState extends State<_RideCard> {
                         height: 10,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF2563EB), width: 2.5),
+                          border: Border.all(color: const Color(0xFF0B2144), width: 2.5),
                         ),
                       ),
                       Container(
@@ -1095,7 +1121,7 @@ class _RideCardState extends State<_RideCard> {
                   const SizedBox(width: 4),
                   Text(durationText, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                   const Spacer(),
-                  const Text('Details >', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF2563EB))),
+                  const Text('Details >', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0B2144))),
                 ],
               ),
             ],
@@ -1176,10 +1202,10 @@ class _RideCardState extends State<_RideCard> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF), // Light blue
+                      color: const Color(0xFF0B2144).withValues(alpha: 0.06), // Light blue
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(vehicleIcon, color: const Color(0xFF2563EB), size: 28),
+                    child: Icon(vehicleIcon, color: const Color(0xFF0B2144), size: 28),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -1238,7 +1264,7 @@ class _RideCardState extends State<_RideCard> {
                           height: 14,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF2563EB), width: 3.5),
+                            border: Border.all(color: const Color(0xFF0B2144), width: 3.5),
                           ),
                         ),
                         Container(
@@ -1280,7 +1306,7 @@ class _RideCardState extends State<_RideCard> {
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF), // Very light blue
+                  color: const Color(0xFF0B2144).withValues(alpha: 0.06), // Very light blue
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
@@ -1288,7 +1314,7 @@ class _RideCardState extends State<_RideCard> {
                     Expanded(
                       child: Column(
                         children: [
-                          const Icon(Icons.currency_rupee_rounded, size: 18, color: Color(0xFF2563EB)),
+                          const Icon(Icons.currency_rupee_rounded, size: 18, color: Color(0xFF0B2144)),
                           const SizedBox(height: 4),
                           Text(fare != null ? '₹$fare' : '₹--', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                           const SizedBox(height: 2),
@@ -1296,11 +1322,11 @@ class _RideCardState extends State<_RideCard> {
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 40, color: const Color(0xFFBFDBFE)),
+                    Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
                     Expanded(
                       child: Column(
                         children: [
-                          const Icon(Icons.map_outlined, size: 18, color: Color(0xFF2563EB)),
+                          const Icon(Icons.map_outlined, size: 18, color: Color(0xFF0B2144)),
                           const SizedBox(height: 4),
                           Text(distM != null ? '${(distM / 1000).toStringAsFixed(1)} km' : '--', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                           const SizedBox(height: 2),
@@ -1308,11 +1334,11 @@ class _RideCardState extends State<_RideCard> {
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 40, color: const Color(0xFFBFDBFE)),
+                    Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
                     Expanded(
                       child: Column(
                         children: [
-                          const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFF2563EB)),
+                          const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFF0B2144)),
                           const SizedBox(height: 4),
                           Text(durationText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
                           const SizedBox(height: 2),
@@ -1351,7 +1377,7 @@ class _RideCardState extends State<_RideCard> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F62FE), // Bright blue
+                    backgroundColor: const Color(0xFF0B2144), // Bright blue
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

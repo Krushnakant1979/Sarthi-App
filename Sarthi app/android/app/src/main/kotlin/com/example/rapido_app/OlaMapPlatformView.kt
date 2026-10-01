@@ -4,14 +4,21 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Color as AColor
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.net.Uri
+import android.view.Choreographer
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageView
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -21,10 +28,16 @@ import com.ola.mapsdk.view.OlaMapView
 import com.ola.mapsdk.view.OlaMap
 import com.ola.mapsdk.view.Marker
 import com.ola.mapsdk.view.Polyline
+import com.ola.mapsdk.view.Circle
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapView
+import org.maplibre.android.annotations.PolylineOptions
+import org.maplibre.android.geometry.LatLng
 import com.ola.mapsdk.interfaces.OlaMapCallback
 import com.ola.mapsdk.model.OlaLatLng
 import com.ola.mapsdk.model.OlaMarkerOptions
 import com.ola.mapsdk.model.OlaPolylineOptions
+import com.ola.mapsdk.model.OlaCircleOptions
 import com.ola.mapsdk.utils.PolylineDecoder
 import kotlin.math.cos
 import kotlin.math.sin
@@ -37,6 +50,7 @@ class OlaMapPlatformView(
     messenger: BinaryMessenger
 ) : PlatformView, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
+    private var showUserDot: Boolean = creationParams?.get("showUserDot") as? Boolean ?: true
     private val container: FrameLayout = FrameLayout(context)
     private var olaMapView: OlaMapView? = null
     private var olaMap: OlaMap? = null
@@ -47,11 +61,27 @@ class OlaMapPlatformView(
     
     private var pickupMarkerPolyline: Polyline? = null
     private var pickupMarkerAccent: Polyline? = null
-    private var destMarkerPolyline: Polyline? = null
+    private var destInnerPolylines = ArrayList<Polyline>()
     private var destFlagPolyline: Polyline? = null
+    private var destNativeCircle: Circle? = null   // OlaMap Circle — outer ring
+    private var destInnerCircle: Circle? = null    // OlaMap Circle — white inner dot
+    private var pickupNativeCircle: Circle? = null // OlaMap Circle — outer ring
+    private var pickupInnerCircle: Circle? = null  // OlaMap Circle — white inner dot
+    private var captainNativeCircle: Circle? = null // OlaMap Circle — captain outer ring
+    private var captainInnerCircle: Circle? = null  // OlaMap Circle — captain white inner dot
+    private var userLiveNativeCircle: Circle? = null // OlaMap Circle — live user outer ring
+    private var userLiveInnerCircle: Circle? = null  // OlaMap Circle — live user inner dot
     private var activePolyline: Polyline? = null
     private var activePolylineCasing: Polyline? = null
     private var headingPolyline: Polyline? = null
+    
+    private var mapLibreMap: MapLibreMap? = null
+    private var mlPickupMarkerPolyline: org.maplibre.android.annotations.Polyline? = null
+    private var mlPickupMarkerAccent: org.maplibre.android.annotations.Polyline? = null
+    private var mlActivePolylineCasing: org.maplibre.android.annotations.Polyline? = null
+    private var mlActivePolyline: org.maplibre.android.annotations.Polyline? = null
+    private var mlHeadingPolylineCasing: org.maplibre.android.annotations.Polyline? = null
+    private var mlHeadingPolyline: org.maplibre.android.annotations.Polyline? = null
     private var headingPolylineCasing: Polyline? = null
 
     private val methodChannel = MethodChannel(messenger, "sarthi/ola_map_$id")
@@ -62,6 +92,14 @@ class OlaMapPlatformView(
     private var pendingLat: Double? = null
     private var pendingLng: Double? = null
     private var pendingZoom: Double = 16.0
+
+    // ── Native Overlay for destination pin ───────────────────────────────────
+    // Bypasses OlaMap SDK collision system — always 100% visible
+    private var destOverlayView: ImageView? = null
+    private var destOverlayPosition: OlaLatLng? = null
+    private var overlayBitmap: Bitmap? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var choreographerRunning = false
 
     // Queue markers to apply as soon as the map is ready
     private var pendingPickupPosition: OlaLatLng? = null
@@ -109,11 +147,46 @@ class OlaMapPlatformView(
             override fun onMapReady(map: OlaMap) {
                 olaMap = map
 
-                // Safely attempt to enable user current location blue dot
                 try {
-                    map.showCurrentLocation()
+                    val builder = OlaMarkerOptions.Builder()
+                    val methods = builder::class.java.methods
+                    val methodNames = methods.joinToString(", ") { it.name }
+                    Log.d("OlaMap", "OlaMarkerOptions.Builder methods: $methodNames")
                 } catch (e: Exception) {
-                    Log.e("OlaMap", "showCurrentLocation error", e)
+                    Log.e("OlaMap", "Error dumping builder methods", e)
+                }
+
+                try {
+                    olaMapView?.let { mapView ->
+                        val field = mapView.javaClass.getDeclaredField("mapLibreMapView")
+                        field.isAccessible = true
+                        val mlMapView = field.get(mapView) as? MapView
+                        mlMapView?.getMapAsync { mapLibre ->
+                            mapLibreMap = mapLibre
+                            try {
+                                val locationComponent = mapLibre.locationComponent
+                                val options = org.maplibre.android.location.LocationComponentOptions.builder(context)
+                                    .accuracyAlpha(0f)
+                                    .accuracyColor(android.graphics.Color.TRANSPARENT)
+                                    .build()
+                                locationComponent.applyStyle(options)
+                            } catch (e: Exception) {
+                                Log.e("OlaMap", "Failed to configure LocationComponent", e)
+                            }
+                            Log.d("OlaMap", "MapLibreMap acquired successfully!")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("OlaMap", "Reflection error getting MapLibreMap", e)
+                }
+
+                // Only show native GPS location dot for captain (user app hides it)
+                if (showUserDot) {
+                    try {
+                        map.showCurrentLocation()
+                    } catch (e: Exception) {
+                        Log.e("OlaMap", "showCurrentLocation error", e)
+                    }
                 }
 
                 // Apply any camera move that was requested before the map was ready
@@ -135,8 +208,18 @@ class OlaMapPlatformView(
                     pendingDestPosition = null
                 }
 
+                try {
+                    val mapClass = map::class.java
+                    Log.d("OlaMap", "OlaMap Methods:")
+                    mapClass.methods.forEach { Log.d("OlaMap", "Method: ${it.name}(${it.parameterTypes.joinToString { p -> p.simpleName }}) -> ${it.returnType.simpleName}") }
+                    Log.d("OlaMap", "OlaMap Fields:")
+                    mapClass.declaredFields.forEach { Log.d("OlaMap", "Field: ${it.name} : ${it.type.simpleName}") }
+                } catch (e: Exception) {}
+
                 // Notify Flutter that the map is ready
                 eventSink?.success(mapOf("event" to "mapReady"))
+                // Start frame-by-frame overlay positioning loop
+                startOverlayLoop()
             }
 
             override fun onMapError(error: String) {
@@ -152,6 +235,143 @@ class OlaMapPlatformView(
         } catch (e: Exception) {
             Log.e("OlaMap", "lifecycle error", e)
         }
+    }
+
+    // ── Native Overlay Helpers ────────────────────────────────────────────────
+
+    /** Creates the overlay bitmap lazily from the bundled PNG drawable */
+    private fun getOrCreateOverlayBitmap(): Bitmap {
+        overlayBitmap?.let { return it }
+        return try {
+            val resId = context.resources.getIdentifier("ic_dest_pin_overlay", "drawable", context.packageName)
+            if (resId != 0) {
+                val raw = BitmapFactory.decodeResource(context.resources, resId)
+                val scaled = Bitmap.createScaledBitmap(raw, 100, 100, true)
+                overlayBitmap = scaled
+                scaled
+            } else {
+                createFallbackPinBitmap().also { overlayBitmap = it }
+            }
+        } catch (e: Exception) {
+            createFallbackPinBitmap().also { overlayBitmap = it }
+        }
+    }
+
+    /** Programmatic fallback pin: red teardrop with white inner circle */
+    private fun createFallbackPinBitmap(): Bitmap {
+        val w = 100; val h = 130
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        // Outer red circle (head of pin)
+        paint.color = Color.parseColor("#EA4335")
+        c.drawCircle(w / 2f, w / 2f, w / 2f, paint)
+
+        // Tail triangle
+        val path = Path()
+        path.moveTo(w * 0.25f, w * 0.78f)
+        path.lineTo(w * 0.75f, w * 0.78f)
+        path.lineTo(w / 2f, h.toFloat())
+        path.close()
+        c.drawPath(path, paint)
+
+        // White inner circle
+        paint.color = Color.WHITE
+        c.drawCircle(w / 2f, w / 2f, w * 0.22f, paint)
+        return bmp
+    }
+
+    /** Adds or updates the native ImageView overlay positioned over lat/lng */
+    private fun showDestinationOverlay(position: OlaLatLng) {
+        destOverlayPosition = position
+        mainHandler.post {
+            if (destOverlayView == null) {
+                val iv = ImageView(context)
+                iv.setImageBitmap(getOrCreateOverlayBitmap())
+                // Elevation ensures it sits above the map surface
+                iv.elevation = 32f
+                val params = FrameLayout.LayoutParams(100, 100)
+                container.addView(iv, params)
+                destOverlayView = iv
+            }
+            updateOverlayPosition()
+        }
+    }
+
+    /** Removes the native ImageView overlay */
+    private fun removeDestinationOverlay() {
+        mainHandler.post {
+            destOverlayView?.let { container.removeView(it) }
+            destOverlayView = null
+            destOverlayPosition = null
+        }
+    }
+
+    /** Projects the stored lat/lng to screen XY and moves the overlay ImageView */
+    private fun updateOverlayPosition() {
+        val iv = destOverlayView ?: return
+        val pos = destOverlayPosition ?: return
+        val map = olaMap ?: return
+
+        try {
+            // Use OlaMap projection via reflection to get screen point
+            val projection = map::class.java
+                .methods
+                .firstOrNull { it.name == "getProjection" }
+                ?.invoke(map)
+
+            if (projection != null) {
+                // Try toScreenLocation from MapLibre projection
+                val screenPt = projection::class.java
+                    .methods
+                    .firstOrNull { it.name == "toScreenLocation" }
+                    ?.invoke(projection, 
+                        projection::class.java.classLoader
+                            ?.loadClass("org.maplibre.android.geometry.LatLng")
+                            ?.getConstructor(Double::class.java, Double::class.java)
+                            ?.newInstance(pos.latitude, pos.longitude)
+                    )
+
+                if (screenPt != null) {
+                    val x = screenPt::class.java.getMethod("x").invoke(screenPt) as? Number
+                    val y = screenPt::class.java.getMethod("y").invoke(screenPt) as? Number
+                    if (x != null && y != null) {
+                        val px = x.toFloat() - 50f  // center the 100px icon
+                        val py = y.toFloat() - 100f // pin tip at coordinate
+                        iv.x = px
+                        iv.y = py
+                        iv.visibility = View.VISIBLE
+                        return
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d("OlaMap", "Projection fallback: ${e.message}")
+        }
+
+        // Fallback: hide if projection fails (avoids icon stuck at 0,0)
+        iv.visibility = View.INVISIBLE
+    }
+
+    /** Choreographer loop — runs every display frame to reposition the overlay as the map pans/zooms */
+    private fun startOverlayLoop() {
+        if (choreographerRunning) return
+        choreographerRunning = true
+        val choreographer = Choreographer.getInstance()
+        val frameCallback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (!choreographerRunning) return
+                if (destOverlayView != null) updateOverlayPosition()
+                choreographer.postFrameCallback(this)
+            }
+        }
+        choreographer.postFrameCallback(frameCallback)
+    }
+
+    /** Stops the Choreographer loop (e.g. on dispose) */
+    private fun stopOverlayLoop() {
+        choreographerRunning = false
     }
 
     // ── Custom Marker Bitmap Fallback ─────────────────────────────────────────
@@ -170,29 +390,19 @@ class OlaMapPlatformView(
             canvas.drawText("📍", size / 2f, y, paint)
             return bitmap
         } else {
-            val width = 72
-            val height = 90
+            // Draw a large red circular marker
+            val width = 160
+            val height = 160
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-            val redColor = Color.parseColor("#EA4335")
-            val poleColor = Color.parseColor("#374151")
-
-            // Pole
-            paint.color = poleColor
-            paint.style = Paint.Style.FILL
-            canvas.drawRect(width / 2f - 3f, 10f, width / 2f + 3f, height.toFloat() - 5f, paint)
-
-            // Flag
-            val path = Path()
-            path.moveTo(width / 2f + 3f, 10f)
-            path.lineTo(width.toFloat() - 5f, 28f)
-            path.lineTo(width / 2f + 3f, 46f)
-            path.close()
-            paint.color = redColor
-            canvas.drawPath(path, paint)
-
+            paint.color = Color.parseColor("#EA4335")
+            // Draw a white border for better visibility
+            val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+            borderPaint.color = Color.WHITE
+            
+            canvas.drawCircle(width / 2f, height / 2f, (width / 2f) - 2f, borderPaint)
+            canvas.drawCircle(width / 2f, height / 2f, (width / 2f) - 10f, paint)
             return bitmap
         }
     }
@@ -207,36 +417,76 @@ class OlaMapPlatformView(
         }
     }
 
+    private fun cropTransparentMargins(bitmap: Bitmap): Bitmap {
+        var top = bitmap.height
+        var bottom = 0
+        var left = bitmap.width
+        var right = 0
+
+        val rowPixels = IntArray(bitmap.width)
+        for (y in 0 until bitmap.height) {
+            bitmap.getPixels(rowPixels, 0, bitmap.width, 0, y, bitmap.width, 1)
+            for (x in 0 until bitmap.width) {
+                if (android.graphics.Color.alpha(rowPixels[x]) > 0) {
+                    if (x < left) left = x
+                    if (x > right) right = x
+                    if (y < top) top = y
+                    if (y > bottom) bottom = y
+                }
+            }
+        }
+
+        if (left >= right || top >= bottom) return bitmap // Empty or completely transparent
+
+        return Bitmap.createBitmap(bitmap, left, top, right - left + 1, bottom - top + 1)
+    }
+
+    private var destDotMarker: com.ola.mapsdk.view.Marker? = null
+
     // ── Helper to build OlaMarkerOptions ─────────────────────────────────────
 
-    private fun buildMarkerOptions(position: OlaLatLng, isPickup: Boolean, snippetText: String?): OlaMarkerOptions {
+    private fun buildMarkerOptions(position: OlaLatLng, isPickup: Boolean, snippetText: String?, isDestDot: Boolean = false): OlaMarkerOptions {
         val builder = OlaMarkerOptions.Builder()
-            .setMarkerId(if (isPickup) "pickup_marker" else "destination_marker")
+        
+        // Reflection dump on first call
+        if (!isDestDot && isPickup) {
+            val methods = builder::class.java.methods
+            val methodNames = methods.joinToString(", ") { it.name }
+            Log.d("OlaMap", "OlaMarkerOptions.Builder methods: $methodNames")
+        }
+
+        builder.setMarkerId(if (isPickup) "pickup_marker" else if (isDestDot) "destination_dot" else "destination_marker")
             .setPosition(position)
 
         if (isPickup) {
             val resId = getResId("ic_pickup_pin")
             if (resId != 0) {
                 try {
-                    val bitmap = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
-                    builder.setIconBitmap(bitmap)
+                    val originalBitmap = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+                    val width = 120
+                    val height = (originalBitmap.height.toFloat() / originalBitmap.width.toFloat() * width).toInt()
+                    val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, width, height, true)
+                    builder.setIconBitmap(scaledBitmap)
                 } catch (e: Exception) {
                     try { builder.setIconBitmap(createMarkerBitmap(true)) } catch (e: Exception) {}
                 }
             } else {
                 try { builder.setIconBitmap(createMarkerBitmap(true)) } catch (e: Exception) {}
             }
+        } else if (isDestDot) {
+            try {
+                val bitmap = Bitmap.createBitmap(32, 40, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                canvas.drawColor(android.graphics.Color.RED)
+                builder.setIconBitmap(bitmap)
+            } catch (e: Exception) {}
         } else {
-            val resId = getResId("ic_dest_pin")
-            if (resId != 0) {
-                try {
-                    val bitmap = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
-                    builder.setIconBitmap(bitmap)
-                } catch (e: Exception) {
-                    try { builder.setIconBitmap(createMarkerBitmap(false)) } catch (e: Exception) {}
-                }
-            } else {
-                try { builder.setIconBitmap(createMarkerBitmap(false)) } catch (e: Exception) {}
+            // MapLibre is rendering the ic_dest_pin PNG as a black box due to an alpha/format issue.
+            // We use the Canvas-drawn programmatic red flag instead!
+            try {
+                builder.setIconBitmap(createMarkerBitmap(false))
+            } catch (e: Exception) {
+                Log.e("OlaMap", "Error creating Canvas destination pin", e)
             }
         }
         
@@ -247,65 +497,52 @@ class OlaMapPlatformView(
         return builder.build()
     }
 
-    /**
-     * Draws the destination as map geometry instead of an SDK marker. Ola/MapLibre
-     * polylines are not suppressed by symbol collision detection, so the flag stays
-     * visible even when the destination overlaps a base-map POI label.
-     */
     private fun drawDestinationFlag(position: OlaLatLng) {
         val map = olaMap ?: return
+        Log.d("OlaMap", "drawDestinationFlag: using OlaCircle SDK circle")
 
-        try { destMarker?.removeMarker() } catch (_: Exception) {}
-        try { destMarkerPolyline?.removePolyline() } catch (_: Exception) {}
-        try { destFlagPolyline?.removePolyline() } catch (_: Exception) {}
+        // Remove previous destination visuals
+        try { destMarker?.removeMarker() } catch (e: Exception) {}
+        try { destDotMarker?.removeMarker() } catch (e: Exception) {}
+        try { destInnerPolylines.forEach { it.removePolyline() } } catch (e: Exception) {}
+        try { destFlagPolyline?.removePolyline() } catch (e: Exception) {}
+        try {
+            destNativeCircle?.let {
+                it::class.java.methods.firstOrNull { m -> m.name == "removeCircle" }?.invoke(it)
+            }
+            destInnerCircle?.let {
+                it::class.java.methods.firstOrNull { m -> m.name == "removeCircle" }?.invoke(it)
+            }
+        } catch (e: Exception) {}
         destMarker = null
-
-        // Rough metre-to-coordinate conversion, sufficient for this small map icon.
-        val metresPerDegreeLatitude = 111_320.0
-        val metresPerDegreeLongitude =
-            metresPerDegreeLatitude * cos(Math.toRadians(position.latitude)).coerceAtLeast(0.01)
-        // Keep the whole silhouette red and intentionally oversized so it reads
-        // like the 🚩 emoji against roads and POI labels at the route overview zoom.
-        val poleHeight = 34.0
-        val flagWidth = 22.0
-        val flagDrop = 13.0
-
-        val poleTop = OlaLatLng(
-            position.latitude + poleHeight / metresPerDegreeLatitude,
-            position.longitude,
-            0.0
-        )
-        val flagTip = OlaLatLng(
-            poleTop.latitude - flagDrop / (2.0 * metresPerDegreeLatitude),
-            poleTop.longitude + flagWidth / metresPerDegreeLongitude,
-            0.0
-        )
-        val flagBottom = OlaLatLng(
-            poleTop.latitude - flagDrop / metresPerDegreeLatitude,
-            poleTop.longitude,
-            0.0
-        )
+        destDotMarker = null
+        destInnerPolylines.clear()
+        destFlagPolyline = null
+        destNativeCircle = null
+        destInnerCircle = null
 
         try {
-            val poleOptions = OlaPolylineOptions.Builder().build().apply {
-                points = arrayListOf(position, poleTop)
-                color = "#EA4335"
-                width = 10f
-            }
-            destMarkerPolyline = map.addPolyline(poleOptions)
+            // Outer ring — red
+            val outerOptions = OlaCircleOptions.Builder()
+                .setOlaLatLng(position)
+                .setRadius(10.0f)
+                .setColorHexCode("#EA4335")
+                .setCircleOpacity(1.0f)
+                .build()
+            destNativeCircle = map.addCircle(outerOptions)
 
-            val flagOptions = OlaPolylineOptions.Builder().build().apply {
-                points = arrayListOf(poleTop, flagTip, flagBottom, poleTop)
-                color = "#EA4335"
-                width = 14f
-            }
-            destFlagPolyline = map.addPolyline(flagOptions)
-            
-            // Also add the actual SDK marker pin for better visibility
-            val markerOptions = buildMarkerOptions(position, false, "Destination")
-            destMarker = map.addMarker(markerOptions)
+            // Inner white dot — creates bullseye effect
+            val innerOptions = OlaCircleOptions.Builder()
+                .setOlaLatLng(position)
+                .setRadius(5.0f)
+                .setColorHexCode("#FFFFFF")
+                .setCircleOpacity(1.0f)
+                .build()
+            destInnerCircle = map.addCircle(innerOptions)
+
+            Log.d("OlaMap", "Destination bullseye circle added")
         } catch (e: Exception) {
-            Log.e("OlaMap", "drawDestinationFlag error", e)
+            Log.e("OlaMap", "addCircle error: ${e.message}", e)
         }
     }
 
@@ -314,69 +551,113 @@ class OlaMapPlatformView(
         try { pickupMarker?.removeMarker() } catch (_: Exception) {}
         try { pickupMarkerPolyline?.removePolyline() } catch (_: Exception) {}
         try { pickupMarkerAccent?.removePolyline() } catch (_: Exception) {}
-        pickupMarker = null
-
-        val metresPerDegreeLatitude = 111_320.0
-        val metresPerDegreeLongitude =
-            metresPerDegreeLatitude * cos(Math.toRadians(position.latitude)).coerceAtLeast(0.01)
-        
-        val poleHeight = 34.0
-        val flagWidth = -22.0 // Make flag point left to differentiate from red destination flag
-        val flagDrop = 13.0
-
-        val poleTop = OlaLatLng(
-            position.latitude + poleHeight / metresPerDegreeLatitude,
-            position.longitude,
-            0.0
-        )
-        val flagTip = OlaLatLng(
-            poleTop.latitude - flagDrop / (2.0 * metresPerDegreeLatitude),
-            poleTop.longitude + flagWidth / metresPerDegreeLongitude,
-            0.0
-        )
-        val flagBottom = OlaLatLng(
-            poleTop.latitude - flagDrop / metresPerDegreeLatitude,
-            poleTop.longitude,
-            0.0
-        )
-
-        val poleOptions = OlaPolylineOptions.Builder().build().apply {
-            points = arrayListOf(position, poleTop)
-            color = "#374151" // Dark pole
-            width = 10f
-        }
-
-        val flagOptions = OlaPolylineOptions.Builder().build().apply {
-            points = arrayListOf(poleTop, flagTip, flagBottom, poleTop)
-            color = "#10B981" // Emerald Green flag
-            width = 14f
-        }
-
         try {
-            pickupMarkerPolyline = map.addPolyline(poleOptions)
-            pickupMarkerAccent = map.addPolyline(flagOptions)
-            
-            // Also add the actual SDK marker pin in case it's not occluded
-            val markerOptions = buildMarkerOptions(position, true, "User Pickup")
-            pickupMarker = map.addMarker(markerOptions)
+            pickupNativeCircle?.let {
+                it::class.java.methods.firstOrNull { m -> m.name == "removeCircle" }?.invoke(it)
+            }
+        } catch (e: Exception) {}
+        pickupMarker = null
+        pickupMarkerPolyline = null
+        pickupMarkerAccent = null
+        pickupNativeCircle = null
+
+        val mapLibre = mapLibreMap
+        if (mapLibre != null) {
+            mlPickupMarkerPolyline?.let { mapLibre.removeAnnotation(it) }
+            mlPickupMarkerAccent?.let { mapLibre.removeAnnotation(it) }
+        }
+        mlPickupMarkerPolyline = null
+        mlPickupMarkerAccent = null
+        
+        try {
+            // Outer ring — green
+            val outerOptions = OlaCircleOptions.Builder()
+                .setOlaLatLng(position)
+                .setRadius(10.0f)
+                .setColorHexCode("#22C55E")
+                .setCircleOpacity(1.0f)
+                .build()
+            pickupNativeCircle = map.addCircle(outerOptions)
+
+            // Inner white dot — creates bullseye effect
+            val innerOptions = OlaCircleOptions.Builder()
+                .setOlaLatLng(position)
+                .setRadius(5.0f)
+                .setColorHexCode("#FFFFFF")
+                .setCircleOpacity(1.0f)
+                .build()
+            pickupInnerCircle = map.addCircle(innerOptions)
         } catch (e: Exception) {
-            Log.e("OlaMap", "drawPickupTarget marker error", e)
+            Log.e("OlaMap", "Native pickup circle error", e)
         }
     }
 
     private fun drawCaptainMarker(position: OlaLatLng) {
         val map = olaMap ?: return
         try { captainMarker?.removeMarker() } catch (_: Exception) {}
-        
         try {
-            val markerOptions = OlaMarkerOptions.Builder()
-                .setMarkerId("captain_marker")
-                .setPosition(position)
-                .setIconBitmap(createMarkerBitmap(true)) // Use existing logic for bitmap
+            captainNativeCircle?.removeCircle()
+            captainInnerCircle?.removeCircle()
+        } catch (_: Exception) {}
+        captainMarker = null
+        captainNativeCircle = null
+        captainInnerCircle = null
+
+        try {
+            // Outer ring — green (identical to user app current-location bullseye)
+            val outerOptions = OlaCircleOptions.Builder()
+                .setOlaLatLng(position)
+                .setRadius(10.0f)
+                .setColorHexCode("#22C55E")
+                .setCircleOpacity(1.0f)
                 .build()
-            captainMarker = map.addMarker(markerOptions)
+            captainNativeCircle = map.addCircle(outerOptions)
+
+            // Inner white dot — bullseye center
+            val innerOptions = OlaCircleOptions.Builder()
+                .setOlaLatLng(position)
+                .setRadius(5.0f)
+                .setColorHexCode("#FFFFFF")
+                .setCircleOpacity(1.0f)
+                .build()
+            captainInnerCircle = map.addCircle(innerOptions)
         } catch (e: Exception) {
-            Log.e("OlaMap", "drawCaptainMarker error", e)
+            Log.e("OlaMap", "drawCaptainMarker bullseye error", e)
+        }
+    }
+
+    private fun drawUserLiveMarker(position: OlaLatLng) {
+        val map = olaMap ?: return
+        try {
+            userLiveNativeCircle?.removeCircle()
+            userLiveInnerCircle?.removeCircle()
+        } catch (_: Exception) {}
+        userLiveNativeCircle = null
+        userLiveInnerCircle = null
+
+        // Only draw the green bullseye if the native SDK current location dot is hidden
+        if (!showUserDot) {
+            try {
+                // Outer ring — green
+                val outerOptions = OlaCircleOptions.Builder()
+                    .setOlaLatLng(position)
+                    .setRadius(10.0f)
+                    .setColorHexCode("#22C55E")
+                    .setCircleOpacity(1.0f)
+                    .build()
+                userLiveNativeCircle = map.addCircle(outerOptions)
+
+                // Inner white dot
+                val innerOptions = OlaCircleOptions.Builder()
+                    .setOlaLatLng(position)
+                    .setRadius(5.0f)
+                    .setColorHexCode("#FFFFFF")
+                    .setCircleOpacity(1.0f)
+                    .build()
+                userLiveInnerCircle = map.addCircle(innerOptions)
+            } catch (e: Exception) {
+                Log.e("OlaMap", "drawUserLiveMarker bullseye error", e)
+            }
         }
     }
 
@@ -384,39 +665,15 @@ class OlaMapPlatformView(
         val map = olaMap ?: return
         try { headingPolyline?.removePolyline() } catch (_: Exception) {}
         try { headingPolylineCasing?.removePolyline() } catch (_: Exception) {}
-
-        val metresPerDegreeLatitude = 111_320.0
-        val metresPerDegreeLongitude =
-            metresPerDegreeLatitude * cos(Math.toRadians(position.latitude)).coerceAtLeast(0.01)
-        fun offset(distance: Double, bearing: Double): OlaLatLng {
-            val radians = Math.toRadians(bearing)
-            return OlaLatLng(
-                position.latitude + cos(radians) * distance / metresPerDegreeLatitude,
-                position.longitude + sin(radians) * distance / metresPerDegreeLongitude,
-                0.0
-            )
+        val mapLibre = mapLibreMap
+        if (mapLibre != null) {
+            mlHeadingPolylineCasing?.let { mapLibre.removeAnnotation(it) }
+            mlHeadingPolyline?.let { mapLibre.removeAnnotation(it) }
         }
-
-        val tip = offset(18.0, heading)
-        val left = offset(11.0, heading + 145.0)
-        val right = offset(11.0, heading - 145.0)
-        val chevron = arrayListOf(left, tip, right)
-        try {
-            val casing = OlaPolylineOptions.Builder().build().apply {
-                points = chevron
-                color = "#FFFFFF"
-                width = 14f
-            }
-            headingPolylineCasing = map.addPolyline(casing)
-            val arrow = OlaPolylineOptions.Builder().build().apply {
-                points = chevron
-                color = "#2563EB"
-                width = 8f
-            }
-            headingPolyline = map.addPolyline(arrow)
-        } catch (e: Exception) {
-            Log.e("OlaMap", "drawHeadingIndicator error", e)
-        }
+        headingPolyline = null
+        headingPolylineCasing = null
+        mlHeadingPolyline = null
+        mlHeadingPolylineCasing = null
     }
 
     // ── Camera helpers ───────────────────────────────────────────────────────
@@ -434,6 +691,8 @@ class OlaMapPlatformView(
     override fun getView(): View = container
 
     override fun dispose() {
+        stopOverlayLoop()
+        removeDestinationOverlay()
         try {
             olaMapView?.onPause()
             olaMapView?.onStop()
@@ -492,7 +751,28 @@ class OlaMapPlatformView(
                     } catch (e: Exception) {
                         val midLat = (lat1 + lat2) / 2.0
                         val midLng = (lng1 + lng2) / 2.0
-                        moveCameraTo(midLat, midLng, 14.0)
+                        
+                        val results = FloatArray(1)
+                        android.location.Location.distanceBetween(lat1, lng1, lat2, lng2, results)
+                        val distanceMeters = results[0]
+                        
+                        // Roughly calculate zoom based on distance
+                        // Map width is usually a few kilometers at zoom 14.
+                        // Add some padding by subtracting zoom.
+                        val zoom = when {
+                            distanceMeters < 1000 -> 15.0
+                            distanceMeters < 3000 -> 14.0
+                            distanceMeters < 7000 -> 13.0
+                            distanceMeters < 15000 -> 12.0
+                            distanceMeters < 30000 -> 11.0
+                            distanceMeters < 60000 -> 10.0
+                            else -> 9.0
+                        }
+                        
+                        // Because the bottom sheet covers the bottom 40% of the screen,
+                        // shift the center slightly SOUTH to push the markers UP on the screen.
+                        val latOffset = (lat1 - lat2).let { kotlin.math.abs(it) } * 0.2
+                        moveCameraTo(midLat - latOffset, midLng, zoom)
                     }
                 } else {
                     val midLat = (lat1 + lat2) / 2.0
@@ -504,12 +784,46 @@ class OlaMapPlatformView(
                 result.success(null)
             }
 
+            "toggleNativeUserLocation" -> {
+                val show = call.argument<Boolean>("show") ?: false
+                showUserDot = show
+                if (show) {
+                    try {
+                        olaMap?.showCurrentLocation()
+                        // Remove the green live bullseye since native blue dot is back
+                        userLiveNativeCircle?.removeCircle()
+                        userLiveInnerCircle?.removeCircle()
+                        userLiveNativeCircle = null
+                        userLiveInnerCircle = null
+
+                        // Also remove the static pickup green marker to avoid duplicate green dots
+                        pickupNativeCircle?.removeCircle()
+                        pickupInnerCircle?.removeCircle()
+                        pickupNativeCircle = null
+                        pickupInnerCircle = null
+                    } catch (e: Exception) {
+                        Log.e("OlaMap", "showCurrentLocation error", e)
+                    }
+                } else {
+                    try {
+                        olaMap?.hideCurrentLocation()
+                    } catch (e: Exception) {
+                        Log.e("OlaMap", "hideCurrentLocation error", e)
+                    }
+                }
+                result.success(null)
+            }
+
             "updateUserLocation" -> {
                 val lat = call.argument<Double>("lat")
                 val lng = call.argument<Double>("lng")
                 val heading = call.argument<Double>("heading")
-                if (lat != null && lng != null && heading != null) {
-                    drawHeadingIndicator(OlaLatLng(lat, lng, 0.0), heading)
+                if (lat != null && lng != null) {
+                    val pos = OlaLatLng(lat, lng, 0.0)
+                    drawUserLiveMarker(pos)
+                    if (heading != null) {
+                        drawHeadingIndicator(pos, heading)
+                    }
                 }
                 result.success(null)
             }
@@ -610,21 +924,26 @@ class OlaMapPlatformView(
                             activePolylineCasing?.removePolyline()
                         } catch (e: Exception) {}
 
-                        try {
-                            val polyOptions = OlaPolylineOptions.Builder().build()
-                            polyOptions.points = latLngs
-                            val colorStr = call.argument<String>("color") ?: "#2563EB"
-                            polyOptions.color = colorStr
-                            polyOptions.width = 7f
+                        val mapLibre = mapLibreMap
+                        if (mapLibre != null) {
+                            mlActivePolylineCasing?.let { mapLibre.removeAnnotation(it) }
+                            mlActivePolyline?.let { mapLibre.removeAnnotation(it) }
                             
-                            val casingOptions = OlaPolylineOptions.Builder().build()
-                            casingOptions.points = latLngs
-                            casingOptions.color = "#1D4ED8"
-                            casingOptions.width = 13f
-                            activePolylineCasing = olaMap?.addPolyline(casingOptions)
-                            activePolyline = olaMap?.addPolyline(polyOptions)
-                        } catch (e: Exception) {
-                            Log.e("OlaMap", "drawPolyline error", e)
+                            val pts = latLngs.map { LatLng(it.latitude, it.longitude) }
+                            val colorStr = call.argument<String>("color") ?: "#2563EB"
+                            
+                            val casingOptions = PolylineOptions()
+                                .addAll(pts)
+                                .color(Color.parseColor("#1D4ED8"))
+                                .width(9f)
+                                
+                            val polyOptions = PolylineOptions()
+                                .addAll(pts)
+                                .color(Color.parseColor(colorStr))
+                                .width(5f)
+                                
+                            mlActivePolylineCasing = mapLibre.addPolyline(casingOptions)
+                            mlActivePolyline = mapLibre.addPolyline(polyOptions)
                         }
                     }
                 result.success(null)
@@ -635,12 +954,25 @@ class OlaMapPlatformView(
                     pickupMarker?.removeMarker()
                     destMarker?.removeMarker()
                     captainMarker?.removeMarker()
-                    pickupMarkerPolyline?.removePolyline()
-                    pickupMarkerAccent?.removePolyline()
-                    destMarkerPolyline?.removePolyline()
+                    destInnerPolylines.forEach { it.removePolyline() }
                     destFlagPolyline?.removePolyline()
-                    activePolyline?.removePolyline()
-                    activePolylineCasing?.removePolyline()
+                    
+                    val mapLibre = mapLibreMap
+                    if (mapLibre != null) {
+                        mlPickupMarkerPolyline?.let { mapLibre.removeAnnotation(it) }
+                        mlPickupMarkerAccent?.let { mapLibre.removeAnnotation(it) }
+                        mlActivePolylineCasing?.let { mapLibre.removeAnnotation(it) }
+                        mlActivePolyline?.let { mapLibre.removeAnnotation(it) }
+                        
+                        destNativeCircle?.removeCircle()
+                        destInnerCircle?.removeCircle()
+                        pickupNativeCircle?.removeCircle()
+                        pickupInnerCircle?.removeCircle()
+                        captainNativeCircle?.removeCircle()
+                        captainInnerCircle?.removeCircle()
+                        userLiveNativeCircle?.removeCircle()
+                        userLiveInnerCircle?.removeCircle()
+                    }
                 } catch (e: Exception) {
                     // ignore
                 }
@@ -649,11 +981,32 @@ class OlaMapPlatformView(
                 captainMarker = null
                 pickupMarkerPolyline = null
                 pickupMarkerAccent = null
-                destMarkerPolyline = null
+                destInnerPolylines.clear()
                 destFlagPolyline = null
+                destNativeCircle = null
+                destInnerCircle = null
+                pickupNativeCircle = null
+                pickupInnerCircle = null
+                captainNativeCircle = null
+                captainInnerCircle = null
                 activePolyline = null
                 activePolylineCasing = null
                 result.success(null)
+            }
+
+            "getMethods" -> {
+                try {
+                    val mapClass = olaMap!!::class.java
+                    val sb = StringBuilder()
+                    sb.append("OlaMap Methods:\n")
+                    mapClass.methods.forEach { sb.append("${it.name}(${it.parameterTypes.joinToString { p -> p.simpleName }}) -> ${it.returnType.simpleName}\n") }
+                    sb.append("OlaMarkerOptions.Builder Methods:\n")
+                    val builderClass = OlaMarkerOptions.Builder::class.java
+                    builderClass.methods.forEach { sb.append("${it.name}(${it.parameterTypes.joinToString { p -> p.simpleName }}) -> ${it.returnType.simpleName}\n") }
+                    result.success(sb.toString())
+                } catch (e: Exception) {
+                    result.error("ERROR", e.message, null)
+                }
             }
 
             else -> result.notImplemented()

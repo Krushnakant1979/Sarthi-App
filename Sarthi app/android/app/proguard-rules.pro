@@ -1,0 +1,5 @@
+-keep class com.ola.mapsdk.** { *; }
+-keep class org.maplibre.android.** { *; }
+-keep class com.mapbox.mapboxsdk.** { *; }
+-keep class io.flutter.plugins.** { *; }
+-keep class dev.flutter.plugins.** { *; }

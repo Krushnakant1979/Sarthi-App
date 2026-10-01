@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../map/presentation/map_home_screen.dart' show SarthiLogo;
+import '../../map/presentation/widgets/sarthi_logo.dart';
 import '../../../../core/utils/location_service.dart';
 import '../../map/data/ola_maps_repository.dart';
 
@@ -304,8 +304,9 @@ class _ServicesScreenState extends State<ServicesScreen> {
                         ),
                         _ServiceCard(
                           title: 'Parcel',
-                          subtitle: 'Send packages locally',
-                          imagePath: 'assets/images/3d_parcel_delivery_new.png',
+                          subtitle: 'Send packages',
+                          imagePath: 'assets/images/3d_parcel_delivery_new.jpg',
+                          imageScale: 1.15,
                         ),
                       ],
                     );
@@ -376,11 +377,14 @@ class _ServiceCard extends StatelessWidget {
   final String subtitle;
   final String imagePath;
   final String? tag;
+  final double imageScale;
+
   const _ServiceCard({
     required this.title,
     required this.subtitle,
     required this.imagePath,
     this.tag,
+    this.imageScale = 1.0,
   });
 
   @override
@@ -395,7 +399,7 @@ class _ServiceCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFF1F5F9)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -410,13 +414,16 @@ class _ServiceCard extends StatelessWidget {
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 12, left: 8, right: 8),
-                      child: Image.asset(
-                        imagePath,
-                        fit: BoxFit.contain,
-                        errorBuilder: (c, e, s) => const Icon(
-                          Icons.directions_car_rounded,
-                          color: Colors.black12,
-                          size: 48,
+                      child: Transform.scale(
+                        scale: imageScale,
+                        child: Image.asset(
+                          imagePath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (c, e, s) => const Icon(
+                            Icons.directions_car_rounded,
+                            color: Colors.black12,
+                            size: 48,
+                          ),
                         ),
                       ),
                     ),
@@ -426,17 +433,17 @@ class _ServiceCard extends StatelessWidget {
                       top: 12,
                       left: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
+                          color: const Color(0xFF0B2144),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           tag!,
                           style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: 7.0,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF2563EB),
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -478,13 +485,13 @@ class _ServiceCard extends StatelessWidget {
                   Container(
                     width: 28,
                     height: 28,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEFF6FF),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0B2144).withValues(alpha: 0.06),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.arrow_forward_rounded,
-                      color: Color(0xFF2563EB),
+                      color: Color(0xFF0B2144),
                       size: 16,
                     ),
                   ),
@@ -515,11 +522,11 @@ class _FeatureItem extends StatelessWidget {
           Container(
             width: 56,
             height: 56,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEFF6FF),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B2144).withValues(alpha: 0.06),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: const Color(0xFF2563EB), size: 24),
+            child: Icon(icon, color: const Color(0xFF0B2144), size: 24),
           ),
           const SizedBox(height: 12),
           Text(
