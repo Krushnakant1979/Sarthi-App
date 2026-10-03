@@ -78,7 +78,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
   int _dispatchIndex = 0;
 
 
-  final ValueNotifier<double> _sheetExtent = ValueNotifier(0.45);
+  final ValueNotifier<double> _sheetExtent = ValueNotifier(0.50);
   final DraggableScrollableController _sheetController =
       DraggableScrollableController();
   double? _targetSheetFraction;
@@ -143,6 +143,13 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     if (controller == null) return;
     _isProgrammaticMove = true;
     controller.moveCamera(lat, lng, zoom: zoom);
+    
+    // Fallback: reset the flag after a short delay in case cameraIdle doesn't fire
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _isProgrammaticMove = false;
+      }
+    });
   }
 
   /// Request permission, snap the camera to the device's current position,
@@ -645,11 +652,13 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                     children: [
                                       const Icon(Icons.favorite_border, size: 14, color: Colors.black54),
                                       const SizedBox(width: 6),
-                                      Text(
-                                        _isMapMoving ? 'Locating...' : _pickupLocation!['description'].split(',').first,
-                                        style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      Flexible(
+                                        child: Text(
+                                          _isMapMoving ? 'Locating...' : _pickupLocation!['description'].split(',').first,
+                                          style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -675,7 +684,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                         decoration: BoxDecoration(
                                           color: Colors.white,
                                           shape: BoxShape.circle,
-                                          border: Border.all(color: Colors.green, width: 6),
+                                          border: Border.all(color: Colors.blue, width: 6),
                                           boxShadow: [
                                             BoxShadow(
                                               color: Colors.black.withOpacity(0.3),
@@ -820,9 +829,9 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                           return DraggableScrollableSheet(
                             controller: _sheetController,
                             snap: isDefault,
-                            snapSizes: isDefault ? const [0.38, 0.65, 1.0] : null,
+                            snapSizes: isDefault ? const [0.38, 0.50, 0.65, 1.0] : null,
                             snapAnimationDuration: const Duration(milliseconds: 280),
-                            initialChildSize: (_targetSheetFraction ?? 0.38).clamp(
+                            initialChildSize: (_targetSheetFraction ?? 0.50).clamp(
                               0.38,
                               1.0,
                             ),
@@ -963,7 +972,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                             final safeBottom = MediaQuery.of(context).padding.bottom;
                                             final target = ((size.height + 24 + safeBottom) / screenHeight).clamp(
                                               0.38,
-                                              isDefault ? 0.70 : 0.95,
+                                              isDefault ? 0.50 : 0.95,
                                             );
                                             if (_targetSheetFraction == null ||
                                                 (_targetSheetFraction! - target).abs() > 0.01) {
@@ -994,16 +1003,36 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                   ),
 
                   // Floating Confirm Ride Button
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    bottom: (_bookingState == 'default' && _mapInteracted)
-                        ? MediaQuery.of(context).padding.bottom + 20
-                        : -100, // Hide it below the screen if not interacted or state changed
-                    left: 16,
-                    right: 16,
+                  ValueListenableBuilder<double>(
+                    valueListenable: _sheetExtent,
+                    builder: (context, extent, child) {
+                      final screenHeight = MediaQuery.of(context).size.height;
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      final showButton = _bookingState == 'default' && _mapInteracted && extent < 0.45;
+                      return Positioned(
+                        bottom: (screenHeight * extent) + 16,
+                        left: 0,
+                        right: 0,
+                        child: IgnorePointer(
+                          ignoring: !showButton,
+                          child: Center(
+                            child: AnimatedSlide(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOutCubic,
+                              offset: showButton ? Offset.zero : const Offset(0, 1.5),
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 300),
+                                opacity: showButton ? 1.0 : 0.0,
+                                child: child,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                     child: Container(
-                      height: 56,
+                      height: 50,
+                      width: (MediaQuery.of(context).size.width * 0.5).clamp(160.0, 220.0),
                       decoration: BoxDecoration(
                         boxShadow: [
                           BoxShadow(
@@ -1029,10 +1058,10 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                           ),
                           elevation: 0,
                         ),
-                        child: const Text(
+                        child: Text(
                           'Confirm Ride',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: MediaQuery.of(context).size.width < 380 ? 15 : 17,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
