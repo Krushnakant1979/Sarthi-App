@@ -139,7 +139,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     }
   }
 
-  void _safeMoveCamera(OlaMapController? controller, double lat, double lng, {double zoom = 16.0}) {
+  void _safeMoveCamera(OlaMapsController? controller, double lat, double lng, {double zoom = 16.0}) {
     if (controller == null) return;
     _isProgrammaticMove = true;
     controller.moveCamera(lat, lng, zoom: zoom);
