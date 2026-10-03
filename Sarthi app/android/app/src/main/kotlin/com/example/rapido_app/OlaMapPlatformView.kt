@@ -175,6 +175,22 @@ class OlaMapPlatformView(
                             } catch (e: Exception) {
                                 Log.e("OlaMap", "Failed to configure LocationComponent", e)
                             }
+                            mapLibre.addOnCameraMoveListener {
+                                val target = mapLibre.cameraPosition.target
+                                if (target != null) {
+                                    val lat = target.latitude
+                                    val lng = target.longitude
+                                    eventSink?.success(mapOf("event" to "cameraMove", "lat" to lat, "lng" to lng))
+                                }
+                            }
+                            mapLibre.addOnCameraIdleListener {
+                                val target = mapLibre.cameraPosition.target
+                                if (target != null) {
+                                    val lat = target.latitude
+                                    val lng = target.longitude
+                                    eventSink?.success(mapOf("event" to "cameraIdle", "lat" to lat, "lng" to lng))
+                                }
+                            }
                             Log.d("OlaMap", "MapLibreMap acquired successfully!")
                         }
                     }

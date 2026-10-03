@@ -47,6 +47,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
   // Live location tracking
   StreamSubscription<Position>? _locationSubscription;
   bool _followUser = true; // auto-pan to user while no destination is selected
+  bool _isMapMoving = false;
 
   // Booking State
   Map<String, dynamic>? _destination;
@@ -575,12 +576,124 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                 pos.longitude,
                               );
                             }
+                          } else if (event is Map && event['event'] == 'cameraMove') {
+                            if (_bookingState == 'default') {
+                              if (!_isMapMoving && mounted) {
+                                setState(() => _isMapMoving = true);
+                              }
+                            }
+                          } else if (event is Map && event['event'] == 'cameraIdle') {
+                            if (_bookingState == 'default') {
+                              final lat = event['lat'] as double?;
+                              final lng = event['lng'] as double?;
+                              if (lat != null && lng != null) {
+                                if (mounted) {
+                                  setState(() {
+                                    _isMapMoving = false;
+                                  });
+                                }
+                                final address = await OlaMapsRepository().reverseGeocode(lat, lng);
+                                if (mounted && _bookingState == 'default') {
+                                  setState(() {
+                                    _pickupLocation = {
+                                      'lat': lat,
+                                      'lng': lng,
+                                      'description': address ?? 'Selected Location'
+                                    };
+                                  });
+                                }
+                              }
+                            }
                           }
                         });
                       },
                     ),
                   ),
                 ), // Close RepaintBoundary
+                
+                // Center Map Pin Overlay
+                if (_bookingState == 'default')
+                  IgnorePointer(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 40.0), // Shift up to align tip to center
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          transform: Matrix4.translationValues(0, _isMapMoving ? -10 : 0, 0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Info bubble
+                              if (_pickupLocation != null && _pickupLocation!['description'] != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.1),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.favorite_border, size: 14, color: Colors.black54),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _isMapMoving ? 'Locating...' : _pickupLocation!['description'].split(',').first,
+                                        style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              // Pin Icon (Green dot with stick)
+                              SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: Stack(
+                                  alignment: Alignment.bottomCenter,
+                                  children: [
+                                    Container(
+                                      width: 2,
+                                      height: 16,
+                                      color: Colors.black87,
+                                    ),
+                                    Positioned(
+                                      top: 0,
+                                      child: Container(
+                                        width: 24,
+                                        height: 24,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: Colors.green, width: 6),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.3),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
                 
                   // Safe area aware top location/search shell
                   Consumer(
