@@ -941,7 +941,6 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                     );
                                   } else {
                                     stateContent = DefaultBottomSheet(
-                                      showConfirmRide: _mapInteracted,
                                       onDestinationSelected: (dest) {
                                         _processDestination(context, dest);
                                       },
@@ -1007,6 +1006,53 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                             },
                           );
                     },
+                  ),
+
+                  // Floating Confirm Ride Button
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutCubic,
+                    bottom: (_bookingState == 'default' && _mapInteracted)
+                        ? MediaQuery.of(context).padding.bottom + 20
+                        : -100, // Hide it below the screen if not interacted or state changed
+                    left: 16,
+                    right: 16,
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            color: context.colors.primary.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final result = await context.push('/search');
+                          if (result != null && result is Map<String, dynamic>) {
+                            if (!context.mounted) return;
+                            _processDestination(context, result);
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: context.colors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Confirm Ride',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

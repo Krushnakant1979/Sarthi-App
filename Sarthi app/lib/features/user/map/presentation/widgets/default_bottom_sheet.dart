@@ -11,11 +11,8 @@ class DefaultBottomSheet extends ConsumerStatefulWidget {
   final bool hasLocationPermission;
   final bool isLoadingLocation;
 
-  final bool showConfirmRide;
-
   const DefaultBottomSheet({
     super.key,
-    this.showConfirmRide = false,
     required this.onDestinationSelected,
     required this.onLocationPermissionRequested,
     required this.hasLocationPermission,
@@ -73,38 +70,6 @@ class _DefaultBottomSheetState extends ConsumerState<DefaultBottomSheet> {
               // Drag handle — centered
               const Center(child: DragHandle()),
               const SizedBox(height: 16),
-
-              if (widget.showConfirmRide) ...[
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final result = await context.push('/search');
-                      if (result != null && result is Map<String, dynamic>) {
-                        if (!context.mounted) return;
-                        widget.onDestinationSelected(result);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: context.colors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Confirm Ride',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
 
               Text(
                 'Good evening, $userName',
