@@ -43,6 +43,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       DraggableScrollableController();
   final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(0.45);
   double? _targetSheetFraction;
+  bool _isActiveRideExpanded = true;
+  bool _isNavigatingInApp = false;
+  List _navigationSteps = [];
+  String _currentNavInstruction = 'Follow the route';
 
   // OTP input state — single 4-digit field
   final TextEditingController _otpController = TextEditingController();
@@ -183,6 +187,16 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 heading: position.heading,
               );
               unawaited(_maybeReroute(position));
+              
+              if (_isNavigatingInApp && _mapController != null) {
+                _mapController!.moveCamera(
+                  position.latitude,
+                  position.longitude,
+                  zoom: 18.0,
+                  bearing: position.heading,
+                  tilt: 60.0,
+                );
+              }
             }
           });
 
@@ -346,7 +360,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         setState(() {
           _navigationDistanceMeters = route['distance_meters'] as int?;
           _navigationDurationSeconds = route['duration_seconds'] as int?;
+          _navigationSteps = route['steps'] as List? ?? [];
         });
+        _updateNavInstruction();
       }
     } catch (e) {
       if (mounted && showError && _updateRouteSeq == currentSeq && _navigationTarget != null) {
@@ -569,26 +585,81 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       return;
     }
 
-    final lat = double.tryParse(target['lat']?.toString() ?? '');
-    final lng = double.tryParse(target['lng']?.toString() ?? '');
+    setState(() {
+      _isNavigatingInApp = !_isNavigatingInApp;
+      if (_isNavigatingInApp) {
+        _isActiveRideExpanded = false;
+      }
+    });
 
-    if (lat == null || lng == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid target location.')),
+    if (_isNavigatingInApp && _lastValidPosition != null) {
+      _mapController?.moveCamera(
+        _lastValidPosition!.latitude,
+        _lastValidPosition!.longitude,
+        zoom: 18.0,
+        bearing: _lastValidPosition!.heading,
+        tilt: 60.0,
       );
+    } else if (!_isNavigatingInApp && _lastValidPosition != null) {
+      _mapController?.moveCamera(
+        _lastValidPosition!.latitude,
+        _lastValidPosition!.longitude,
+        zoom: 16.0,
+        bearing: 0.0,
+        tilt: 0.0,
+      );
+    }
+  }
+
+  void _updateNavInstruction() {
+    if (_navigationSteps.isEmpty) {
+      if (mounted) setState(() => _currentNavInstruction = 'Follow the route');
       return;
     }
-
-    final url = Uri.parse('google.navigation:q=$lat,$lng');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not launch Google Maps navigation.')),
-        );
-      }
+    
+    Map? targetStep;
+    for (var step in _navigationSteps) {
+       if (step is Map) {
+         final maneuver = step['maneuver'];
+         if (maneuver != null && maneuver['type'] != 'depart') {
+           targetStep = step;
+           break;
+         }
+       }
     }
+    if (targetStep == null) {
+      targetStep = _navigationSteps.first as Map?;
+    }
+    
+    if (targetStep == null) return;
+
+    String instruction = 'Follow the route';
+    if (targetStep['instruction'] != null && targetStep['instruction'].toString().isNotEmpty) {
+       instruction = targetStep['instruction'].toString();
+    } else if (targetStep['maneuver'] != null) {
+       final maneuver = targetStep['maneuver'];
+       final modifier = maneuver['modifier']?.toString() ?? '';
+       final name = targetStep['name']?.toString() ?? '';
+       
+       if (modifier.isNotEmpty) {
+         instruction = 'Turn ${modifier.replaceAll('_', ' ')}';
+         if (name.isNotEmpty && name != 'null') instruction += ' onto $name';
+       }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _currentNavInstruction = instruction;
+      });
+    }
+  }
+
+  IconData _getIconForInstruction(String instruction) {
+    final lower = instruction.toLowerCase();
+    if (lower.contains('left')) return Icons.turn_left;
+    if (lower.contains('right')) return Icons.turn_right;
+    if (lower.contains('u-turn')) return Icons.u_turn_left;
+    return Icons.straight;
   }
 
   String _enteredOtp = '';
@@ -644,6 +715,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
 
     return Scaffold(
       key: _scaffoldKey,
+      resizeToAvoidBottomInset: false,
       backgroundColor: context.colors.background,
       drawer: CaptainDrawer(onCallNumber: _callNumber),
       body: Stack(
@@ -860,6 +932,54 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
             ),
           ),
 
+          // ── In-App Navigation Guidance Banner ────────────────────────
+          if (_isNavigatingInApp)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: context.colors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: context.colors.primary.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _getIconForInstruction(_currentNavInstruction),
+                        color: context.colors.primary,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        _currentNavInstruction,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // ── Bottom Sheet & Recenter button ────────────────────────
           Align(
             alignment: Alignment.bottomCenter,
@@ -894,14 +1014,15 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               child: TextButton(
                                 onPressed: _startNavigation,
                                 style: TextButton.styleFrom(
+                                  backgroundColor: _isNavigatingInApp ? Colors.redAccent : null,
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(15),
                                   ),
                                 ),
-                                child: const Text(
-                                  'Navigate',
-                                  style: TextStyle(
+                                child: Text(
+                                  _isNavigatingInApp ? 'Exit Nav' : 'Navigate',
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
                                     fontSize: 14,
@@ -1374,14 +1495,34 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
 
     return SafeArea(
       top: false,
-      child: Container(
-        padding: EdgeInsets.fromLTRB(sw * 0.05, 0, sw * 0.05, sh * 0.03),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _dragHandle(),
-            const SizedBox(height: 12),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, bottomInset > 0 ? bottomInset + 16 : 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragUpdate: (details) {
+                  if (details.primaryDelta! > 10 && _isActiveRideExpanded) {
+                    setState(() => _isActiveRideExpanded = false);
+                  } else if (details.primaryDelta! < -10 && !_isActiveRideExpanded) {
+                    setState(() => _isActiveRideExpanded = true);
+                  }
+                },
+                onTap: () {
+                  setState(() => _isActiveRideExpanded = !_isActiveRideExpanded);
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _dragHandle(),
+                    const SizedBox(height: 12),
 
             // Header Row (Heading to pickup / ETA / Fare)
             Row(
@@ -1392,8 +1533,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     children: [
                       Text(
                         isHeadingToPickup ? 'Heading to pickup' : 'Heading to drop-off',
-                        style: TextStyle(
-                          fontSize: sw * 0.055,
+                        style: const TextStyle(
+                          fontSize: 22,
                           fontWeight: FontWeight.w800,
                           color: Colors.black87,
                           letterSpacing: -0.5,
@@ -1403,10 +1544,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       if (etaMinutes != null && navigationKm != null)
                         Text(
                           '$etaMinutes min away · $navigationKm km',
-                          style: TextStyle(
-                            fontSize: sw * 0.034,
+                          style: const TextStyle(
+                            fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: const Color(0xFF64748B),
+                            color: Color(0xFF64748B),
                           ),
                         ),
                     ],
@@ -1414,7 +1555,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 ),
                 if (fare != null)
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: sw * 0.04, vertical: sw * 0.02),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEBF5FF),
                       borderRadius: BorderRadius.circular(12),
@@ -1423,18 +1564,18 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       children: [
                         Text(
                           '₹$fare',
-                          style: TextStyle(
-                            fontSize: sw * 0.045,
+                          style: const TextStyle(
+                            fontSize: 18,
                             fontWeight: FontWeight.w800,
                             color: Colors.black87,
                           ),
                         ),
-                        Text(
+                        const Text(
                           'Ride fare',
                           style: TextStyle(
-                            fontSize: sw * 0.025,
+                            fontSize: 12,
                             fontWeight: FontWeight.w500,
-                            color: const Color(0xFF64748B),
+                            color: Color(0xFF64748B),
                           ),
                         ),
                       ],
@@ -1442,12 +1583,16 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+              if (_isActiveRideExpanded) ...[
+                const SizedBox(height: 24),
 
-            // Rider info card
+                // Rider info card
             if (status != 'in_progress')
               Container(
-                padding: EdgeInsets.all(sw * 0.03),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9), 
                   borderRadius: BorderRadius.circular(16),
@@ -1455,8 +1600,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 child: Row(
                   children: [
                     Container(
-                      width: sw * 0.115,
-                      height: sw * 0.115,
+                      width: 48,
+                      height: 48,
                       decoration: const BoxDecoration(
                         color: Color(0xFFDBEAFE),
                         shape: BoxShape.circle,
@@ -1464,34 +1609,34 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       child: Center(
                         child: Text(
                           riderName.isNotEmpty ? riderName[0].toUpperCase() : 'R',
-                          style: TextStyle(
-                            fontSize: sw * 0.05,
+                          style: const TextStyle(
+                            fontSize: 20,
                             fontWeight: FontWeight.w700,
                             color: Colors.black87,
                           ),
                         ),
                       ),
                     ),
-                    SizedBox(width: sw * 0.03),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             riderName,
-                            style: TextStyle(
-                              fontSize: sw * 0.04,
+                            style: const TextStyle(
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
                               color: Colors.black87,
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
                           ),
-                          Text(
+                          const Text(
                             'Your rider',
                             style: TextStyle(
-                              fontSize: sw * 0.033,
-                              color: const Color(0xFF64748B),
+                              fontSize: 13,
+                              color: Color(0xFF64748B),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -1501,15 +1646,15 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     if (riderPhone?.isNotEmpty == true)
                       OutlinedButton.icon(
                         onPressed: () => _callNumber(riderPhone!),
-                        icon: Icon(Icons.phone, size: sw * 0.04),
-                        label: Text('Call', style: TextStyle(fontSize: sw * 0.035)),
+                        icon: const Icon(Icons.phone, size: 16),
+                        label: const Text('Call', style: TextStyle(fontSize: 14)),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF3B82F6),
                           side: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          padding: EdgeInsets.symmetric(horizontal: sw * 0.04, vertical: sw * 0.02),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           minimumSize: Size.zero,
                         ),
                       ),
@@ -1526,31 +1671,31 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               children: [
                 Container(
                   margin: const EdgeInsets.only(top: 2),
-                  child: Icon(
+                  child: const Icon(
                     Icons.location_on,
-                    color: const Color(0xFF10B981),
-                    size: sw * 0.06,
+                    color: Color(0xFF10B981),
+                    size: 24,
                   ),
                 ),
-                SizedBox(width: sw * 0.03),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         isHeadingToPickup ? 'PICKUP LOCATION' : 'DROP-OFF LOCATION',
-                        style: TextStyle(
-                          fontSize: sw * 0.025,
+                        style: const TextStyle(
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF64748B),
+                          color: Color(0xFF64748B),
                           letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         mainAddress,
-                        style: TextStyle(
-                          fontSize: sw * 0.038,
+                        style: const TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.w800,
                           color: Colors.black87,
                         ),
@@ -1561,10 +1706,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                         const SizedBox(height: 2),
                         Text(
                           subAddress,
-                          style: TextStyle(
-                            fontSize: sw * 0.03,
+                          style: const TextStyle(
+                            fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: const Color(0xFF64748B),
+                            color: Color(0xFF64748B),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -1799,12 +1944,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     const SizedBox(height: 18),
                     StatefulBuilder(
                       builder: (ctx, setInnerState) {
-                        final otpBoxW = (sw - sw * 0.1 - sw * 0.08 - (3 * sw * 0.03)) / 4;
-                        final otpBoxH = otpBoxW * 1.15;
                         return Padding(
-                          padding: EdgeInsets.symmetric(horizontal: sw * 0.04),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: List.generate(4, (index) {
                               final isFilled = index < _enteredOtp.length;
                               final isCurrent = index == _enteredOtp.length;
@@ -1866,8 +2009,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                 },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  width: otpBoxW,
-                                  height: otpBoxH,
+                                  width: 56,
+                                  height: 64,
                                   decoration: BoxDecoration(
                                     color: isFilled ? const Color(0xFFF0FDF4) : Colors.white,
                                     borderRadius: BorderRadius.circular(14),
@@ -1893,7 +2036,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                     child: Text(
                                       isFilled ? _enteredOtp[index] : '',
                                       style: TextStyle(
-                                        fontSize: otpBoxW * 0.5,
+                                        fontSize: 28,
                                         fontWeight: FontWeight.w800,
                                         color: isFilled ? const Color(0xFF16B77A) : Colors.transparent,
                                       ),
@@ -1919,15 +2062,15 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 onPressed: _isRideActionLoading || captainId == null
                     ? null
                     : () => handleArrivedPress(status),
-                icon: Icon(Icons.location_on, size: sw * 0.045, color: Colors.white),
+                icon: const Icon(Icons.location_on, size: 20, color: Colors.white),
                 label: Text(
                   status == 'accepted' ? 'Arrived at pickup' : 'I have Arrived',
-                  style: TextStyle(fontSize: sw * 0.04, fontWeight: FontWeight.w700),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: sh * 0.02),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -2008,22 +2151,24 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               ),
                         );
                       },
-                icon: Icon(Icons.check_circle_rounded, size: sw * 0.045, color: Colors.white),
-                label: Text(
+                icon: const Icon(Icons.check_circle_rounded, size: 20, color: Colors.white),
+                label: const Text(
                   'End Trip',
-                  style: TextStyle(fontSize: sw * 0.04, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: sh * 0.02),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
+              ],
           ],
+        ),
         ),
       ),
     );

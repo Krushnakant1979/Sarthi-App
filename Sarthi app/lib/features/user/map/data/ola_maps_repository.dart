@@ -212,6 +212,11 @@ class OlaMapsRepository {
           final polylineStr = route['overview_polyline'] as String? ?? '';
           final decodedPoints = decodePolyline(polylineStr);
 
+          List steps = [];
+          if (legs['steps'] is List) {
+            steps = legs['steps'];
+          }
+
           if (decodedPoints.isNotEmpty) {
             return {
               'distance_meters': distanceMeters > 0
@@ -223,6 +228,7 @@ class OlaMapsRepository {
                   : (distanceMeters / 8.33).round(),
               'polyline': polylineStr,
               'points': decodedPoints,
+              'steps': steps,
             };
           }
         }
@@ -235,7 +241,7 @@ class OlaMapsRepository {
     try {
       final osrmUrl =
           'https://router.project-osrm.org/route/v1/driving/'
-          '$startLng,$startLat;$endLng,$endLat?overview=full&geometries=polyline';
+          '$startLng,$startLat;$endLng,$endLat?overview=full&geometries=polyline&steps=true';
       final osrmResponse = await _dio.get(
         osrmUrl,
         options: Options(
@@ -257,6 +263,14 @@ class OlaMapsRepository {
               : 0;
           final polylineStr = route['geometry'] as String? ?? '';
           final points = decodePolyline(polylineStr);
+          
+          List steps = [];
+          if (route['legs'] is List && (route['legs'] as List).isNotEmpty) {
+             final osrmLegs = route['legs'][0];
+             if (osrmLegs['steps'] is List) {
+               steps = osrmLegs['steps'];
+             }
+          }
 
           if (points.isNotEmpty) {
             return {
@@ -264,6 +278,7 @@ class OlaMapsRepository {
               'duration_seconds': durationSeconds,
               'polyline': polylineStr,
               'points': points,
+              'steps': steps,
             };
           }
         }

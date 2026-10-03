@@ -97,11 +97,13 @@ class OlaMapsController {
     : _channel = MethodChannel('sarthi/ola_map_$id'),
       _eventChannel = EventChannel('sarthi/ola_map_events_$id');
 
-  Future<void> moveCamera(double lat, double lng, {double zoom = 14.0}) async {
+  Future<void> moveCamera(double lat, double lng, {double zoom = 14.0, double? bearing, double? tilt}) async {
     await _channel.invokeMethod('moveCamera', {
       'lat': lat,
       'lng': lng,
       'zoom': zoom,
+      if (bearing != null) 'bearing': bearing,
+      if (tilt != null) 'tilt': tilt,
     });
   }
 

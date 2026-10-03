@@ -267,16 +267,17 @@ class _ServicesScreenState extends State<ServicesScreen> {
                 
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final crossAxisCount = constraints.maxWidth > 800
-                        ? 4
-                        : constraints.maxWidth > 500
-                            ? 3
-                            : 2;
-                    final aspectRatio = constraints.maxWidth > 800
-                        ? 1.2
-                        : constraints.maxWidth > 500
-                            ? 1.1
-                            : 0.9;
+                    final width = constraints.maxWidth;
+                    // We have exactly 4 services.
+                    // To prevent an orphan card, we must use either 2 or 4 columns.
+                    final crossAxisCount = width >= 800 ? 4 : 2;
+                    
+                    // Adjust aspect ratio so cards don't become ridiculously tall on tablets
+                    final aspectRatio = width >= 800
+                        ? 1.1 // Desktop / Large landscape tablet (4 columns)
+                        : width >= 600
+                            ? 1.5 // Tablet portrait (2 columns, make them flat and wide)
+                            : 0.9; // Phone (2 columns, slightly tall)
                     return GridView.count(
                       padding: EdgeInsets.zero,
                       crossAxisCount: crossAxisCount,

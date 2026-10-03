@@ -43,6 +43,8 @@ class SelectedBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    
     final selectedServiceLabel = switch (vehicleType) {
       'auto' => 'Auto Rickshaw',
       'parcel' => 'Parcel',
@@ -61,7 +63,7 @@ class SelectedBottomSheet extends StatelessWidget {
             .clamp(0, 999999);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 0, 18, 22),
+      padding: EdgeInsets.fromLTRB(18, 0, 18, 22 + safeBottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

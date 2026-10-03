@@ -92,6 +92,8 @@ class OlaMapPlatformView(
     private var pendingLat: Double? = null
     private var pendingLng: Double? = null
     private var pendingZoom: Double = 16.0
+    private var pendingBearing: Double? = null
+    private var pendingTilt: Double? = null
 
     // ── Native Overlay for destination pin ───────────────────────────────────
     // Bypasses OlaMap SDK collision system — always 100% visible
@@ -193,9 +195,11 @@ class OlaMapPlatformView(
                 val lat = pendingLat
                 val lng = pendingLng
                 if (lat != null && lng != null) {
-                    moveCameraTo(lat, lng, pendingZoom)
+                    moveCameraTo(lat, lng, pendingZoom, pendingBearing, pendingTilt)
                     pendingLat = null
                     pendingLng = null
+                    pendingBearing = null
+                    pendingTilt = null
                 }
                 
                 // Add any pending markers
@@ -678,9 +682,21 @@ class OlaMapPlatformView(
 
     // ── Camera helpers ───────────────────────────────────────────────────────
 
-    private fun moveCameraTo(lat: Double, lng: Double, zoom: Double) {
+    private fun moveCameraTo(lat: Double, lng: Double, zoom: Double, bearing: Double? = null, tilt: Double? = null) {
         try {
-            olaMap?.moveCameraToLatLong(OlaLatLng(lat, lng, 0.0), zoom, 500)
+            val mapLibre = mapLibreMap
+            if (mapLibre != null && (bearing != null || tilt != null)) {
+                val pos = org.maplibre.android.camera.CameraPosition.Builder()
+                    .target(LatLng(lat, lng))
+                    .zoom(zoom)
+                    .bearing(bearing ?: 0.0)
+                    .tilt(tilt ?: 0.0)
+                    .build()
+                val update = org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(pos)
+                mapLibre.animateCamera(update, 500)
+            } else {
+                olaMap?.moveCameraToLatLong(OlaLatLng(lat, lng, 0.0), zoom, 500)
+            }
         } catch (e: Exception) {
             Log.e("OlaMap", "moveCameraTo error", e)
         }
@@ -712,13 +728,17 @@ class OlaMapPlatformView(
                 val lat  = call.argument<Double>("lat")  ?: 0.0
                 val lng  = call.argument<Double>("lng")  ?: 0.0
                 val zoom = call.argument<Double>("zoom") ?: 16.0
+                val bearing = call.argument<Double>("bearing")
+                val tilt = call.argument<Double>("tilt")
 
                 if (olaMap != null) {
-                    moveCameraTo(lat, lng, zoom)
+                    moveCameraTo(lat, lng, zoom, bearing, tilt)
                 } else {
                     pendingLat  = lat
                     pendingLng  = lng
                     pendingZoom = zoom
+                    pendingBearing = bearing
+                    pendingTilt = tilt
                 }
                 result.success(null)
             }

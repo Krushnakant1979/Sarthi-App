@@ -19,8 +19,11 @@ class CompletedBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    final bottomPadding = 64.0 + safeBottom + 24.0; // nav bar height + safe area + extra padding
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100), // Restored bottom padding for nav bar
+      padding: EdgeInsets.fromLTRB(20, 0, 20, bottomPadding),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
