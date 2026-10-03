@@ -614,8 +614,10 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                 // Center Map Pin Overlay
                 if (_bookingState == 'default')
                   IgnorePointer(
-                    child: Center(
-                      child: Padding(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 300.0), // Match native map padding so the pin is optically centered
+                      child: Center(
+                        child: Padding(
                         padding: const EdgeInsets.only(bottom: 40.0), // Shift up to align tip to center
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
@@ -693,7 +695,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       ),
                     ),
                   ),
-
+                ),
                 
                   // Safe area aware top location/search shell
                   Consumer(
