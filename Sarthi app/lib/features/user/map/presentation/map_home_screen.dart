@@ -29,6 +29,8 @@ import 'widgets/in_progress_bottom_sheet.dart';
 import 'widgets/map_top_navigation_bar.dart';
 import 'widgets/completed_bottom_sheet.dart';
 import 'widgets/selected_bottom_sheet.dart';
+import 'widgets/confirm_pickup_bottom_sheet.dart';
+
 class MapHomeScreen extends ConsumerStatefulWidget {
   const MapHomeScreen({super.key});
 
@@ -48,6 +50,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
   StreamSubscription<Position>? _locationSubscription;
   bool _followUser = true; // auto-pan to user while no destination is selected
   bool _isMapMoving = false;
+  bool _isConfirmingPickup = false;
 
   // Booking State
   Map<String, dynamic>? _destination;
@@ -579,7 +582,10 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                           } else if (event is Map && event['event'] == 'cameraMove') {
                             if (_bookingState == 'default') {
                               if (!_isMapMoving && mounted) {
-                                setState(() => _isMapMoving = true);
+                                setState(() {
+                                  _isMapMoving = true;
+                                  _isConfirmingPickup = true;
+                                });
                               }
                             }
                           } else if (event is Map && event['event'] == 'cameraIdle') {
@@ -646,9 +652,9 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                       const Icon(Icons.favorite_border, size: 14, color: Colors.black54),
                                       const SizedBox(width: 6),
                                       Text(
-                                        _isMapMoving ? 'Locating...' : _pickupLocation!['description'].split(',').first,
+                                        _isMapMoving ? 'Locating...' : _pickupLocation!['description'],
                                         style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600),
-                                        maxLines: 1,
+                                        maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
@@ -675,7 +681,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                         decoration: BoxDecoration(
                                           color: Colors.white,
                                           shape: BoxShape.circle,
-                                          border: Border.all(color: Colors.green, width: 6),
+                                          border: Border.all(color: const Color(0xFF0B2144), width: 6),
                                           boxShadow: [
                                             BoxShadow(
                                               color: Colors.black.withOpacity(0.3),
@@ -923,6 +929,22 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                       onOfferTap: _handleOfferTap,
                                       onPaymentTap: _handlePaymentTap,
                                       onConfirmRide: () => _handleConfirmRide(ref),
+                                    );
+                                  } else if (_isConfirmingPickup && displayState == 'default') {
+                                    stateContent = ConfirmPickupBottomSheet(
+                                      address: _pickupLocation?['description'] ?? 'Selected Location',
+                                      onConfirm: () async {
+                                        final result = await context.push('/search');
+                                        if (result != null && result is Map<String, dynamic>) {
+                                          if (!context.mounted) return;
+                                          _processDestination(context, result);
+                                        }
+                                      },
+                                      onCancel: () {
+                                        setState(() {
+                                          _isConfirmingPickup = false;
+                                        });
+                                      },
                                     );
                                   } else {
                                     stateContent = DefaultBottomSheet(
