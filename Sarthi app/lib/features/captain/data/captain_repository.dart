@@ -50,7 +50,28 @@ class CaptainRepository {
               })
               .where((data) {
                 final declinedBy = (data['declinedBy'] as List?) ?? const [];
-                return !declinedBy.contains(captainId);
+                if (declinedBy.contains(captainId)) return false;
+
+                final routingQueue = (data['routingQueue'] as List?)?.cast<String>();
+                if (routingQueue != null && routingQueue.isNotEmpty) {
+                  final currentIndex = data['currentRouteIndex'] as int? ?? 0;
+                  
+                  // Check if the captain is even in the queue
+                  final indexOfCaptain = routingQueue.indexOf(captainId);
+                  if (indexOfCaptain == -1) return false;
+                  
+                  // Sequential dispatch: if the index has not reached this captain yet, don't show it.
+                  // (It only shows up for the exact captain at currentIndex, OR if the queue is exhausted, it can fallback to the last captain or all notified captains)
+                  if (currentIndex < indexOfCaptain) return false;
+                  
+                  // We only show it to the currently targeted captain (index == indexOfCaptain)
+                  // Or, if the timer exhausted the whole queue (index >= length), we show it to everyone who was notified as a fallback
+                  if (currentIndex != indexOfCaptain && currentIndex < routingQueue.length) {
+                    return false;
+                  }
+                }
+                
+                return true;
               })
               .toList();
           requests.sort((a, b) {

@@ -69,6 +69,11 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
   Position? _lastValidPosition;
   String _currentCityState = 'Detecting...';
 
+  // Dispatch queueing logic
+  Timer? _dispatchTimer;
+  String? _dispatchRideId;
+  int _dispatchIndex = 0;
+
 
   final ValueNotifier<double> _sheetExtent = ValueNotifier(0.45);
   final DraggableScrollableController _sheetController =
@@ -90,10 +95,45 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
 
   @override
   void dispose() {
+    _dispatchTimer?.cancel();
     _locationSubscription?.cancel();
     _sheetController.dispose();
     _sheetExtent.dispose();
     super.dispose();
+  }
+
+  void _manageDispatchTimer(Map<String, dynamic>? rideData) {
+    if (rideData == null || rideData['status'] != 'searching') {
+      _dispatchTimer?.cancel();
+      _dispatchTimer = null;
+      _dispatchRideId = null;
+      return;
+    }
+    
+    if (rideData['id'] != _dispatchRideId) {
+      _dispatchTimer?.cancel();
+      _dispatchRideId = rideData['id'];
+      _dispatchIndex = rideData['currentRouteIndex'] ?? 0;
+      
+      _dispatchTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+        if (!mounted) {
+           timer.cancel();
+           return;
+        }
+        final routingQueue = (rideData['routingQueue'] as List?)?.cast<String>();
+        if (routingQueue != null && routingQueue.isNotEmpty) {
+           _dispatchIndex++;
+           if (_dispatchIndex < routingQueue.length) {
+              FirebaseFirestore.instance.collection('ride_requests').doc(_dispatchRideId).update({
+                'currentRouteIndex': _dispatchIndex,
+                'routeStartedAt': FieldValue.serverTimestamp(),
+              }).catchError((_) {});
+           } else {
+              timer.cancel();
+           }
+        }
+      });
+    }
   }
 
   /// Request permission, snap the camera to the device's current position,
@@ -389,6 +429,12 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     ref.listen(currentRideStreamProvider, (previous, next) {
       final oldStatus = previous?.value?.data()?['status'];
       final newStatus = next.value?.data()?['status'];
+      
+      final rideData = next.value?.data();
+      if (rideData != null) {
+        rideData['id'] = next.value?.id;
+      }
+      _manageDispatchTimer(rideData);
 
       if (oldStatus != newStatus &&
           (newStatus == 'completed' ||
@@ -645,15 +691,14 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                   Consumer(
                     builder: (context, ref, _) {
                       final rideStream = ref.watch(currentRideStreamProvider);
-                      return rideStream.when(
-                        data: (rideSnapshot) {
-                          final rideData = rideSnapshot?.data();
-                          final status = rideData?['status'];
-                          final otp = rideData?['otp'];
-                          final fare = rideData?['fareEstimate'];
-                          final rideId = rideSnapshot?.id;
-                          String displayState = _bookingState;
-                          if (status != null) displayState = status;
+                      final rideSnapshot = rideStream.valueOrNull;
+                      final rideData = rideSnapshot?.data();
+                      final status = rideData?['status'];
+                      final otp = rideData?['otp'];
+                      final fare = rideData?['fareEstimate'];
+                      final rideId = rideSnapshot?.id;
+                      String displayState = _bookingState;
+                      if (status != null) displayState = status;
                           
                           final isDefault = displayState == 'default';
 
@@ -830,20 +875,6 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                               );
                             },
                           );
-                        },
-                        loading: () => const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(32),
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                        error: (err, stack) => Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Text('Error: $err'),
-                          ),
-                        ),
-                      );
                     },
                   ),
                 ],

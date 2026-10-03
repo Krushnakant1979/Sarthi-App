@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../../core/analytics/analytics_logger.dart';
 
 class RideRepository {
@@ -35,12 +36,57 @@ class RideRepository {
     final random = Random();
     final otp = (1000 + random.nextInt(9000)).toString();
 
+    // ── Generate sequential routing queue ──
+    List<String> routingQueue = [];
+    try {
+      final liveSnapshot = await _rtdb.ref().child('live/captains').get();
+      if (liveSnapshot.exists && liveSnapshot.value != null) {
+        final data = liveSnapshot.value as Map<dynamic, dynamic>;
+        List<Map<String, dynamic>> nearby = [];
+        
+        data.forEach((key, value) {
+          final captainData = value as Map<dynamic, dynamic>;
+          final lat = captainData['lat'] as double?;
+          final lng = captainData['lng'] as double?;
+          if (lat != null && lng != null) {
+            final dist = Geolocator.distanceBetween(startLat, startLng, lat, lng);
+            // Search radius: up to 6km
+            if (dist <= 6000) {
+              nearby.add({'id': key.toString(), 'distance': dist});
+            }
+          }
+        });
+        
+        // Sort nearest first (Layer 1 -> Layer 2 -> Layer 3)
+        nearby.sort((a, b) => (a['distance'] as double).compareTo(b['distance'] as double));
+        
+        // Take top 20 nearest to avoid excessive Firestore reads
+        final topNearest = nearby.take(20).toList();
+        for (var cap in topNearest) {
+          final cDoc = await _firestore.collection('users').doc(cap['id'] as String).get();
+          if (cDoc.exists) {
+            final cData = cDoc.data()!;
+            if (cData['role'] == 'captain' &&
+                cData['vehicleType'] == vehicleType &&
+                cData['verificationStatus'] == 'verified') {
+              routingQueue.add(cap['id'] as String);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback to empty queue if location matching fails
+    }
+
     await docRef.set({
       'userId': userId,
       'riderName': riderName,
       'riderPhone': riderPhone,
       'status': 'searching',
       'otp': otp,
+      'routingQueue': routingQueue,
+      'currentRouteIndex': 0,
+      'routeStartedAt': FieldValue.serverTimestamp(),
       'pickup': {
         'lat': startLat,
         'lng': startLng,
