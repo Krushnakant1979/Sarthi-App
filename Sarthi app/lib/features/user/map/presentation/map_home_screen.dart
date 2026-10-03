@@ -49,6 +49,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
   bool _followUser = true; // auto-pan to user while no destination is selected
   bool _isMapMoving = false;
   bool _mapInteracted = false;
+  bool _userTouchedMap = false;
 
   // Booking State
   Map<String, dynamic>? _destination;
@@ -533,6 +534,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                   RepaintBoundary(
                     child: Listener(
                       onPointerDown: (_) {
+                        _userTouchedMap = true;
                         if (_followUser) {
                           setState(() => _followUser = false);
                         }
@@ -582,9 +584,11 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                               if (!_isMapMoving && mounted) {
                                 setState(() {
                                   _isMapMoving = true;
-                                  _mapInteracted = true;
+                                  if (_userTouchedMap) {
+                                    _mapInteracted = true;
+                                  }
                                 });
-                                if (_sheetController.isAttached && _sheetController.size > 0.38) {
+                                if (_userTouchedMap && _sheetController.isAttached && _sheetController.size > 0.38) {
                                   _sheetController.animateTo(
                                     0.38,
                                     duration: const Duration(milliseconds: 300),
