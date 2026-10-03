@@ -49,7 +49,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
   bool _followUser = true; // auto-pan to user while no destination is selected
   bool _isMapMoving = false;
   bool _mapInteracted = false;
-  bool _userTouchedMap = false;
+  bool _isProgrammaticMove = true;
 
   // Booking State
   Map<String, dynamic>? _destination;
@@ -139,6 +139,12 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     }
   }
 
+  void _safeMoveCamera(OlaMapController? controller, double lat, double lng, {double zoom = 16.0}) {
+    if (controller == null) return;
+    _isProgrammaticMove = true;
+    controller.moveCamera(lat, lng, zoom: zoom);
+  }
+
   /// Request permission, snap the camera to the device's current position,
   /// then subscribe to a live stream so the map tracks the user as they walk.
   Future<void> _initLocation() async {
@@ -159,8 +165,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     if (!context.mounted) return;
     if (lastKnown != null && _mapController != null) {
       _lastValidPosition = lastKnown;
-      _mapController!.moveCamera(lastKnown.latitude, lastKnown.longitude,
-          zoom: 16.0);
+      _safeMoveCamera(_mapController, lastKnown.latitude, lastKnown.longitude, zoom: 16.0);
       _mapController!.updateUserLocation(
           lastKnown.latitude, lastKnown.longitude);
       // Start city label fetch immediately — hits cache if available
@@ -175,7 +180,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
       unawaited(_updateCityStateText(pos.latitude, pos.longitude));
       if (_mapController != null) {
         _lastValidPosition = pos;
-        _mapController!.moveCamera(pos.latitude, pos.longitude, zoom: 16.0);
+        _safeMoveCamera(_mapController, pos.latitude, pos.longitude, zoom: 16.0);
         _mapController!.updateUserLocation(pos.latitude, pos.longitude);
       }
     }
@@ -192,11 +197,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
       // but for now, we just rely on the initial fetch and recenter events.
 
       if (_followUser) {
-        _mapController!.moveCamera(
-          position.latitude,
-          position.longitude,
-          zoom: 16.0,
-        );
+        _safeMoveCamera(_mapController, position.latitude, position.longitude, zoom: 16.0);
       }
     });
   }
@@ -221,11 +222,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         _lastValidPosition ?? await _locationService.getLastKnownPosition();
     if (fastPos != null && _mapController != null && context.mounted) {
       setState(() => _followUser = true);
-      _mapController!.moveCamera(
-        fastPos.latitude,
-        fastPos.longitude,
-        zoom: 16.0,
-      );
+      _safeMoveCamera(_mapController, fastPos.latitude, fastPos.longitude, zoom: 16.0);
       _mapController!.updateUserLocation(fastPos.latitude, fastPos.longitude);
     }
 
@@ -251,11 +248,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         if (shouldUpdate) {
           _lastValidPosition = freshPos;
           _updateCityStateText(freshPos.latitude, freshPos.longitude);
-          _mapController!.moveCamera(
-            freshPos.latitude,
-            freshPos.longitude,
-            zoom: 16.0,
-          );
+          _safeMoveCamera(_mapController, freshPos.latitude, freshPos.longitude, zoom: 16.0);
           _mapController!.updateUserLocation(
             freshPos.latitude,
             freshPos.longitude,
@@ -534,7 +527,6 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                   RepaintBoundary(
                     child: Listener(
                       onPointerDown: (_) {
-                        _userTouchedMap = true;
                         if (_followUser) {
                           setState(() => _followUser = false);
                         }
@@ -546,7 +538,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                         controller.mapEvents.listen((event) async {
                           if (event is Map && event['event'] == 'mapReady') {
                             // 1. Immediately jump to India to avoid showing the whole world map
-                            controller.moveCamera(20.5937, 78.9629, zoom: 4.5);
+                            _safeMoveCamera(controller, 20.5937, 78.9629, zoom: 4.5);
 
                             if (!context.mounted) return;
 
@@ -554,11 +546,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                             final lastKnown = await _locationService
                                 .getLastKnownPosition();
                             if (lastKnown != null && context.mounted) {
-                              controller.moveCamera(
-                                lastKnown.latitude,
-                                lastKnown.longitude,
-                                zoom: 14.0,
-                              );
+                              _safeMoveCamera(controller, lastKnown.latitude, lastKnown.longitude, zoom: 14.0);
                             }
 
                             // 3. Fetch the accurate current location
@@ -568,11 +556,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                               // Apply bottom padding first so the camera centres
                               // the blue dot in the visible area above the sheet
                               await controller.setPadding(bottom: 300);
-                              controller.moveCamera(
-                                pos.latitude,
-                                pos.longitude,
-                                zoom: 16.0,
-                              );
+                              _safeMoveCamera(controller, pos.latitude, pos.longitude, zoom: 16.0);
                               // Only drop the blue dot when we have the accurate GPS fix
                               controller.updateUserLocation(
                                 pos.latitude,
@@ -584,11 +568,11 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                               if (!_isMapMoving && mounted) {
                                 setState(() {
                                   _isMapMoving = true;
-                                  if (_userTouchedMap) {
+                                  if (!_isProgrammaticMove) {
                                     _mapInteracted = true;
                                   }
                                 });
-                                if (_userTouchedMap && _sheetController.isAttached && _sheetController.size > 0.38) {
+                                if (!_isProgrammaticMove && _sheetController.isAttached && _sheetController.size > 0.38) {
                                   _sheetController.animateTo(
                                     0.38,
                                     duration: const Duration(milliseconds: 300),
@@ -598,6 +582,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                               }
                             }
                           } else if (event is Map && event['event'] == 'cameraIdle') {
+                            _isProgrammaticMove = false;
                             if (_bookingState == 'default') {
                               final lat = event['lat'] as double?;
                               final lng = event['lng'] as double?;
