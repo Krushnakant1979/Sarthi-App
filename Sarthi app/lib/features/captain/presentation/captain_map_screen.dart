@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'widgets/incoming_request_sheet_widget.dart';
 import 'widgets/offline_sheet_widget.dart';
 import 'widgets/searching_sheet_widget.dart';
+import 'widgets/captain_completed_sheet_widget.dart';
 import '../../../core/utils/measure_size.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
@@ -724,12 +725,11 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         if (previousStatus == 'in_progress') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Ride completed successfully!'),
-                  behavior: SnackBarBehavior.floating,
-                  backgroundColor: Colors.green,
-                ),
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (ctx) => CaptainCompletedSheetWidget(rideData: previous!.value!),
               );
             }
           });

@@ -118,7 +118,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
       _dispatchRideId = rideData['id'];
       _dispatchIndex = rideData['currentRouteIndex'] ?? 0;
       
-      _dispatchTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      _dispatchTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
         if (!mounted) {
            timer.cancel();
            return;
@@ -601,7 +601,8 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                             if (pos != null && context.mounted) {
                               // Apply bottom padding first so the camera centres
                               // the blue dot in the visible area above the sheet
-                              await controller.setPadding(bottom: 300);
+                              final topPadding = MediaQuery.of(context).padding.top;
+                              await controller.setPadding(top: topPadding, bottom: 300);
                               _safeMoveCamera(controller, pos.latitude, pos.longitude, zoom: 16.0);
                               // Only drop the blue dot when we have the accurate GPS fix
                               controller.updateUserLocation(
@@ -661,7 +662,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                 if (_bookingState == 'default')
                   IgnorePointer(
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: 300.0), // Match native map padding so the pin is optically centered
+                      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, bottom: 300.0), // Match native map padding so the pin is optically centered
                       child: Center(
                         child: SizedBox(
                           width: 0,
