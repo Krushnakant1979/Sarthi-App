@@ -1044,7 +1044,9 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       ),
                       child: ElevatedButton(
                         onPressed: () async {
-                          final result = await context.push('/search');
+                          final result = await context.push('/search', extra: {
+                            if (_pickupLocation != null) 'pickup': _pickupLocation,
+                          });
                           if (result != null && result is Map<String, dynamic>) {
                             if (!context.mounted) return;
                             _processDestination(context, result);
@@ -1847,8 +1849,8 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
       _discountAmount = null;
     });
 
-    // Hide native blue dot, switch to green pickup bullseye for vehicle selection
-    _mapController?.toggleNativeUserLocation(false);
+    // Keep native blue dot for user's current location consistently
+    _mapController?.toggleNativeUserLocation(true);
     double? destLat = double.tryParse(destResult['lat']?.toString() ?? '');
     double? destLng = double.tryParse(destResult['lng']?.toString() ?? '');
     final placeId = destResult['placeId'] as String?;
