@@ -71,6 +71,11 @@ class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget>
     final mainPickup = pickupParts.first;
     final subPickup = pickupParts.length > 1 ? pickupParts.sublist(1).join(',').trim() : '';
 
+    final destination = widget.request['destination']?['address'] ?? 'Unknown destination';
+    final List<String> destParts = destination.split(',');
+    final mainDest = destParts.first;
+    final subDest = destParts.length > 1 ? destParts.sublist(1).join(',').trim() : '';
+
     return SafeArea(
       top: false,
       child: Container(
@@ -276,72 +281,141 @@ class _IncomingRequestSheetWidgetState extends State<IncomingRequestSheetWidget>
             const SizedBox(height: 20),
 
             // Location
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Column(
               children: [
-                Column(
+                // Pickup
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 2),
-                    const Icon(
-                      Icons.circle,
-                      color: Color(0xFF3B82F6),
-                      size: 12,
+                    Container(
+                      width: 16,
+                      alignment: Alignment.topCenter,
+                      margin: const EdgeInsets.only(top: 2),
+                      child: const Icon(
+                        Icons.circle,
+                        color: Color(0xFF3B82F6),
+                        size: 12,
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Column(
-                      children: List.generate(
-                        4,
-                        (_) => Container(
-                          width: 2,
-                          height: 4,
-                          margin: const EdgeInsets.symmetric(vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCBD5E1),
-                            borderRadius: BorderRadius.circular(2),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'PICKUP LOCATION',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF64748B),
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 2),
+                          Text(
+                            mainPickup,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          if (subPickup.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              subPickup,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF64748B),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ]
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'PICKUP LOCATION',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF64748B),
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        mainPickup,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      if (subPickup.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          subPickup,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF64748B),
+                // Dots connection
+                Row(
+                  children: [
+                    Container(
+                      width: 16,
+                      alignment: Alignment.center,
+                      child: Column(
+                        children: List.generate(
+                          3,
+                          (_) => Container(
+                            width: 2,
+                            height: 4,
+                            margin: const EdgeInsets.symmetric(vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFCBD5E1),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ]
-                    ],
-                  ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(child: SizedBox(height: 16)),
+                  ],
+                ),
+                // Drop-off
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 16,
+                      alignment: Alignment.topCenter,
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Color(0xFFEF4444),
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'DROP-OFF LOCATION',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF64748B),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            mainDest,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          if (subDest.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              subDest,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF64748B),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ]
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -206,10 +206,10 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       final requests = _nearbyRequests(
         ref.read(incomingRequestsProvider).value ?? const [],
       );
-      if (requests.isNotEmpty && requests.first['destination'] is Map) {
+      if (requests.isNotEmpty && requests.first['pickup'] is Map) {
         await _renderRouteToTarget(
-          Map<String, dynamic>.from(requests.first['destination'] as Map),
-          isPickup: false,
+          Map<String, dynamic>.from(requests.first['pickup'] as Map),
+          isPickup: true,
         );
       }
     } else {
@@ -571,8 +571,18 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     _lastRouteAt = null;
     _updateRouteSeq++;
     _mapController?.clearRoute();
+    if (_lastValidPosition != null) {
+      _mapController?.moveCamera(
+        _lastValidPosition!.latitude,
+        _lastValidPosition!.longitude,
+        zoom: 16.0,
+        bearing: 0.0,
+        tilt: 0.0,
+      );
+    }
     if (mounted) {
       setState(() {
+        _isNavigatingInApp = false;
         _navigationDistanceMeters = null;
         _navigationDurationSeconds = null;
       });
@@ -583,7 +593,32 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     final target = _navigationTarget;
     if (target == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No active navigation target.')),
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.white, size: 22),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Stay online to receive new ride requests!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF0B2545), // Deep Navy
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          elevation: 4,
+          duration: const Duration(seconds: 3),
+        ),
       );
       return;
     }
@@ -685,6 +720,20 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       if (ride != null) {
         _renderActiveRide(ride);
       } else if (previous?.value != null && !next.isLoading) {
+        final previousStatus = previous!.value!['status'];
+        if (previousStatus == 'in_progress') {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Ride completed successfully!'),
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          });
+        }
         _clearNavigationTarget();
       }
     });
@@ -705,9 +754,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         final destination = req['destination'];
         if (pickup is Map && destination is Map) {
           _renderRouteToTarget(
-            Map<String, dynamic>.from(destination),
-            isPickup: false,
-            originData: Map<String, dynamic>.from(pickup),
+            Map<String, dynamic>.from(pickup),
+            isPickup: true,
+
           );
         }
       } else if (activeRide == null && !next.isLoading) {
@@ -778,9 +827,9 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                         final destination = req['destination'];
                         if (pickup is Map && destination is Map) {
                           await _renderRouteToTarget(
-                            Map<String, dynamic>.from(destination),
-                            isPickup: false,
-                            originData: Map<String, dynamic>.from(pickup),
+                            Map<String, dynamic>.from(pickup),
+                            isPickup: true,
+
                           );
                         }
                       }
@@ -1258,9 +1307,30 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
         if (distance > 150) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('You must be near the pickup location (within 150m) to mark as arrived.'),
-              backgroundColor: context.colors.error,
+              content: const Row(
+                children: [
+                  Icon(Icons.near_me_outlined, color: Colors.white, size: 22),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Move closer to the pickup point (within 150m) to mark as arrived.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF0B2545), // Deep Navy
               behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              elevation: 4,
+              duration: const Duration(seconds: 4),
             ),
           );
           return;

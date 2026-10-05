@@ -759,6 +759,24 @@ class OlaMapPlatformView(
                 result.success(null)
             }
 
+            "setPadding" -> {
+                val top = call.argument<Double>("top") ?: 0.0
+                val left = call.argument<Double>("left") ?: 0.0
+                val bottom = call.argument<Double>("bottom") ?: 0.0
+                val right = call.argument<Double>("right") ?: 0.0
+                
+                mapLibreMap?.let { map ->
+                    val density = context.resources.displayMetrics.density
+                    map.setPadding(
+                        (left * density).toInt(),
+                        (top * density).toInt(),
+                        (right * density).toInt(),
+                        (bottom * density).toInt()
+                    )
+                }
+                result.success(null)
+            }
+
             "fitBounds" -> {
                 val lat1 = call.argument<Double>("lat1") ?: 0.0
                 val lng1 = call.argument<Double>("lng1") ?: 0.0

@@ -351,7 +351,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         );
         ref.read(currentRideIdProvider.notifier).state = newRideId;
       } catch (e) {
-        if (!context.mounted) return;
+        if (!mounted) return;
         setState(() => _bookingState = 'selected');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to request ride: $e')),
@@ -454,6 +454,45 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         _mapController?.toggleNativeUserLocation(true);
         if (newStatus == 'cancelled') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && oldStatus != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.info_outline, color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Your ride was cancelled by the captain',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: const Color(0xFF1E293B), // Slate 800
+                  elevation: 8,
+                  margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
             ref.read(currentRideIdProvider.notifier).state = null;
           });
         }
@@ -624,87 +663,95 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 300.0), // Match native map padding so the pin is optically centered
                       child: Center(
-                        child: Padding(
-                        padding: const EdgeInsets.only(bottom: 40.0), // Shift up to align tip to center
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          transform: Matrix4.translationValues(0, _isMapMoving ? -10 : 0, 0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Info bubble
-                              if (_pickupLocation != null && _pickupLocation!['description'] != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.favorite_border, size: 14, color: Colors.black54),
-                                      const SizedBox(width: 6),
-                                      Flexible(
-                                        child: Text(
-                                          _isMapMoving ? 'Locating...' : _pickupLocation!['description'].split(',').first,
-                                          style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              const SizedBox(height: 8),
-                              // Pin Icon (Green dot with stick)
-                              SizedBox(
-                                width: 40,
-                                height: 40,
-                                child: Stack(
-                                  alignment: Alignment.bottomCenter,
-                                  children: [
+                        child: SizedBox(
+                          width: 0,
+                          height: 0,
+                          child: OverflowBox(
+                            alignment: Alignment.bottomCenter,
+                            minHeight: 0,
+                            maxHeight: 200,
+                            minWidth: 0,
+                            maxWidth: 300,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  // Info bubble
+                                  if (_pickupLocation != null && _pickupLocation!['description'] != null)
                                     Container(
-                                      width: 2,
-                                      height: 16,
-                                      color: Colors.black87,
-                                    ),
-                                    Positioned(
-                                      top: 0,
-                                      child: Container(
-                                        width: 24,
-                                        height: 24,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: Colors.blue, width: 6),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.3),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.1),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.favorite_border, size: 14, color: Colors.black54),
+                                          const SizedBox(width: 6),
+                                          Flexible(
+                                            child: Text(
+                                              _isMapMoving ? 'Locating...' : _pickupLocation!['description'].split(',').first,
+                                              style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  const SizedBox(height: 8),
+                                  // Pin Icon (Green dot with stick)
+                                  SizedBox(
+                                    width: 40,
+                                    height: 40,
+                                    child: Stack(
+                                      alignment: Alignment.bottomCenter,
+                                      children: [
+                                        Container(
+                                          width: 2,
+                                          height: 16,
+                                          color: Colors.black87,
+                                        ),
+                                        Positioned(
+                                          top: 0,
+                                          child: Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.blue, width: 6),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withOpacity(0.3),
+                                                  blurRadius: 4,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
                 
                   // Safe area aware top location/search shell
                   Consumer(
