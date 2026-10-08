@@ -1,0 +1,362 @@
+.page {
+  background: var(--white, #ffffff);
+  color: var(--gray-900, #111827);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Add a dark mode check if next-themes is used */
+:global(.dark) .page {
+  background: #0B0F19; /* Very dark blue-gray */
+  color: #F3F4F6;
+}
+
+/* Hero Section */
+.hero {
+  position: relative;
+  padding: 160px 24px 100px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+
+.heroBackground {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.glowOrb1, .glowOrb2 {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.5;
+  animation: float 20s infinite alternate ease-in-out;
+}
+
+.glowOrb1 {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.4) 0%, rgba(59, 130, 246, 0) 70%);
+  top: -200px;
+  left: -100px;
+}
+
+.glowOrb2 {
+  background: radial-gradient(circle, rgba(147, 51, 234, 0.3) 0%, rgba(147, 51, 234, 0) 70%);
+  bottom: -200px;
+  right: -100px;
+  animation-delay: -10s;
+}
+
+@keyframes float {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(50px, 50px) scale(1.1); }
+  100% { transform: translate(-50px, 100px) scale(0.9); }
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.heroTag {
+  display: inline-block;
+  padding: 8px 16px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 100px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--blue-600, #2563EB);
+  margin-bottom: 32px;
+  backdrop-filter: blur(10px);
+  animation: fadeUp 1s ease-out;
+}
+
+:global(.dark) .heroTag {
+  color: #60A5FA;
+}
+
+.heroTitle {
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -2px;
+  max-width: 900px;
+  margin-bottom: 24px;
+  animation: fadeUp 1s ease-out 0.1s backwards;
+}
+
+.gradientText {
+  background: linear-gradient(135deg, var(--blue-600, #2563EB), #9333ea);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+}
+
+:global(.dark) .gradientText {
+  background: linear-gradient(135deg, #60A5FA, #C084FC);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.heroDesc {
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  color: var(--gray-500, #6B7280);
+  line-height: 1.6;
+  max-width: 700px;
+  animation: fadeUp 1s ease-out 0.2s backwards;
+}
+
+:global(.dark) .heroDesc {
+  color: #9CA3AF;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* Mission Section */
+.missionSection {
+  padding: 100px 24px;
+  position: relative;
+}
+
+.missionInner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 60px;
+  text-align: left;
+}
+
+.missionContent {
+  flex: 1;
+  max-width: 600px;
+}
+
+.missionImageWrapper {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.missionImage {
+  width: 100%;
+  max-width: 500px;
+  border-radius: 24px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
+  object-fit: cover;
+}
+
+:global(.dark) .missionImage {
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+.missionMainTitle {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.1;
+  color: var(--gray-900, #111827);
+  margin-bottom: 32px;
+}
+
+:global(.dark) .missionMainTitle {
+  color: #F9FAFB;
+}
+
+.missionTitleLight {
+  font-weight: 300;
+}
+
+.missionTitleBold {
+  font-weight: 900;
+}
+
+.missionTextBlock {
+  margin-bottom: 40px;
+}
+
+.missionSubtitle {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--gray-800, #1F2937);
+  margin-bottom: 8px;
+}
+
+:global(.dark) .missionSubtitle {
+  color: #E5E7EB;
+}
+
+.missionText {
+  font-size: 1.15rem;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--gray-500, #6B7280);
+  max-width: 750px;
+}
+
+:global(.dark) .missionText {
+  color: #9CA3AF;
+}
+
+/* Ecosystem Section */
+.ecoSection {
+  padding: 100px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.ecoHeader {
+  text-align: center;
+  margin-bottom: 60px;
+}
+
+.ecoTitle {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 900;
+  letter-spacing: -1.5px;
+  margin-bottom: 12px;
+}
+
+.ecoSubtitle {
+  font-size: 1rem;
+  color: var(--gray-500, #6B7280);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+:global(.dark) .ecoSubtitle {
+  color: #9CA3AF;
+}
+
+.ecoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 32px;
+}
+
+.ecoCard {
+  background: var(--white, #ffffff);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  padding: 24px;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+:global(.dark) .ecoCard {
+  background: rgba(17, 24, 39, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.ecoCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.05), transparent);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: -1;
+}
+
+.ecoCard:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+:global(.dark) .ecoCard:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+.ecoCard:hover::before {
+  opacity: 1;
+}
+
+.ecoCardIconWrapper {
+  width: 48px;
+  height: 48px;
+  background: rgba(37, 99, 235, 0.1);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  color: var(--blue-600, #2563EB);
+  transition: all 0.3s ease;
+}
+
+:global(.dark) .ecoCardIconWrapper {
+  background: rgba(96, 165, 250, 0.1);
+  color: #60A5FA;
+}
+
+.ecoCard:hover .ecoCardIconWrapper {
+  background: var(--blue-600, #2563EB);
+  color: white;
+  transform: scale(1.1) rotate(5deg);
+}
+
+:global(.dark) .ecoCard:hover .ecoCardIconWrapper {
+  background: #60A5FA;
+  color: #111827;
+}
+
+.ecoCardTitle {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: var(--gray-900, #111827);
+}
+
+:global(.dark) .ecoCardTitle {
+  color: #F9FAFB;
+}
+
+.ecoCardDesc {
+  font-size: 0.95rem;
+  color: var(--gray-500, #6B7280);
+  line-height: 1.5;
+}
+
+:global(.dark) .ecoCardDesc {
+  color: #9CA3AF;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 120px 24px 80px;
+  }
+  .missionInner {
+    flex-direction: column;
+    gap: 40px;
+  }
+}

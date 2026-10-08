@@ -121,6 +121,13 @@ class OlaMapPlatformView(
         )
         val apiKey = appInfo.metaData?.getString("ola_maps_api_key") ?: ""
 
+        try {
+            org.maplibre.android.MapLibre.getInstance(context)
+            org.maplibre.android.MapLibre.setConnected(true)
+        } catch (e: Exception) {
+            Log.e("OlaMap", "Failed to force MapLibre connected state", e)
+        }
+
         olaMapView = OlaMapView(context)
         container.addView(olaMapView)
 

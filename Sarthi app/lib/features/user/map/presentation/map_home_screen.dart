@@ -789,40 +789,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       return Positioned(
                         bottom: (screenHeight * extent) + 16,
                         right: 16,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              margin: const EdgeInsets.only(bottom: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(
-                                  color: const Color(0xFFE4EAF1),
-                                ),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color(0x1F0B2545),
-                                    blurRadius: 14,
-                                    offset: Offset(0, 5),
-                                  ),
-                                ],
-                              ),
-                              child: IconButton(
-                                onPressed: () {},
-                                icon: const Icon(
-                                  Icons.layers_rounded,
-                                  size: 20,
-                                ),
-                                splashRadius: 22,
-                                color: context.colors.primary,
-                              ),
-                            ),
-                            child!,
-                          ],
-                        ),
+                        child: child!,
                       );
                     },
                     child: Container(

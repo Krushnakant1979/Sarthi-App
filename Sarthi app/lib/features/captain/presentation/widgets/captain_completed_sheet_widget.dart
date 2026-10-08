@@ -11,9 +11,9 @@ class CaptainCompletedSheetWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fare = rideData['fare'] ?? 0.0;
-    final pickupDesc = rideData['pickup']?['description'] ?? 'Unknown Pickup';
-    final destDesc = rideData['destination']?['description'] ?? 'Unknown Destination';
+    final fare = (rideData['fareEstimate'] as num?)?.toDouble() ?? (rideData['fare'] as num?)?.toDouble() ?? 0.0;
+    final pickupDesc = rideData['pickup']?['address'] ?? rideData['pickup']?['description'] ?? 'Unknown Pickup';
+    final destDesc = rideData['destination']?['address'] ?? rideData['destination']?['description'] ?? 'Unknown Destination';
     final distanceMeters = rideData['distanceMeters'] ?? 0;
     final distanceKm = (distanceMeters / 1000).toStringAsFixed(1);
     final isOnlinePayment = rideData['paymentMethod'] == 'online';
