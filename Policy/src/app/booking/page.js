@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { db, rtdb } from "@/config/firebase";
 import { collection, addDoc, doc, updateDoc, serverTimestamp, onSnapshot, getDoc } from "firebase/firestore";
 import { ref, onValue, get as rtdbGet } from "firebase/database";
-import { geocode, getDirections, decodePolyline } from "@/lib/olamaps";
+import { geocode, getDirections, decodePolyline, autocomplete } from "@/lib/olamaps";
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const p = Math.PI / 180;
@@ -24,7 +24,7 @@ const OlaMap = dynamic(() => import("@/components/OlaMap"), {
 });
 
 function BookingContent() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, activeRideId } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -45,6 +45,75 @@ function BookingContent() {
   const [activeRide, setActiveRide] = useState(null);
   const [captainData, setCaptainData] = useState(null);
   const [captainLocation, setCaptainLocation] = useState(null);
+
+  useEffect(() => {
+    if (activeRideId && !currentRideId) {
+      setCurrentRideId(activeRideId);
+    }
+  }, [activeRideId, currentRideId]);
+
+  // Autocomplete State
+  const [pickupSuggestions, setPickupSuggestions] = useState([]);
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
+  const isSelectingPickup = useRef(false);
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (isSelectingPickup.current) {
+        isSelectingPickup.current = false;
+        return;
+      }
+      if (pickup.trim().length > 2) {
+        const results = await autocomplete(pickup);
+        setPickupSuggestions(results);
+      } else {
+        setPickupSuggestions([]);
+      }
+    };
+
+    const debounceId = setTimeout(() => {
+      fetchSuggestions();
+    }, 400);
+
+    return () => clearTimeout(debounceId);
+  }, [pickup]);
+
+  const handlePickupSelect = (description) => {
+    isSelectingPickup.current = true;
+    setPickup(description);
+    setShowPickupSuggestions(false);
+  };
+
+  const [dropSuggestions, setDropSuggestions] = useState([]);
+  const [showDropSuggestions, setShowDropSuggestions] = useState(false);
+  const isSelectingDrop = useRef(false);
+
+  useEffect(() => {
+    const fetchDropSuggestions = async () => {
+      if (isSelectingDrop.current) {
+        isSelectingDrop.current = false;
+        return;
+      }
+      if (drop.trim().length > 2) {
+        const results = await autocomplete(drop);
+        setDropSuggestions(results);
+      } else {
+        setDropSuggestions([]);
+      }
+    };
+
+    const debounceId = setTimeout(() => {
+      fetchDropSuggestions();
+    }, 400);
+
+    return () => clearTimeout(debounceId);
+  }, [drop]);
+
+  const handleDropSelect = (description) => {
+    isSelectingDrop.current = true;
+    setDrop(description);
+    setShowDropSuggestions(false);
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -101,6 +170,33 @@ function BookingContent() {
 
     return () => unsubscribe();
   }, [activeRide?.captainId, activeRide?.status]);
+
+  // Restore route polyline if missing on page reload
+  useEffect(() => {
+    if (activeRide?.pickup && activeRide?.destination && !routeData) {
+      const restoreRoute = async () => {
+        try {
+          const dir = await getDirections(
+            activeRide.pickup.lat, 
+            activeRide.pickup.lng, 
+            activeRide.destination.lat, 
+            activeRide.destination.lng
+          );
+          if (dir) {
+            const pts = decodePolyline(dir.polyline);
+            setRouteData({ 
+              points: pts, 
+              pickup: activeRide.pickup, 
+              drop: activeRide.destination 
+            });
+          }
+        } catch (err) {
+          console.error("Failed to restore route line:", err);
+        }
+      };
+      restoreRoute();
+    }
+  }, [activeRide, routeData]);
 
 
   const handleFindRides = async () => {
@@ -273,7 +369,11 @@ function BookingContent() {
   return (
     <div className={styles.bookingContainer}>
       <div className={styles.mapSection}>
-        <OlaMap routeCoordinates={routeData?.points} captainLocation={captainLocation} />
+        <OlaMap 
+          routeCoordinates={routeData?.points} 
+          captainLocation={captainLocation} 
+          vehicleType={activeRide?.vehicleType || selectedRide?.id} 
+        />
       </div>
 
       <div className={styles.uiSection}>
@@ -398,26 +498,54 @@ function BookingContent() {
             <button className={styles.backBtn} onClick={() => router.push('/')}>← Back</button>
             <h1 className={styles.title}>Book a Ride</h1>
             
-            <div className={styles.inputGroup}>
+            <div className={styles.inputGroup} style={{ position: "relative" }}>
               <div className={styles.dot}></div>
               <input 
                 type="text" 
                 placeholder="Enter Pickup Location" 
                 value={pickup}
-                onChange={(e) => setPickup(e.target.value)}
+                onChange={(e) => {
+                  setPickup(e.target.value);
+                  setShowPickupSuggestions(true);
+                }}
+                onFocus={() => setShowPickupSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowPickupSuggestions(false), 200)}
                 className={styles.locationInput}
               />
+              {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                <ul className="suggestionsList" style={{ top: '100%' }}>
+                  {pickupSuggestions.map((s) => (
+                    <li key={s.place_id} onMouseDown={() => handlePickupSelect(s.description)}>
+                      <span>{s.description}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
-            <div className={styles.inputGroup}>
+            <div className={styles.inputGroup} style={{ position: "relative" }}>
               <div className={styles.square}></div>
               <input 
                 type="text" 
                 placeholder="Enter Destination" 
                 value={drop}
-                onChange={(e) => setDrop(e.target.value)}
+                onChange={(e) => {
+                  setDrop(e.target.value);
+                  setShowDropSuggestions(true);
+                }}
+                onFocus={() => setShowDropSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowDropSuggestions(false), 200)}
                 className={styles.locationInput}
               />
+              {showDropSuggestions && dropSuggestions.length > 0 && (
+                <ul className="suggestionsList" style={{ top: '100%' }}>
+                  {dropSuggestions.map((s) => (
+                    <li key={s.place_id} onMouseDown={() => handleDropSelect(s.description)}>
+                      <span>{s.description}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <button 

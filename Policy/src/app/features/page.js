@@ -25,6 +25,19 @@ export default function FeaturesPage() {
         <div className={styles.heroBackground}>
           <div className={styles.glowOrb1}></div>
           <div className={styles.glowOrb2}></div>
+          {/* Floating Flowers & Vehicles */}
+          <div className={`${styles.flower} ${styles.flower1}`}>🌸</div>
+          <div className={`${styles.flower} ${styles.flower2}`}>🌼</div>
+          <div className={`${styles.flower} ${styles.flower3}`}>🌺</div>
+          <div className={`${styles.flower} ${styles.flower4}`}>🌸</div>
+          <div className={`${styles.flower} ${styles.flower5}`}>🌷</div>
+          <div className={`${styles.flower} ${styles.flower6}`}>🌻</div>
+          <div className={`${styles.flower} ${styles.flower7}`}>🌼</div>
+          <div className={`${styles.flower} ${styles.flower8}`}>🌺</div>
+          <div className={`${styles.flower} ${styles.flower9}`}>🚗</div>
+          <div className={`${styles.flower} ${styles.flower10}`}>🛵</div>
+          <div className={`${styles.flower} ${styles.flower11}`}>🚕</div>
+          <div className={`${styles.flower} ${styles.flower12}`}>🏍️</div>
         </div>
         <div className={styles.heroInner}>
           <span className={styles.heroTag}>Platform Features</span>

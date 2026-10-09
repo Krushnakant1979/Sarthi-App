@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -11,10 +11,11 @@ if (typeof window !== "undefined") {
   }
 }
 
-const OlaMap = ({ routeCoordinates, captainLocation }) => {
+const OlaMap = ({ routeCoordinates, captainLocation, vehicleType }) => {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const captainMarkerRef = useRef(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -60,11 +61,8 @@ const OlaMap = ({ routeCoordinates, captainLocation }) => {
           })
         );
 
-        // Wait for map load to draw initial polyline if exists
         mapRef.current.on('load', () => {
-          if (routeCoordinates && routeCoordinates.length > 0) {
-            drawRoute(routeCoordinates);
-          }
+          setMapLoaded(true);
         });
 
       } catch (err) {
@@ -126,9 +124,11 @@ const OlaMap = ({ routeCoordinates, captainLocation }) => {
 
   // React to prop changes
   useEffect(() => {
+    if (!mapLoaded || !mapRef.current) return;
+    
     if (routeCoordinates && routeCoordinates.length > 0) {
       drawRoute(routeCoordinates);
-    } else if (mapRef.current && mapRef.current.getSource('route')) {
+    } else if (mapRef.current.getSource('route')) {
       // Clear route
       mapRef.current.getSource('route').setData({
         type: 'Feature',
@@ -136,34 +136,48 @@ const OlaMap = ({ routeCoordinates, captainLocation }) => {
         geometry: { type: 'LineString', coordinates: [] }
       });
     }
-  }, [routeCoordinates]);
+  }, [routeCoordinates, mapLoaded]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapLoaded || !mapRef.current) return;
     
     if (captainLocation) {
       if (!captainMarkerRef.current) {
         // Create an HTML element for the marker
         const el = document.createElement('div');
         el.className = 'captain-marker';
-        el.style.width = '24px';
-        el.style.height = '24px';
-        el.style.backgroundColor = '#000';
+        el.style.width = '48px';
+        el.style.height = '48px';
         el.style.borderRadius = '50%';
         el.style.border = '3px solid white';
-        el.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+        el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+        el.style.backgroundColor = 'white';
+        el.style.backgroundPosition = 'center';
+        el.style.backgroundSize = 'cover';
+        
+        // Use the vehicle type to get the correct icon, default to cab
+        const type = vehicleType ? vehicleType.toLowerCase() : 'cab';
+        el.style.backgroundImage = `url('/icon_${type}.jpg')`;
 
         captainMarkerRef.current = new maplibregl.Marker({ element: el })
           .setLngLat(captainLocation)
           .addTo(mapRef.current);
       } else {
         captainMarkerRef.current.setLngLat(captainLocation);
+        
+        // Update icon if it changed
+        const el = captainMarkerRef.current.getElement();
+        const type = vehicleType ? vehicleType.toLowerCase() : 'cab';
+        const newUrl = `url("/icon_${type}.jpg")`;
+        if (el.style.backgroundImage !== newUrl) {
+          el.style.backgroundImage = newUrl;
+        }
       }
     } else if (captainMarkerRef.current) {
       captainMarkerRef.current.remove();
       captainMarkerRef.current = null;
     }
-  }, [captainLocation]);
+  }, [captainLocation, vehicleType, mapLoaded]);
 
   return (
     <div 

@@ -3,6 +3,9 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Apple, Play, CheckCircle2, ArrowRight, MapPin, Circle, Car, CreditCard, ShieldCheck, Users, Clock, Smartphone, Globe } from "lucide-react";
 import styles from "./page.module.css";
+import { autocomplete, getPlaceDetails } from "@/lib/olamaps";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 // ── Animated counter ──────────────────────────────────────────────
 function AnimatedCounter({ target, suffix = "" }) {
@@ -40,8 +43,84 @@ function AnimatedCounter({ target, suffix = "" }) {
 }
 
 export default function Page() {
+  const { activeRideId } = useAuth();
+  const router = useRouter();
+
   const [pickup, setPickup] = useState("");
   const [drop, setDrop] = useState("");
+  const [showActiveRideModal, setShowActiveRideModal] = useState(false);
+  
+  const [pickupSuggestions, setPickupSuggestions] = useState([]);
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
+  const [pickupCoords, setPickupCoords] = useState(null);
+  const isSelectingPickup = useRef(false);
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (isSelectingPickup.current) {
+        isSelectingPickup.current = false;
+        return;
+      }
+      if (pickup.trim().length > 2) {
+        const results = await autocomplete(pickup);
+        setPickupSuggestions(results);
+      } else {
+        setPickupSuggestions([]);
+      }
+    };
+
+    const debounceId = setTimeout(() => {
+      fetchSuggestions();
+    }, 400);
+
+    return () => clearTimeout(debounceId);
+  }, [pickup]);
+
+  const handlePickupSelect = async (placeId, description) => {
+    isSelectingPickup.current = true;
+    setPickup(description);
+    setShowPickupSuggestions(false);
+    const details = await getPlaceDetails(placeId);
+    if (details) {
+      setPickupCoords({ lat: details.lat, lng: details.lng });
+    }
+  };
+
+  const [dropSuggestions, setDropSuggestions] = useState([]);
+  const [showDropSuggestions, setShowDropSuggestions] = useState(false);
+  const [dropCoords, setDropCoords] = useState(null);
+  const isSelectingDrop = useRef(false);
+
+  useEffect(() => {
+    const fetchDropSuggestions = async () => {
+      if (isSelectingDrop.current) {
+        isSelectingDrop.current = false;
+        return;
+      }
+      if (drop.trim().length > 2) {
+        const results = await autocomplete(drop);
+        setDropSuggestions(results);
+      } else {
+        setDropSuggestions([]);
+      }
+    };
+
+    const debounceId = setTimeout(() => {
+      fetchDropSuggestions();
+    }, 400);
+
+    return () => clearTimeout(debounceId);
+  }, [drop]);
+
+  const handleDropSelect = async (placeId, description) => {
+    isSelectingDrop.current = true;
+    setDrop(description);
+    setShowDropSuggestions(false);
+    const details = await getPlaceDetails(placeId);
+    if (details) {
+      setDropCoords({ lat: details.lat, lng: details.lng });
+    }
+  };
 
   return (
     <>
@@ -51,6 +130,19 @@ export default function Page() {
           <div className={styles.heroBackground}>
             <div className={styles.glowOrb1}></div>
             <div className={styles.glowOrb2}></div>
+            {/* Floating Flowers & Vehicles */}
+            <div className={`${styles.flower} ${styles.flower1}`}>🌸</div>
+            <div className={`${styles.flower} ${styles.flower2}`}>🌼</div>
+            <div className={`${styles.flower} ${styles.flower3}`}>🌺</div>
+            <div className={`${styles.flower} ${styles.flower4}`}>🌸</div>
+            <div className={`${styles.flower} ${styles.flower5}`}>🌷</div>
+            <div className={`${styles.flower} ${styles.flower6}`}>🌻</div>
+            <div className={`${styles.flower} ${styles.flower7}`}>🌼</div>
+            <div className={`${styles.flower} ${styles.flower8}`}>🌺</div>
+            <div className={`${styles.flower} ${styles.flower9}`}>🚗</div>
+            <div className={`${styles.flower} ${styles.flower10}`}>🛵</div>
+            <div className={`${styles.flower} ${styles.flower11}`}>🚕</div>
+            <div className={`${styles.flower} ${styles.flower12}`}>🏍️</div>
           </div>
           <div className={styles.heroCard}>
             {/* Left Side (Dark) */}
@@ -66,7 +158,7 @@ export default function Page() {
                 </p>
 
                 <div className={`${styles.bookingForm}`}>
-                  <div className={styles.inputGroup}>
+                  <div className={styles.inputGroup} style={{ position: "relative" }}>
                     <div className={styles.inputIcon}>
                       <MapPin size={28} color="#111827" />
                     </div>
@@ -76,11 +168,33 @@ export default function Page() {
                       placeholder="Enter Pickup Location" 
                       className={styles.locationInput} 
                       value={pickup}
-                      onChange={(e) => setPickup(e.target.value)}
+                      onChange={(e) => {
+                        setPickup(e.target.value);
+                        setShowPickupSuggestions(true);
+                      }}
+                      onFocus={(e) => {
+                        if (activeRideId) {
+                          e.target.blur();
+                          setShowActiveRideModal(true);
+                          return;
+                        }
+                        setShowPickupSuggestions(true);
+                      }}
+                      onBlur={() => setTimeout(() => setShowPickupSuggestions(false), 200)}
                     />
+                    {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                      <ul className="suggestionsList">
+                        {pickupSuggestions.map((s) => (
+                          <li key={s.place_id} onMouseDown={() => handlePickupSelect(s.place_id, s.description)}>
+                            <MapPin size={16} />
+                            <span>{s.description}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   
-                  <div className={styles.inputGroup}>
+                  <div className={styles.inputGroup} style={{ position: "relative" }}>
                     <div className={styles.inputIcon}>
                       <Circle size={20} color="#111827" strokeWidth={4} />
                     </div>
@@ -89,17 +203,46 @@ export default function Page() {
                       placeholder="Enter Drop Location" 
                       className={styles.locationInput} 
                       value={drop}
-                      onChange={(e) => setDrop(e.target.value)}
+                      onChange={(e) => {
+                        setDrop(e.target.value);
+                        setShowDropSuggestions(true);
+                      }}
+                      onFocus={(e) => {
+                        if (activeRideId) {
+                          e.target.blur();
+                          setShowActiveRideModal(true);
+                          return;
+                        }
+                        setShowDropSuggestions(true);
+                      }}
+                      onBlur={() => setTimeout(() => setShowDropSuggestions(false), 200)}
                     />
+                    {showDropSuggestions && dropSuggestions.length > 0 && (
+                      <ul className="suggestionsList">
+                        {dropSuggestions.map((s) => (
+                          <li key={s.place_id} onMouseDown={() => handleDropSelect(s.place_id, s.description)}>
+                            <MapPin size={16} />
+                            <span>{s.description}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
 
-                  <Link 
-                    href={`/booking?pickup=${encodeURIComponent(pickup)}&drop=${encodeURIComponent(drop)}`} 
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (activeRideId) {
+                        setShowActiveRideModal(true);
+                      } else {
+                        router.push(`/booking?pickup=${encodeURIComponent(pickup)}&drop=${encodeURIComponent(drop)}`);
+                      }
+                    }}
                     className={styles.bookRideBtn} 
-                    style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+                    style={{ display: "block", width: "100%", textAlign: "center", textDecoration: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
                   >
                     Book Ride
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
@@ -395,6 +538,32 @@ export default function Page() {
         </section>
 
       </main>
+
+      {showActiveRideModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <div className={styles.modalIcon}>
+              <Car size={32} color="#f59e0b" />
+            </div>
+            <h3>Active Ride in Progress</h3>
+            <p>You already have an ongoing ride. Please complete or cancel it before booking a new one.</p>
+            <div className={styles.modalActions}>
+              <button 
+                onClick={() => setShowActiveRideModal(false)} 
+                className={styles.btnOutline}
+              >
+                Close
+              </button>
+              <button 
+                onClick={() => router.push("/booking")} 
+                className={styles.btnPrimary}
+              >
+                Go to Ride
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

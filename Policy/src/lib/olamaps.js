@@ -20,6 +20,35 @@ export async function geocode(query) {
   return null;
 }
 
+export async function autocomplete(query) {
+  if (!query) return [];
+  const apiKey = process.env.NEXT_PUBLIC_OLA_MAPS_API_KEY;
+  try {
+    const res = await fetch(`/api/ola/places/v1/autocomplete?input=${encodeURIComponent(query)}&api_key=${apiKey}`);
+    const data = await res.json();
+    return data.predictions || [];
+  } catch (error) {
+    console.error("Autocomplete failed:", error);
+    return [];
+  }
+}
+
+export async function getPlaceDetails(placeId) {
+  const apiKey = process.env.NEXT_PUBLIC_OLA_MAPS_API_KEY;
+  try {
+    const res = await fetch(`/api/ola/places/v1/details?place_id=${placeId}&api_key=${apiKey}`);
+    const data = await res.json();
+    if (data.result && data.result.geometry) {
+      const loc = data.result.geometry.location;
+      return { lat: loc.lat, lng: loc.lng, address: data.result.name || data.result.formatted_address };
+    }
+    return null;
+  } catch (error) {
+    console.error("Place details failed:", error);
+    return null;
+  }
+}
+
 export async function getDirections(startLat, startLng, endLat, endLng) {
   const apiKey = process.env.NEXT_PUBLIC_OLA_MAPS_API_KEY;
   

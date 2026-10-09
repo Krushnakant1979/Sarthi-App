@@ -320,3 +320,33 @@
 .btnPrimary:hover {
   transform: translateY(-2px);
 }
+
+/* Floating Flowers */
+.flower {
+  position: absolute;
+  font-size: 2rem;
+  opacity: 0.7;
+  z-index: 1;
+  pointer-events: none;
+  animation: floatFlower 15s infinite linear;
+}
+
+@keyframes floatFlower {
+  0% { transform: translateY(110vh) rotate(0deg) scale(0.8); opacity: 0; }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.7; }
+  100% { transform: translateY(-20vh) rotate(360deg) scale(1.2); opacity: 0; }
+}
+
+.flower1 { left: 10%; animation-duration: 18s; animation-delay: 0s; }
+.flower2 { left: 30%; font-size: 3rem; animation-duration: 22s; animation-delay: 4s; }
+.flower3 { left: 50%; font-size: 1.5rem; animation-duration: 15s; animation-delay: 2s; }
+.flower4 { left: 70%; font-size: 2.5rem; animation-duration: 20s; animation-delay: 7s; }
+.flower5 { left: 85%; animation-duration: 25s; animation-delay: 1s; }
+.flower6 { left: 20%; font-size: 2.2rem; animation-duration: 19s; animation-delay: 10s; }
+.flower7 { left: 60%; font-size: 1.8rem; animation-duration: 16s; animation-delay: 5s; }
+.flower8 { left: 95%; font-size: 2.8rem; animation-duration: 24s; animation-delay: 8s; }
+.flower9 { left: 5%; font-size: 2.8rem; animation-duration: 21s; animation-delay: 3s; }
+.flower10 { left: 25%; font-size: 2.2rem; animation-duration: 17s; animation-delay: 9s; }
+.flower11 { left: 75%; font-size: 3.2rem; animation-duration: 23s; animation-delay: 6s; }
+.flower12 { left: 90%; font-size: 2.5rem; animation-duration: 19s; animation-delay: 11s; }

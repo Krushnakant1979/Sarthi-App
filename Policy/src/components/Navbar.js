@@ -76,7 +76,7 @@ function ProfileDropdown({ user, logout }) {
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, activeRideId } = useAuth();
   const pathname = usePathname();
 
   const isActive = (path) => pathname === path ? styles.active : "";
@@ -99,6 +99,14 @@ export default function Navbar() {
         </ul>
 
         <div className={styles.navActions}>
+          {activeRideId && pathname !== "/booking" && (
+            <Link 
+              href="/booking" 
+              className={`${styles.btnNavPrimary} ${styles.backToRideBtn}`}
+            >
+              Back to Ride
+            </Link>
+          )}
           {user ? (
             <ProfileDropdown user={user} logout={logout} />
           ) : (
@@ -121,6 +129,15 @@ export default function Navbar() {
       </div>
 
       <div className={`${styles.mobileMenu} ${menuOpen ? styles.open : ""}`}>
+        {activeRideId && pathname !== "/booking" && (
+          <Link 
+            href="/booking" 
+            className={`${styles.navLink} ${styles.backToRideBtnMobile}`} 
+            onClick={() => setMenuOpen(false)}
+          >
+            Back to Ride
+          </Link>
+        )}
         <Link href="/" className={`${styles.navLink} ${isActive("/")}`} onClick={() => setMenuOpen(false)}>Home</Link>
         <Link href="/about" className={`${styles.navLink} ${isActive("/about")}`} onClick={() => setMenuOpen(false)}>About</Link>
         <Link href="/features" className={`${styles.navLink} ${isActive("/features")}`} onClick={() => setMenuOpen(false)}>Features</Link>
