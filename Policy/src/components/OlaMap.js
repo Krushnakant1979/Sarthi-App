@@ -11,7 +11,7 @@ if (typeof window !== "undefined") {
   }
 }
 
-const OlaMap = ({ routeCoordinates, captainLocation, vehicleType }) => {
+const OlaMap = ({ routeCoordinates, captainLocation, vehicleType, pickupLocation, dropLocation }) => {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const captainMarkerRef = useRef(null);
@@ -72,6 +72,9 @@ const OlaMap = ({ routeCoordinates, captainLocation, vehicleType }) => {
 
     initMap();
   }, []);
+
+  const pickupMarkerRef = useRef(null);
+  const dropMarkerRef = useRef(null);
 
   // Function to draw route
   const drawRoute = (coords) => {
@@ -137,6 +140,57 @@ const OlaMap = ({ routeCoordinates, captainLocation, vehicleType }) => {
       });
     }
   }, [routeCoordinates, mapLoaded]);
+
+  // Manage pickup and drop markers
+  useEffect(() => {
+    if (!mapLoaded || !mapRef.current) return;
+
+    // Handle pickup marker
+    if (pickupLocation) {
+      if (!pickupMarkerRef.current) {
+        const el = document.createElement('div');
+        el.className = 'pickup-marker';
+        el.style.width = '16px';
+        el.style.height = '16px';
+        el.style.backgroundColor = '#10B981'; // Green
+        el.style.borderRadius = '50%';
+        el.style.border = '3px solid white';
+        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+        
+        pickupMarkerRef.current = new maplibregl.Marker({ element: el })
+          .setLngLat([pickupLocation.lng, pickupLocation.lat])
+          .addTo(mapRef.current);
+      } else {
+        pickupMarkerRef.current.setLngLat([pickupLocation.lng, pickupLocation.lat]);
+      }
+    } else if (pickupMarkerRef.current) {
+      pickupMarkerRef.current.remove();
+      pickupMarkerRef.current = null;
+    }
+
+    // Handle drop marker
+    if (dropLocation) {
+      if (!dropMarkerRef.current) {
+        const el = document.createElement('div');
+        el.className = 'drop-marker';
+        el.style.width = '16px';
+        el.style.height = '16px';
+        el.style.backgroundColor = '#EF4444'; // Red
+        el.style.borderRadius = '50%';
+        el.style.border = '3px solid white';
+        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+        
+        dropMarkerRef.current = new maplibregl.Marker({ element: el })
+          .setLngLat([dropLocation.lng, dropLocation.lat])
+          .addTo(mapRef.current);
+      } else {
+        dropMarkerRef.current.setLngLat([dropLocation.lng, dropLocation.lat]);
+      }
+    } else if (dropMarkerRef.current) {
+      dropMarkerRef.current.remove();
+      dropMarkerRef.current = null;
+    }
+  }, [pickupLocation, dropLocation, mapLoaded]);
 
   useEffect(() => {
     if (!mapLoaded || !mapRef.current) return;

@@ -139,9 +139,9 @@ function BookingContent() {
         setBookingStatus(data.status);
         
         // If captain assigned, fetch their data once
-        if (data.captainId && !captainData) {
+        if (data.assignedCaptainId && !captainData) {
           try {
-            const capDoc = await getDoc(doc(db, "users", data.captainId));
+            const capDoc = await getDoc(doc(db, "users", data.assignedCaptainId));
             if (capDoc.exists()) setCaptainData(capDoc.data());
           } catch (err) {
             console.error("Failed to fetch captain data", err);
@@ -155,21 +155,24 @@ function BookingContent() {
 
   // RTDB Listener for Live Captain Location
   useEffect(() => {
-    if (!activeRide?.captainId) return;
+    if (!activeRide?.assignedCaptainId) return;
     if (activeRide.status === 'completed' || activeRide.status === 'cancelled') return;
 
-    const locRef = ref(rtdb, `live/captains/${activeRide.captainId}`);
+    const locRef = ref(rtdb, `live/captains/${activeRide.assignedCaptainId}`);
     const unsubscribe = onValue(locRef, (snapshot) => {
       if (snapshot.exists()) {
         const loc = snapshot.val();
         if (loc.lat && loc.lng) {
           setCaptainLocation([loc.lng, loc.lat]); // MapLibre needs [lng, lat]
         }
+      } else if (!captainLocation && activeRide.pickup) {
+        // Fallback: If no live location is available yet, default to slightly offset from pickup
+        setCaptainLocation([activeRide.pickup.lng - 0.001, activeRide.pickup.lat - 0.001]);
       }
     });
 
     return () => unsubscribe();
-  }, [activeRide?.captainId, activeRide?.status]);
+  }, [activeRide?.assignedCaptainId, activeRide?.status, activeRide?.pickup, captainLocation]);
 
   // Restore route polyline if missing on page reload
   useEffect(() => {
@@ -371,6 +374,8 @@ function BookingContent() {
       <div className={styles.mapSection}>
         <OlaMap 
           routeCoordinates={routeData?.points} 
+          pickupLocation={routeData?.pickup}
+          dropLocation={routeData?.drop}
           captainLocation={captainLocation} 
           vehicleType={activeRide?.vehicleType || selectedRide?.id} 
         />
