@@ -119,9 +119,7 @@
   left: 0;
   right: 0;
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: #ffffff;
   border-bottom: 1px solid var(--gray-100);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }

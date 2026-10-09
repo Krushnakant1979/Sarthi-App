@@ -5,9 +5,7 @@
   left: 0;
   right: 0;
   z-index: 1000;
-  background: rgba(235, 236, 240, 0.85); /* Greyish transparent */
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: #ffffff; /* Solid white to hide floating elements behind */
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
