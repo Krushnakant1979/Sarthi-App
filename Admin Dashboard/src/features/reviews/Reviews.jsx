@@ -1,11 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, WarningCircle, Funnel, ListBullets } from '@phosphor-icons/react';
-
-const mockReviews = [
-  { id: 'REV-1042', tripId: 'TRP-8921', date: '2026-08-25', reviewer: 'John D. (User)', reviewee: 'Ramesh K. (Captain)', rating: 1, comment: 'Driver was very rude and drove rashly.', status: 'Flagged' },
-  { id: 'REV-1043', tripId: 'TRP-8933', date: '2026-08-25', reviewer: 'Priya S. (User)', reviewee: 'Suresh M. (Captain)', rating: 2, comment: 'Car was not clean, AC wasn\'t working.', status: 'Pending' },
-  { id: 'REV-1044', tripId: 'TRP-8901', date: '2026-08-24', reviewer: 'Amit P. (Captain)', reviewee: 'Neha G. (User)', rating: 1, comment: 'User refused to pay toll tax and argued.', status: 'Pending' },
-];
+import { db } from '../../config/firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { publicIdService } from '../../services/publicIdService';
 
 const Tabs = [
   { id: 'attention', label: 'Needs Attention', icon: WarningCircle },
@@ -14,6 +11,29 @@ const Tabs = [
 
 export default function Reviews() {
   const [activeTab, setActiveTab] = useState('attention');
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, 'reviews'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setReviews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching reviews:", error);
+        setLoading(false);
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  const filteredReviews = reviews.filter(r => {
+    if (activeTab === 'attention') return r.rating <= 2 || r.status === 'Flagged';
+    return true;
+  });
 
   return (
     <div className="animate-fade-in">
@@ -33,7 +53,7 @@ export default function Reviews() {
           <div className="stat-card-modern" style={{ padding: '0.75rem 1.25rem', minWidth: '140px', background: 'var(--surface-2)', boxShadow: 'none', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Flagged Reviews</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--error)' }}>
-              12
+              {reviews.filter(r => r.status === 'Flagged').length}
             </div>
           </div>
         </div>
@@ -98,20 +118,24 @@ export default function Reviews() {
               </tr>
             </thead>
             <tbody>
-              {mockReviews.map(review => (
+              {loading ? (
+                <tr><td colSpan="7" className="table-empty">Loading reviews...</td></tr>
+              ) : filteredReviews.length === 0 ? (
+                <tr><td colSpan="7" className="table-empty">No reviews found in Firebase</td></tr>
+              ) : filteredReviews.map(review => (
                 <tr key={review.id}>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--brand-blue)' }}>{review.tripId}</td>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewer}</td>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewee}</td>
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--brand-blue)' }}>{review.tripId || '—'}</td>
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewer || '—'}</td>
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewee || '—'}</td>
                   <td style={{ padding: '1rem 1.25rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={14} weight={i < review.rating ? "fill" : "regular"} color={i < review.rating ? "var(--error)" : "var(--text-muted)"} />
+                        <Star key={i} size={14} weight={i < (review.rating || 0) ? "fill" : "regular"} color={i < (review.rating || 0) ? "var(--error)" : "var(--text-muted)"} />
                       ))}
                     </div>
                   </td>
                   <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-secondary)', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={review.comment}>
-                    "{review.comment}"
+                    "{review.comment || ''}"
                   </td>
                   <td style={{ padding: '1rem 1.25rem' }}>
                     <span style={{ 
@@ -122,7 +146,7 @@ export default function Reviews() {
                       background: review.status === 'Flagged' ? 'var(--error-bg)' : 'var(--warning-bg)',
                       color: review.status === 'Flagged' ? 'var(--error)' : 'var(--warning)'
                     }}>
-                      {review.status}
+                      {review.status || 'Pending'}
                     </span>
                   </td>
                   <td style={{ padding: '1rem 1.25rem' }}>

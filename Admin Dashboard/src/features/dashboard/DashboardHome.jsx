@@ -10,11 +10,21 @@ import { DashboardStatCard } from './components/DashboardStatCard';
 import { RecentRidesTable } from './components/RecentRidesTable';
 import { PlatformHealthCard } from './components/PlatformHealthCard';
 
-// Mock trend data for sparklines
-const generateTrend = (base, volatility) => {
-  return Array.from({ length: 7 }, () => ({
-    val: base + Math.random() * volatility
-  }));
+const calculateSparkline = (docs, valueExtractor = () => 1) => {
+  const now = new Date();
+  const res = Array.from({ length: 7 }, () => 0);
+  docs.forEach(doc => {
+    const data = doc.data();
+    if (!data.createdAt) return;
+    let createdAt = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt.seconds ? data.createdAt.seconds * 1000 : data.createdAt);
+    if (isNaN(createdAt.getTime())) return;
+    const diffTime = Math.abs(now - createdAt);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays < 7) {
+      res[6 - diffDays] += valueExtractor(data);
+    }
+  });
+  return res.map(val => ({ val }));
 };
 
 const statCards = [
@@ -26,7 +36,6 @@ const statCards = [
     iconBg: 'rgba(21,101,192,0.1)',
     format: (v) => v.toLocaleString(),
     tag: 'All Time',
-    trend: generateTrend(20, 15),
   },
   {
     key: 'captains',
@@ -36,7 +45,6 @@ const statCards = [
     iconBg: 'rgba(0,166,166,0.1)',
     format: (v) => v.toLocaleString(),
     tag: 'Registered',
-    trend: generateTrend(10, 5),
   },
   {
     key: 'users',
@@ -46,7 +54,6 @@ const statCards = [
     iconBg: 'rgba(124,58,237,0.1)',
     format: (v) => v.toLocaleString(),
     tag: 'Passengers',
-    trend: generateTrend(50, 30),
   },
   {
     key: 'revenue',
@@ -56,7 +63,6 @@ const statCards = [
     iconBg: 'rgba(217,119,6,0.1)',
     format: (v) => `₹${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
     tag: 'Completed',
-    trend: generateTrend(500, 400),
   },
 ];
 
@@ -104,6 +110,12 @@ const DashboardHome = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({ rides: 0, captains: 0, activeCaptains: 0, users: 0, revenue: 0 });
   const [trends, setTrends] = useState({ rides: 0, captains: 0, users: 0, revenue: 0 });
+  const [sparklines, setSparklines] = useState({
+    rides: Array.from({ length: 7 }, () => ({ val: 0 })),
+    captains: Array.from({ length: 7 }, () => ({ val: 0 })),
+    users: Array.from({ length: 7 }, () => ({ val: 0 })),
+    revenue: Array.from({ length: 7 }, () => ({ val: 0 }))
+  });
   const [loading, setLoading] = useState(true);
   const [dbStatus, setDbStatus] = useState('checking');
   const [recentRides, setRecentRides] = useState([]);
@@ -111,10 +123,12 @@ const DashboardHome = () => {
   useEffect(() => {
     let currentStats = { rides: 0, captains: 0, activeCaptains: 0, users: 0, revenue: 0 };
     let currentTrends = { rides: 0, captains: 0, users: 0, revenue: 0 };
+    let currentSparklines = { ...sparklines };
     
     const updateUI = () => {
       setStats({ ...currentStats });
       setTrends({ ...currentTrends });
+      setSparklines({ ...currentSparklines });
       setDbStatus('connected');
       setLoading(false);
     };
@@ -125,16 +139,17 @@ const DashboardHome = () => {
       currentStats.captains = snap.size;
       currentStats.activeCaptains = active;
       currentTrends.captains = calculateTrend(snap.docs);
+      currentSparklines.captains = calculateSparkline(snap.docs);
       updateUI();
     }, (err) => { setDbStatus('error'); console.error(err); });
 
     const unsubUsers = onSnapshot(query(collection(db, 'users'), where('role', '==', 'user')), (snap) => {
       currentStats.users = snap.size;
       currentTrends.users = calculateTrend(snap.docs);
+      currentSparklines.users = calculateSparkline(snap.docs);
       updateUI();
     }, (err) => console.error(err));
 
-    // Limit rides to recent 500 to keep it fast but provide enough data for trends and recent tables
     const unsubRides = onSnapshot(query(collection(db, 'ride_requests'), orderBy('createdAt', 'desc'), limit(500)), (snap) => {
       let rev = 0;
       let rList = [];
@@ -143,11 +158,14 @@ const DashboardHome = () => {
         if (d.status === 'completed' && d.fareEstimate) rev += Number(d.fareEstimate);
         rList.push({ id: doc.id, ...d });
       });
-      currentStats.rides = snap.size; // This will only count recent 500, but loads instantly. (Ideally, use a global counter doc for total)
+      currentStats.rides = snap.size; 
       currentStats.revenue = rev;
       
       currentTrends.rides = calculateTrend(snap.docs);
       currentTrends.revenue = calculateTrend(snap.docs, (d) => (d.status === 'completed' && d.fareEstimate) ? Number(d.fareEstimate) : 0);
+      
+      currentSparklines.rides = calculateSparkline(snap.docs);
+      currentSparklines.revenue = calculateSparkline(snap.docs, (d) => (d.status === 'completed' && d.fareEstimate) ? Number(d.fareEstimate) : 0);
       
       setRecentRides(rList.slice(0, 5));
       updateUI();
@@ -161,10 +179,10 @@ const DashboardHome = () => {
   }, []);
 
   return (
-    <div className="animate-fade-in" style={{ paddingBottom: '2rem' }}>
+    <div style={{ paddingBottom: '2rem' }}>
       
       {/* 1. Premium Welcome Banner */}
-      <div style={{ 
+      <div className="animate-fade-up stagger-1" style={{ 
         background: 'linear-gradient(135deg, var(--brand-primary) 0%, #1a365d 100%)',
         borderRadius: 'var(--r-xl)',
         padding: '2.5rem 3rem',
@@ -178,7 +196,7 @@ const DashboardHome = () => {
         overflow: 'hidden'
       }}>
         {/* Decorative background element */}
-        <div style={{ position: 'absolute', right: '-5%', top: '-20%', width: '300px', height: '300px', background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)', borderRadius: '50%' }}></div>
+        <div className="animate-float" style={{ position: 'absolute', right: '-5%', top: '-20%', width: '300px', height: '300px', background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%)', borderRadius: '50%' }}></div>
         
         <div style={{ position: 'relative', zIndex: 1 }}>
           <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: 0, letterSpacing: '-0.03em' }}>
@@ -190,7 +208,7 @@ const DashboardHome = () => {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.1)', padding: '0.75rem 1.25rem', borderRadius: 'var(--r-full)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)' }}>
-          <div className={`status-dot ${dbStatus === 'connected' ? 'online' : dbStatus === 'error' ? 'error' : 'warning'}`} style={{ width: 10, height: 10 }}></div>
+          <div className={`status-dot ${dbStatus === 'connected' ? 'online' : dbStatus === 'error' ? 'error' : 'warning'}`} style={{ width: 10, height: 10, animation: dbStatus === 'connected' ? 'pulseGlow 2s infinite' : 'none' }}></div>
           <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>
             {dbStatus === 'connected' ? 'Systems Operational' : 'Connecting...'}
           </span>
@@ -198,7 +216,7 @@ const DashboardHome = () => {
       </div>
 
       {/* 2. Quick Actions */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+      <div className="animate-fade-up stagger-2" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
         <button onClick={() => navigate('/settings')} className="btn btn-secondary" style={{ flex: 1, padding: '1rem', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
           <Gear size={20} style={{ color: 'var(--brand-blue)' }} /> Configure Pricing
         </button>
@@ -211,21 +229,21 @@ const DashboardHome = () => {
       </div>
 
       {/* 3. Upgraded Stat Cards with Sparklines */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
+      <div className="animate-fade-up stagger-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
         {statCards.map((card) => (
           <DashboardStatCard 
             key={card.key}
             {...card}
             value={stats[card.key]}
             trendPercentage={trends[card.key]}
-            trendData={card.trend}
+            trendData={sparklines[card.key]}
             loading={loading}
           />
         ))}
       </div>
 
       {/* 4. Split Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem', alignItems: 'start' }}>
+      <div className="animate-fade-up stagger-4" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem', alignItems: 'start' }}>
         
         {/* Left: Recent Rides */}
         <RecentRidesTable 

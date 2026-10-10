@@ -1,11 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Megaphone, PaperPlaneTilt, Funnel, PenNib, ListBullets } from '@phosphor-icons/react';
-
-const mockCampaigns = [
-  { id: 'CMP-001', name: 'Welcome Back 10%', type: 'Push', audience: 'Inactive 30+ Days', status: 'Active', sent: 1240 },
-  { id: 'CMP-002', name: 'Weekend Surge Alert', type: 'SMS', audience: 'All Captains', status: 'Completed', sent: 350 },
-  { id: 'CMP-003', name: 'Diwali Special 25%', type: 'Email', audience: 'All Users', status: 'Draft', sent: 0 },
-];
+import { db } from '../../config/firebase';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 
 const Tabs = [
   { id: 'compose', label: 'Compose Message', icon: PenNib },
@@ -14,6 +10,24 @@ const Tabs = [
 
 export default function Marketing() {
   const [activeTab, setActiveTab] = useState('compose');
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setCampaigns(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching campaigns:", error);
+        setLoading(false);
+      }
+    );
+    return () => unsub();
+  }, []);
 
   return (
     <div className="animate-fade-in">
@@ -129,12 +143,16 @@ export default function Marketing() {
                 </tr>
               </thead>
               <tbody>
-                {mockCampaigns.map(camp => (
+                {loading ? (
+                  <tr><td colSpan="6" className="table-empty">Loading campaigns...</td></tr>
+                ) : campaigns.length === 0 ? (
+                  <tr><td colSpan="6" className="table-empty">No campaigns found in Firebase</td></tr>
+                ) : campaigns.map(camp => (
                   <tr key={camp.id}>
                     <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{camp.id}</td>
-                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem' }}>{camp.name}</td>
-                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem' }}>{camp.type}</td>
-                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{camp.audience}</td>
+                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem' }}>{camp.name || '—'}</td>
+                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem' }}>{camp.type || '—'}</td>
+                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{camp.audience || '—'}</td>
                     <td style={{ padding: '1rem 1.25rem' }}>
                       <span style={{ 
                         padding: '0.25rem 0.75rem', 
@@ -144,10 +162,10 @@ export default function Marketing() {
                         background: camp.status === 'Active' ? 'var(--success-bg)' : camp.status === 'Draft' ? 'var(--warning-bg)' : 'var(--info-bg)',
                         color: camp.status === 'Active' ? 'var(--success)' : camp.status === 'Draft' ? 'var(--warning)' : 'var(--info)'
                       }}>
-                        {camp.status}
+                        {camp.status || 'Pending'}
                       </span>
                     </td>
-                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{camp.sent}</td>
+                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{camp.sent || 0}</td>
                   </tr>
                 ))}
               </tbody>

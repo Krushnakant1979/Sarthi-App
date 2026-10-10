@@ -14,7 +14,9 @@ import {
   Megaphone,
   Star,
   CarProfile,
-  Headset
+  Headset,
+  Bank,
+  CurrencyInr
 } from '@phosphor-icons/react';
 
 const navItems = [
@@ -22,6 +24,8 @@ const navItems = [
   { name: 'Captains', path: '/captains', icon: SteeringWheel },
   { name: 'Users', path: '/users', icon: Users },
   { name: 'Rides', path: '/rides', icon: Car },
+  { name: 'Finance', path: '/finance', icon: Bank },
+  { name: 'Pricing', path: '/pricing', icon: CurrencyInr },
   { name: 'Offers', path: '/offers', icon: Tag },
   { name: 'Analytics', path: '/analytics', icon: ChartLineUp },
   { name: 'Marketing', path: '/marketing', icon: Megaphone },
@@ -44,7 +48,7 @@ export const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     <aside className={`sidebar ${isExpanded ? 'expanded' : 'collapsed'} ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
       {/* Brand */}
       <div className="sidebar-brand">
-        <div className="sidebar-logo">S</div>
+        <div className="sidebar-logo animate-float">S</div>
         <div className="sidebar-brand-text">
           <span className="brand-name">Sarthi</span>
           <span className="brand-tag">Admin Console</span>

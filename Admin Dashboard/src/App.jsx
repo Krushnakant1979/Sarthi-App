@@ -20,6 +20,8 @@ import { Reviews } from './features/reviews';
 import { Vehicles } from './features/vehicles';
 import { Support } from './features/support';
 import { Login } from './features/auth';
+import { Finance } from './features/finance';
+import { Pricing } from './features/pricing';
 
 function AppInner() {
   const [user, setUser] = useState(null);
@@ -74,6 +76,8 @@ function AppInner() {
             <Route path="rides" element={<Rides />} />
             <Route path="offers" element={<Offers />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="finance" element={<Finance />} />
+            <Route path="pricing" element={<Pricing />} />
             <Route path="marketing" element={<Marketing />} />
             <Route path="reviews" element={<Reviews />} />
             <Route path="vehicles" element={<Vehicles />} />

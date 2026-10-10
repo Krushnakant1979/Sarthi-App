@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../../config/firebase';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { MagnifyingGlass, Circle, Eye, MapTrifold, NavigationArrow, CheckCircle, XCircle } from '@phosphor-icons/react';
 import { RideDetailsModal } from './components/RideDetailsModal';
 import { publicIdService } from '../../services/publicIdService';
@@ -28,18 +28,19 @@ const Rides = () => {
   const [selectedRide, setSelectedRide] = useState(null);
 
   useEffect(() => {
-    const fetchRides = async () => {
-      try {
-        const q = query(collection(db, 'ride_requests'), orderBy('createdAt', 'desc'), limit(200));
-        const snap = await getDocs(q);
+    const q = query(collection(db, 'ride_requests'), orderBy('createdAt', 'desc'), limit(200));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
         setRides(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), publicId: publicIdService.formatId(doc.id) })));
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.error(error);
-      } finally {
         setLoading(false);
       }
-    };
-    fetchRides();
+    );
+    return () => unsub();
   }, []);
 
   const counts = rides.reduce((acc, r) => {
