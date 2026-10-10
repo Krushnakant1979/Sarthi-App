@@ -115,7 +115,7 @@ export default function FeaturesPage() {
             </div>
             <h3 className={styles.cardTitle}>Uncompromised Security</h3>
             <p style={{ color: "var(--gray-500)", marginBottom: "24px", fontSize: "1.1rem", lineHeight: "1.6" }}>
-              Your safety is our top priority. From secure OTP ride starts to continuous trip monitoring, we've built safeguards into every step of your journey.
+              Your safety is our top priority. From secure OTP ride starts to continuous trip monitoring, we&apos;ve built safeguards into every step of your journey.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               <FeatureList items={[
@@ -202,7 +202,7 @@ export default function FeaturesPage() {
         <div className={styles.sectionHeader} style={{ position: "relative", zIndex: 1 }}>
           <h2 className={styles.sectionTitle} style={{ color: "var(--white)", fontSize: "3.5rem" }}>Safety is our priority.</h2>
           <p className={styles.sectionDesc} style={{ color: "rgba(255,255,255,0.7)", fontSize: "1.25rem" }}>
-            We've built robust safety features directly into the core of the Sarthi platform.
+            We&apos;ve built robust safety features directly into the core of the Sarthi platform.
           </p>
         </div>
 

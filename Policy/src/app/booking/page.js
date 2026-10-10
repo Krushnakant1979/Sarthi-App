@@ -48,7 +48,10 @@ function BookingContent() {
 
   useEffect(() => {
     if (activeRideId && !currentRideId) {
-      setCurrentRideId(activeRideId);
+      const timeout = setTimeout(() => {
+        setCurrentRideId(activeRideId);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
   }, [activeRideId, currentRideId]);
 
@@ -124,8 +127,11 @@ function BookingContent() {
   useEffect(() => {
     const p = searchParams.get("pickup");
     const d = searchParams.get("drop");
-    if (p) setPickup(p);
-    if (d) setDrop(d);
+    const timeout = setTimeout(() => {
+      if (p) setPickup(p);
+      if (d) setDrop(d);
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [searchParams]);
 
   // Firestore Snapshot Listener for Live Tracking
@@ -146,6 +152,12 @@ function BookingContent() {
           } catch (err) {
             console.error("Failed to fetch captain data", err);
           }
+        }
+        
+        // Clear captain data and location if no captain is assigned anymore
+        if (!data.assignedCaptainId) {
+          setCaptainData(null);
+          setCaptainLocation(null);
         }
       }
     });
@@ -172,7 +184,7 @@ function BookingContent() {
     });
 
     return () => unsubscribe();
-  }, [activeRide?.assignedCaptainId, activeRide?.status, activeRide?.pickup, captainLocation]);
+  }, [activeRide?.assignedCaptainId, activeRide?.status, activeRide?.pickup]);
 
   // Restore route polyline if missing on page reload
   useEffect(() => {
@@ -266,6 +278,8 @@ function BookingContent() {
   const handleConfirmRide = async () => {
     if (!selectedRide || !routeData) return;
     setBookingStatus("searching");
+    setCaptainLocation(null);
+    setCaptainData(null);
     
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     
@@ -365,6 +379,7 @@ function BookingContent() {
     setCurrentRideId(null);
     setActiveRide(null);
     setCaptainData(null);
+    setCaptainLocation(null);
   };
 
   if (authLoading || !user) return <div className={styles.loader}>Loading...</div>;

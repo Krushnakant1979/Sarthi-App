@@ -414,7 +414,7 @@ export default function Page() {
               <h2 className={styles.appTitle}>Your everyday travel companion</h2>
               <p className={styles.appDesc}>
                 Booking a ride has never been this easy. Open the app, enter 
-                your destination, see live Captains on the map, and you're good 
+                your destination, see live Captains on the map, and you&apos;re good 
                 to go. Clean, intuitive, and lightning fast.
               </p>
               <ul className={styles.appFeatureList}>

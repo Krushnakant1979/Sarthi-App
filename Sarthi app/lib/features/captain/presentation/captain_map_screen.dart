@@ -1808,108 +1808,123 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     const SizedBox(height: 18),
                     StatefulBuilder(
                       builder: (ctx, setInnerState) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: List.generate(4, (index) {
-                              final isFilled = index < _enteredOtp.length;
-                              final isCurrent = index == _enteredOtp.length;
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            // Calculate dynamic sizes to fit all screen sizes properly
+                            final availableWidth = constraints.maxWidth - 32; // 16px padding on each side
+                            final maxBoxWidth = 64.0;
+                            
+                            // 3 gaps between 4 boxes, let's assume approx 10px gap = 30px total
+                            var boxWidth = (availableWidth - 30) / 4;
+                            if (boxWidth > maxBoxWidth) boxWidth = maxBoxWidth;
+                            
+                            final boxHeight = boxWidth * 1.15; // Fixed aspect ratio
+                            final fontSize = boxWidth * 0.45; // Scale font with box size
 
-                              return InkWell(
-                                onTap: () async {
-                                  final entered = await showModalBottomSheet<String>(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    builder: (bctx) {
-                                      return Padding(
-                                        padding: EdgeInsets.only(
-                                            bottom: MediaQuery.of(bctx).viewInsets.bottom),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(24),
-                                          child: TextField(
-                                            keyboardType: TextInputType.number,
-                                            maxLength: 4,
-                                            autofocus: true,
-                                            decoration: const InputDecoration(
-                                              hintText: 'Enter 4-digit OTP',
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: List.generate(4, (index) {
+                                  final isFilled = index < _enteredOtp.length;
+                                  final isCurrent = index == _enteredOtp.length;
+
+                                  return InkWell(
+                                    onTap: () async {
+                                      final entered = await showModalBottomSheet<String>(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        builder: (bctx) {
+                                          return Padding(
+                                            padding: EdgeInsets.only(
+                                                bottom: MediaQuery.of(bctx).viewInsets.bottom),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(24),
+                                              child: TextField(
+                                                keyboardType: TextInputType.number,
+                                                maxLength: 4,
+                                                autofocus: true,
+                                                decoration: const InputDecoration(
+                                                  hintText: 'Enter 4-digit OTP',
+                                                ),
+                                                onChanged: (v) {
+                                                  if (v.length == 4) {
+                                                    Navigator.pop(bctx, v);
+                                                  }
+                                                },
+                                              ),
                                             ),
-                                            onChanged: (v) {
-                                              if (v.length == 4) {
-                                                Navigator.pop(bctx, v);
-                                              }
-                                            },
+                                          );
+                                        },
+                                      );
+
+                                      if (entered != null && entered.length == 4) {
+                                        setInnerState(() {
+                                          _enteredOtp = entered;
+                                        });
+                                        if (_enteredOtp == activeRide['otp']) {
+                                          _runRideAction(
+                                            () => ref.read(captainRepositoryProvider).transitionRide(
+                                                  rideId: rideId,
+                                                  captainId: captainId!,
+                                                  fromStatus: 'arrived',
+                                                  toStatus: 'in_progress',
+                                                ),
+                                          );
+                                        } else {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: const Text('Incorrect OTP! Please check with rider.'),
+                                              backgroundColor: context.colors.error,
+                                            ),
+                                          );
+                                          setInnerState(() {
+                                            _enteredOtp = '';
+                                          });
+                                        }
+                                      }
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      width: boxWidth,
+                                      height: boxHeight,
+                                      decoration: BoxDecoration(
+                                        color: isFilled ? const Color(0xFFF0FDF4) : Colors.white,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: isFilled
+                                              ? const Color(0xFF16B77A)
+                                              : isCurrent
+                                                  ? const Color(0xFF2563EB).withValues(alpha: 0.6)
+                                                  : context.colors.cardBorder,
+                                          width: isFilled || isCurrent ? 2.0 : 1.0,
+                                        ),
+                                        boxShadow: isCurrent
+                                            ? [
+                                                BoxShadow(
+                                                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                                                  blurRadius: 10,
+                                                  spreadRadius: 2,
+                                                )
+                                              ]
+                                            : [],
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          isFilled ? _enteredOtp[index] : '',
+                                          style: TextStyle(
+                                            fontSize: fontSize,
+                                            fontWeight: FontWeight.w800,
+                                            color: isFilled ? const Color(0xFF16B77A) : Colors.transparent,
                                           ),
                                         ),
-                                      );
-                                    },
-                                  );
-
-                                  if (entered != null && entered.length == 4) {
-                                    setInnerState(() {
-                                      _enteredOtp = entered;
-                                    });
-                                    if (_enteredOtp == activeRide['otp']) {
-                                      _runRideAction(
-                                        () => ref.read(captainRepositoryProvider).transitionRide(
-                                              rideId: rideId,
-                                              captainId: captainId!,
-                                              fromStatus: 'arrived',
-                                              toStatus: 'in_progress',
-                                            ),
-                                      );
-                                    } else {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: const Text('Incorrect OTP! Please check with rider.'),
-                                          backgroundColor: context.colors.error,
-                                        ),
-                                      );
-                                      setInnerState(() {
-                                        _enteredOtp = '';
-                                      });
-                                    }
-                                  }
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  width: 56,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    color: isFilled ? const Color(0xFFF0FDF4) : Colors.white,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: isFilled
-                                          ? const Color(0xFF16B77A)
-                                          : isCurrent
-                                              ? const Color(0xFF2563EB).withValues(alpha: 0.6)
-                                              : context.colors.cardBorder,
-                                      width: isFilled || isCurrent ? 2.0 : 1.0,
-                                    ),
-                                    boxShadow: isCurrent
-                                        ? [
-                                            BoxShadow(
-                                              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                                              blurRadius: 10,
-                                              spreadRadius: 2,
-                                            )
-                                          ]
-                                        : [],
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      isFilled ? _enteredOtp[index] : '',
-                                      style: TextStyle(
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.w800,
-                                        color: isFilled ? const Color(0xFF16B77A) : Colors.transparent,
                                       ),
                                     ),
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
+                                  );
+                                }),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),

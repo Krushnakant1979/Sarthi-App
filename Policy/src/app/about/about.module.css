@@ -365,10 +365,11 @@
 .flower {
   position: absolute;
   font-size: 2rem;
-  opacity: 0.7;
+  opacity: 0;
   z-index: 1;
   pointer-events: none;
   animation: floatFlower 15s infinite linear;
+  animation-fill-mode: both;
 }
 
 @keyframes floatFlower {

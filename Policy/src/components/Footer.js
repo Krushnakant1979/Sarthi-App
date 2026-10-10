@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Apple, Play } from "lucide-react";
 import styles from "./components.module.css";
 
@@ -9,7 +10,7 @@ export default function Footer() {
         {/* Brand */}
         <div className={styles.footerBrand}>
           <div className={styles.footerLogo} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <img src="/Sarthi app user logo.png" alt="Sarthi Logo" width="32" height="32" style={{ borderRadius: "8px", objectFit: "contain" }} />
+            <Image src="/Sarthi app user logo.png" alt="Sarthi Logo" width={32} height={32} style={{ borderRadius: "8px", objectFit: "contain" }} />
             Sarthi<span className={styles.footerLogoAccent}>.</span>
           </div>
           <p className={styles.footerTagline}>

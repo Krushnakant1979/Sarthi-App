@@ -22,16 +22,14 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      if (!currentUser) setActiveRideId(null);
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setActiveRideId(null);
-      return;
-    }
+    if (!user) return;
 
     const q = query(
       collection(db, "ride_requests"),

@@ -53,7 +53,7 @@ export default function AboutPage() {
             <div className={styles.missionTextBlock}>
               <h3 className={styles.missionSubtitle}>A Singular Goal</h3>
               <p className={styles.missionText}>
-                Our singular goal is to make reliable transportation accessible to everyone. We believe getting from one place to another should be simple, convenient, and dependable, regardless of where you are or where you're going. Sarthi is being built to remove the complexity from everyday travel and create an experience that puts people first.
+                Our singular goal is to make reliable transportation accessible to everyone. We believe getting from one place to another should be simple, convenient, and dependable, regardless of where you are or where you&apos;re going. Sarthi is being built to remove the complexity from everyday travel and create an experience that puts people first.
               </p>
             </div>
 

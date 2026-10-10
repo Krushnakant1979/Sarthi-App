@@ -48,14 +48,14 @@ export default function ContactPage() {
             {/* Form */}
             <div className={styles.formBox}>
               <h2 className={styles.formTitle}>Send us a message</h2>
-              <p className={styles.formSubtitle}>Fill out the form below and we'll get back to you shortly.</p>
+              <p className={styles.formSubtitle}>Fill out the form below and we&apos;ll get back to you shortly.</p>
 
               {submitted ? (
                 <div className={styles.successBox}>
                   <div className={styles.successIcon}>✅</div>
                   <h3 className={styles.successTitle}>Message Sent!</h3>
                   <p className={styles.successDesc}>
-                    Thanks for reaching out, <strong>{form.name}</strong>. We'll reply to <strong>{form.email}</strong> within 24 hours.
+                    Thanks for reaching out, <strong>{form.name}</strong>. We&apos;ll reply to <strong>{form.email}</strong> within 24 hours.
                   </p>
                   <button className={styles.btnSendAnother} onClick={() => { setSubmitted(false); setForm({ name: "", email: "", phone: "", subject: "", message: "" }); }}>
                     Send Another Message

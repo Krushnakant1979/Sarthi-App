@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/config/firebase";
@@ -85,7 +86,7 @@ export default function Navbar() {
     <nav className={styles.navbar}>
       <div className={styles.navInner}>
         <Link href="/" className={styles.navLogo}>
-          <img src="/Sarthi app user logo.png" alt="Sarthi Logo" width="32" height="32" style={{ borderRadius: "8px", objectFit: "contain" }} />
+          <Image src="/Sarthi app user logo.png" alt="Sarthi Logo" width={32} height={32} style={{ borderRadius: "8px", objectFit: "contain" }} />
           Sarthi<span className={styles.navLogoAccent}>.</span>
         </Link>
 

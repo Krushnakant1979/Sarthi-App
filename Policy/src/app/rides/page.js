@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/config/firebase";
 import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
@@ -14,6 +14,9 @@ export default function MyRides() {
   const router = useRouter();
 
   const [activeFilter, setActiveFilter] = useState('all');
+  const [filterDate, setFilterDate] = useState('');
+  const [selectedRide, setSelectedRide] = useState(null);
+  const datePickerRef = useRef(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -59,20 +62,39 @@ export default function MyRides() {
   const cancelRate = totalRides ? Math.round((cancelledRides / totalRides) * 100) : 0;
 
   // Filters
-  const filteredRides = rides.filter(ride => {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'today' && ride.createdAt) {
+  let filteredRides = rides.filter(ride => {
+    if (filterDate) {
+      if (!ride.createdAt) return false;
       const rideDate = ride.createdAt.toDate();
-      const today = new Date();
-      return rideDate.getDate() === today.getDate() &&
-             rideDate.getMonth() === today.getMonth() &&
-             rideDate.getFullYear() === today.getFullYear();
+      const selected = new Date(filterDate);
+      if (rideDate.getDate() !== selected.getDate() ||
+          rideDate.getMonth() !== selected.getMonth() ||
+          rideDate.getFullYear() !== selected.getFullYear()) {
+        return false;
+      }
+    } else {
+      if (activeFilter === 'today' && ride.createdAt) {
+        const rideDate = ride.createdAt.toDate();
+        const today = new Date();
+        if (rideDate.getDate() !== today.getDate() ||
+            rideDate.getMonth() !== today.getMonth() ||
+            rideDate.getFullYear() !== today.getFullYear()) {
+          return false;
+        }
+      }
     }
+
     if (activeFilter === 'upcoming') return activeStatuses.includes(ride.status);
     if (activeFilter === 'completed') return ride.status === 'completed';
     if (activeFilter === 'cancelled') return ride.status === 'cancelled';
     return true;
   });
+
+  // Limit to last 30 trips if "All Rides" is selected and no date is chosen
+  if (activeFilter === 'all' && !filterDate) {
+    filteredRides = filteredRides.slice(0, 30);
+  }
+
 
   return (
     <div className={styles.dashboard}>
@@ -157,15 +179,29 @@ export default function MyRides() {
         <div className={styles.filterSection}>
           <div className={styles.filterTabs}>
             <button className={`${styles.filterBtn} ${activeFilter === 'all' ? styles.active : ''}`} onClick={() => setActiveFilter('all')}>All Rides</button>
-            <button className={`${styles.filterBtn} ${activeFilter === 'today' ? styles.active : ''}`} onClick={() => setActiveFilter('today')}>Today's Rides</button>
+            <button className={`${styles.filterBtn} ${activeFilter === 'today' ? styles.active : ''}`} onClick={() => setActiveFilter('today')}>Today&apos;s Rides</button>
             <button className={`${styles.filterBtn} ${activeFilter === 'completed' ? styles.active : ''}`} onClick={() => setActiveFilter('completed')}>Completed</button>
             <button className={`${styles.filterBtn} ${activeFilter === 'cancelled' ? styles.active : ''}`} onClick={() => setActiveFilter('cancelled')}>Cancelled</button>
           </div>
           
-          <div className={styles.datePickerBtn}>
+          <div 
+            className={styles.datePickerBtn} 
+            style={{ position: 'relative' }}
+            onClick={() => datePickerRef.current?.showPicker()}
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            Oct 8, 2026 - Oct 8, 2026
+            {filterDate ? new Date(filterDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Select Date'}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+            <input 
+               ref={datePickerRef}
+               type="date"
+               value={filterDate}
+               onChange={(e) => {
+                 setFilterDate(e.target.value);
+                 if (e.target.value) setActiveFilter('all');
+               }}
+               style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+            />
           </div>
         </div>
 
@@ -225,7 +261,7 @@ export default function MyRides() {
                       Track Ride
                     </Link>
                   ) : (
-                    <button className={`${styles.actionBtn} ${styles.btnOutline}`}>
+                    <button className={`${styles.actionBtn} ${styles.btnOutline}`} onClick={() => setSelectedRide(ride)}>
                       View Details &rarr;
                     </button>
                   )}
@@ -236,6 +272,55 @@ export default function MyRides() {
           )}
         </div>
       </main>
+
+      {/* Ride Details Modal */}
+      {selectedRide && (
+        <div className={styles.modalOverlay} onClick={() => setSelectedRide(null)}>
+          <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>Ride Details</h2>
+              <button className={styles.closeBtn} onClick={() => setSelectedRide(null)}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.modalDetailRow}>
+                <span className={styles.modalDetailLabel}>Status</span>
+                <span className={`${styles.statusPill} ${styles[selectedRide.status]}`}>
+                  {selectedRide.status?.toUpperCase()}
+                </span>
+              </div>
+              <div className={styles.modalDetailRow}>
+                <span className={styles.modalDetailLabel}>Date & Time</span>
+                <span className={styles.modalDetailValue}>
+                  {selectedRide.createdAt?.toDate().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div className={styles.modalDetailRow}>
+                <span className={styles.modalDetailLabel}>Pickup</span>
+                <span className={styles.modalDetailValue}>{selectedRide.pickup?.address}</span>
+              </div>
+              <div className={styles.modalDetailRow}>
+                <span className={styles.modalDetailLabel}>Dropoff</span>
+                <span className={styles.modalDetailValue}>{selectedRide.destination?.address}</span>
+              </div>
+              <div className={styles.modalDetailRow}>
+                <span className={styles.modalDetailLabel}>Vehicle Type</span>
+                <span className={styles.modalDetailValue}>{selectedRide.vehicleType?.toUpperCase() || 'CAB'}</span>
+              </div>
+              <div className={styles.modalDetailRow}>
+                <span className={styles.modalDetailLabel}>Fare</span>
+                <span className={styles.modalDetailValue}>₹{selectedRide.fareEstimate}</span>
+              </div>
+              <div className={styles.modalDetailRow} style={{ marginTop: '16px' }}>
+                <button className={`${styles.actionBtn} ${styles.btnSolid}`} onClick={() => setSelectedRide(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
