@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import { createPortal } from 'react-dom';
 import { ConfirmModal } from '../../../components/common/ConfirmModal';
+import { logAdminAction } from '../../../services/auditService';
 
 /* Robustly parse Firestore Timestamp, ISO string, or Date object → readable date */
 const formatDate = (val) => {
@@ -27,6 +28,17 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
   const toast = useToast();
   const [loading, setLoading] = useState(null); // 'verify' | 'reject' | 'delete'
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('Blurry Document Images');
+  const [customRejectReason, setCustomRejectReason] = useState('');
+
+  const REJECT_REASONS = [
+    'Blurry Document Images',
+    'Expired Driving License',
+    'Mismatched Vehicle RC/Insurance',
+    'Incomplete KYC Documents',
+    'Other (Custom Reason)',
+  ];
 
   const handleVerify = async () => {
     setLoading('verify');
@@ -34,6 +46,10 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
       await updateDoc(doc(db, 'users', captain.id), {
         verificationStatus: 'verified',
         verificationUpdatedAt: serverTimestamp(),
+      });
+      await logAdminAction('captain_verification_changed', captain.id, {
+        status: 'verified',
+        captainName: captain.name || '',
       });
       toast('Captain verified and added to the app successfully!', 'success');
       onClose();
@@ -44,14 +60,25 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
     }
   };
 
-  const handleReject = async () => {
+  const confirmReject = async () => {
     setLoading('reject');
     try {
+      const finalReason = rejectReason.startsWith('Other') && customRejectReason.trim()
+        ? customRejectReason.trim()
+        : rejectReason;
+
       await updateDoc(doc(db, 'users', captain.id), {
         verificationStatus: 'rejected',
         verificationUpdatedAt: serverTimestamp(),
+        rejectionReason: finalReason,
       });
-      toast('Captain documents rejected.', 'info');
+      await logAdminAction('captain_verification_changed', captain.id, {
+        status: 'rejected',
+        captainName: captain.name || '',
+        rejectionReason: finalReason,
+      });
+      toast(`Captain documents rejected: ${finalReason}`, 'info');
+      setShowRejectModal(false);
       onClose();
     } catch (e) {
       toast(`Error: ${e.message}`, 'error');
@@ -64,6 +91,9 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
     setLoading('delete');
     try {
       await deleteDoc(doc(db, 'users', captain.id));
+      await logAdminAction('captain_deleted', captain.id, {
+        captainName: captain.name || '',
+      });
       toast('Captain account deleted.', 'info');
       setShowConfirmDelete(false);
       onClose();
@@ -77,9 +107,11 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
   const status = captain.verificationStatus || 'pending';
 
   const docItems = [
-    { label: 'Aadhaar Card',    url: captain.aadhaarCardUrl      },
-    { label: 'Driving Licence', url: captain.drivingLicenceUrl   },
-    { label: 'Profile Photo',   url: captain.profilePictureUrl   },
+    { label: 'Aadhaar Card',          url: captain.aadhaarCardUrl },
+    { label: 'Driving Licence',       url: captain.drivingLicenceUrl },
+    { label: 'Profile Photo',         url: captain.profilePictureUrl },
+    { label: 'RC Book (Registration)', url: captain.rcBookUrl || captain.vehicleDetails?.rcBookUrl },
+    { label: 'Vehicle Insurance',     url: captain.insuranceUrl || captain.vehicleInsuranceUrl || captain.vehicleDetails?.insuranceUrl },
   ];
 
   return createPortal(
@@ -147,7 +179,7 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
               : status === 'rejected' ? 'badge-error'
               : 'badge-warning badge-pulse'
             }`}>
-              {status}
+              {status === 'pending_review' || status === 'pending' ? 'Pending Review' : status}
             </span>
           </div>
 
@@ -183,7 +215,7 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
           <div style={{ marginBottom: '0.625rem', fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
             Submitted Documents
           </div>
-          <div className="doc-preview-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div className="doc-preview-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
             {docItems.map(({ label, url }) => (
               <div key={label} className="doc-preview-card">
                 <div className="doc-preview-label">{label}</div>
@@ -216,7 +248,7 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
           <div style={{ display: 'flex', gap: '0.625rem' }}>
             <button
               className="btn btn-secondary"
-              onClick={handleReject}
+              onClick={() => setShowRejectModal(true)}
               disabled={!!loading || status === 'rejected'}
             >
               <XCircle size={16} weight="bold" />
@@ -234,6 +266,58 @@ export const CaptainVerifyModal = ({ captain, onClose }) => {
           </div>
         </div>
       </div>
+
+      {showRejectModal && (
+        <div className="modal-backdrop animate-fade-in" style={{ zIndex: 1100 }}>
+          <div className="modal-card" style={{ maxWidth: 440, padding: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.5rem', color: 'var(--text-primary)' }}>
+              Reject KYC Documents
+            </h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+              Select the reason why <strong>{captain.name}</strong>'s verification is being rejected:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              {REJECT_REASONS.map(r => (
+                <label key={r} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                  <input
+                    type="radio"
+                    name="rejectReason"
+                    value={r}
+                    checked={rejectReason === r}
+                    onChange={() => setRejectReason(r)}
+                  />
+                  <span>{r}</span>
+                </label>
+              ))}
+            </div>
+            {rejectReason.startsWith('Other') && (
+              <textarea
+                className="input"
+                style={{ width: '100%', minHeight: 70, marginBottom: '1rem', padding: '0.5rem', fontSize: '0.85rem' }}
+                placeholder="Specify rejection details..."
+                value={customRejectReason}
+                onChange={(e) => setCustomRejectReason(e.target.value)}
+              />
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowRejectModal(false)}
+                disabled={loading === 'reject'}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={confirmReject}
+                disabled={loading === 'reject'}
+              >
+                {loading === 'reject' ? 'Rejecting...' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={showConfirmDelete}

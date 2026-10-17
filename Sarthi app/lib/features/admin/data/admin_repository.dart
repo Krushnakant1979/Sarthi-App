@@ -91,15 +91,25 @@ class AdminRepository {
     await _writeAudit('user_role_changed', uid, {'role': role});
   }
 
-  Future<void> updateCaptainVerification(String uid, String status) async {
+  Future<void> updateCaptainVerification(
+    String uid,
+    String status, {
+    String? rejectionReason,
+  }) async {
     if (!const {'verified', 'rejected'}.contains(status)) {
       throw ArgumentError.value(status, 'status');
     }
     await _firestore.collection('users').doc(uid).update({
       'verificationStatus': status,
       'verificationUpdatedAt': FieldValue.serverTimestamp(),
+      if (rejectionReason != null && rejectionReason.isNotEmpty)
+        'rejectionReason': rejectionReason,
     });
-    await _writeAudit('captain_verification_changed', uid, {'status': status});
+    await _writeAudit('captain_verification_changed', uid, {
+      'status': status,
+      if (rejectionReason != null && rejectionReason.isNotEmpty)
+        'rejectionReason': rejectionReason,
+    });
   }
 
   Future<void> updateFareRules(
@@ -119,13 +129,20 @@ class AdminRepository {
   ) async {
     final payload = {
       'baseFare': baseFare,
+      'base': baseFare,
       'includedDistanceKm': includedDistanceKm,
+      'includedDistance': includedDistanceKm,
       'perKm': perKm,
+      'perKmFare': perKm,
       'perMin': perMin,
+      'perMinuteFare': perMin,
       'minimumFare': minimumFare,
       'freeWaitingMinutes': freeWaitingMinutes,
+      'freeWaitingTime': freeWaitingMinutes,
       'waitingPerMin': waitingPerMin,
+      'waitingChargePerMin': waitingPerMin,
       'surgeEnabled': surgeEnabled,
+      'dynamicPricingEnabled': surgeEnabled,
       'surgeMultiplier': surgeMultiplier,
       'surgeReason': surgeReason,
       'surgeStartAt': surgeStartAt != null
@@ -139,6 +156,12 @@ class AdminRepository {
     await _firestore
         .collection('fare_rules')
         .doc('${vehicleType}_default')
+        .set(payload, SetOptions(merge: true));
+
+    // Dual-write to pricing collection for backward compatibility
+    await _firestore
+        .collection('pricing')
+        .doc(vehicleType)
         .set(payload, SetOptions(merge: true));
 
     // Write audit logic
@@ -155,29 +178,83 @@ class AdminRepository {
   Future<void> settleCaptainPayout(
     String captainId,
     List<String> rideIds,
-    double amount,
-  ) async {
-    final batch = _firestore.batch();
-    for (final rideId in rideIds) {
-      batch.update(_firestore.collection('ride_requests').doc(rideId), {
-        'isSettled': true,
-      });
+    double amount, {
+    String? captainName,
+  }) async {
+    const chunkSize = 400;
+    for (var i = 0; i < rideIds.length; i += chunkSize) {
+      final chunk = rideIds.sublist(
+        i,
+        i + chunkSize > rideIds.length ? rideIds.length : i + chunkSize,
+      );
+      final batch = _firestore.batch();
+      for (final rideId in chunk) {
+        batch.update(_firestore.collection('ride_requests').doc(rideId), {
+          'isSettled': true,
+        });
+      }
+      await batch.commit();
     }
 
-    final payoutRef = _firestore.collection('payout_history').doc();
-    batch.set(payoutRef, {
+    final payoutPayload = {
       'captainId': captainId,
+      if (captainName != null && captainName.isNotEmpty) 'captainName': captainName,
       'amount': amount,
       'rideIds': rideIds,
+      'rideCount': rideIds.length,
       'status': 'completed',
       'settledAt': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
       'settledBy': _auth.currentUser?.uid,
-    });
+    };
 
-    await batch.commit();
+    final payoutRef = _firestore.collection('payout_history').doc();
+    await payoutRef.set(payoutPayload);
+
+    // Dual-write to legacy payouts collection for backward compatibility
+    final legacyPayoutRef = _firestore.collection('payouts').doc();
+    await legacyPayoutRef.set(payoutPayload);
+
     await _writeAudit('payout_settled', captainId, {
+      if (captainName != null && captainName.isNotEmpty) 'captainName': captainName,
       'amount': amount,
       'ridesCount': rideIds.length,
+    });
+  }
+
+  Future<void> forceCancelRide(
+    String rideId, {
+    required String reason,
+    required String previousStatus,
+    String? userId,
+    String? captainId,
+  }) async {
+    final rideRef = _firestore.collection('ride_requests').doc(rideId);
+    await rideRef.update({
+      'status': 'cancelled',
+      'cancelReason': reason,
+      'cancelledBy': 'admin',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    if (captainId != null && captainId.isNotEmpty) {
+      try {
+        await _firestore.collection('users').doc(captainId).update({
+          'onTrip': false,
+          'isAvailable': true,
+          'currentRideId': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        // Continue if captain document does not have onTrip field
+      }
+    }
+
+    await _writeAudit('ride_force_cancelled', rideId, {
+      'reason': reason,
+      'previousStatus': previousStatus,
+      'userId': userId,
+      'captainId': captainId,
     });
   }
 
@@ -214,6 +291,9 @@ class AdminRepository {
     offerData['createdAt'] = FieldValue.serverTimestamp();
     offerData['createdBy'] = _auth.currentUser?.uid;
     if (!offerData.containsKey('status')) offerData['status'] = 'published';
+    if (!offerData.containsKey('isActive')) {
+      offerData['isActive'] = (offerData['status'] == 'published');
+    }
     final ref = await _firestore.collection('offers').add(offerData);
     await _writeAudit('offer_created', ref.id, offerData);
   }
@@ -342,7 +422,7 @@ class AdminRepository {
           if (!doc.exists) {
             return {
               'isPlatformActive': true,
-              'supportEmail': 'support@rapido.com',
+              'supportEmail': 'support@sarthi.com',
               'supportPhone': '1800-000-000',
               'activeZones': <String>[],
             };
@@ -398,6 +478,148 @@ class AdminRepository {
     await _writeAudit('ticket_resolved', ticketId, {
       'resolutionMessage': resolutionMessage,
     });
+  }
+
+  Stream<List<Map<String, dynamic>>> streamCampaigns() {
+    return _firestore
+        .collection('campaigns')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return data;
+          }).toList();
+        });
+  }
+
+  Future<void> createCampaign({
+    required String title,
+    required String message,
+    required String audience,
+    required String channel,
+    String? subject,
+  }) async {
+    int recipientCount = 1;
+    try {
+      Query<Map<String, dynamic>> audQuery;
+      if (audience == 'captains' || audience == 'drivers') {
+        audQuery = _firestore.collection('users').where('role', isEqualTo: 'captain');
+      } else if (audience == 'riders' || audience == 'users' || audience == 'passengers') {
+        audQuery = _firestore.collection('users').where('role', isEqualTo: 'user');
+      } else {
+        audQuery = _firestore.collection('users');
+      }
+      final countSnap = await audQuery.count().get();
+      recipientCount = countSnap.count ?? 1;
+    } catch (_) {
+      recipientCount = 1;
+    }
+
+    final campaignRef = await _firestore.collection('campaigns').add({
+      'title': title,
+      'name': title,
+      'subject': subject ?? title,
+      'message': message,
+      'body': message,
+      'audience': audience,
+      'channel': channel,
+      'type': channel == 'push' ? 'Push Notification' : (channel == 'sms' ? 'SMS Campaign' : channel),
+      'status': 'Active',
+      'sent': recipientCount,
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdBy': _auth.currentUser?.email ?? 'Admin',
+    });
+
+    if (channel == 'push') {
+      try {
+        await _firestore.collection('broadcast_notifications').add({
+          'title': title,
+          'message': message,
+          'audience': audience,
+          'targetRole': audience == 'captains' ? 'captain' : (audience == 'riders' ? 'user' : 'all'),
+          'campaignId': campaignRef.id,
+          'createdAt': FieldValue.serverTimestamp(),
+          'status': 'active',
+        });
+      } catch (_) {
+        // Fallback gracefully
+      }
+    }
+
+    await _writeAudit('campaign_created', title, {
+      'audience': audience,
+      'channel': channel,
+      'sent': recipientCount,
+    });
+  }
+
+  Future<double> fetchTotalRevenue() async {
+    try {
+      final snap = await _firestore
+          .collection('ride_requests')
+          .where('status', isEqualTo: 'completed')
+          .get();
+      double total = 0.0;
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        total += ((d['actualFare'] ?? d['finalFare'] ?? d['fareEstimate']) as num?)?.toDouble() ?? 0.0;
+      }
+      return total;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  Stream<List<Map<String, dynamic>>> streamReviews() {
+    return _firestore
+        .collection('reviews')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return data;
+          }).toList();
+        });
+  }
+
+  Future<void> updateReviewStatus(String reviewId, String status) async {
+    await _firestore.collection('reviews').doc(reviewId).update({
+      'status': status,
+      'moderatedAt': FieldValue.serverTimestamp(),
+      'moderatedBy': _auth.currentUser?.email ?? 'Admin',
+    });
+    await _writeAudit('review_moderated', reviewId, {'status': status});
+  }
+
+  Stream<List<Map<String, dynamic>>> streamActiveEmergencyEvents() {
+    return _firestore
+        .collection('emergency_events')
+        .where('status', isEqualTo: 'active')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return data;
+          }).toList();
+        });
+  }
+
+  Future<void> resolveEmergencyEvent(
+    String eventId,
+    String resolutionNotes,
+  ) async {
+    await _firestore.collection('emergency_events').doc(eventId).update({
+      'status': 'resolved',
+      'resolutionNotes': resolutionNotes,
+      'resolvedAt': FieldValue.serverTimestamp(),
+      'resolvedBy': _auth.currentUser?.email ?? _auth.currentUser?.uid,
+    });
+    await _writeAudit('emergency_resolved', eventId, {'notes': resolutionNotes});
   }
 
   Future<void> _writeAudit(

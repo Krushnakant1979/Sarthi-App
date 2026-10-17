@@ -9,6 +9,7 @@ class CaptainFoundBottomSheet extends StatelessWidget {
   final dynamic fare;
   final String status;
   final String? captainId;
+  final VoidCallback? onCancelRide;
 
   const CaptainFoundBottomSheet({
     super.key,
@@ -16,6 +17,7 @@ class CaptainFoundBottomSheet extends StatelessWidget {
     required this.fare,
     required this.status,
     this.captainId,
+    this.onCancelRide,
   });
 
   @override
@@ -314,6 +316,27 @@ class CaptainFoundBottomSheet extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+          if (onCancelRide != null) ...[
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onCancelRide,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              label: const Text('Cancel Ride'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFDC2626),
+                backgroundColor: const Color(0xFFFFF7F7),
+                side: const BorderSide(color: Color(0xFFFECACA)),
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],

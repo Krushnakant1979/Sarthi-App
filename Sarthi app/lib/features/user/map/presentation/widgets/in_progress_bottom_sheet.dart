@@ -1,9 +1,21 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../../core/design/tokens.dart';
 import 'drag_handle.dart';
 
 class InProgressBottomSheet extends StatelessWidget {
-  const InProgressBottomSheet({super.key});
+  const InProgressBottomSheet({
+    super.key,
+    this.rideId,
+    this.captainId,
+    this.rideData,
+  });
+
+  final String? rideId;
+  final String? captainId;
+  final Map<String, dynamic>? rideData;
 
   @override
   Widget build(BuildContext context) {
@@ -187,14 +199,19 @@ class InProgressBottomSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Trip tracking link copied to clipboard!',
+                  onPressed: () async {
+                    final trackingUrl = 'https://sarthi.app/track/${rideId ?? ''}';
+                    await Clipboard.setData(ClipboardData(text: trackingUrl));
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Trip tracking link copied to clipboard!',
+                          ),
+                          behavior: SnackBarBehavior.floating,
                         ),
-                      ),
-                    );
+                      );
+                    }
                   },
                   icon: const Icon(Icons.share_rounded, size: 16),
                   label: const Text('Share Trip'),
@@ -216,15 +233,50 @@ class InProgressBottomSheet extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text(
-                          'SOS Alert sent to Admin & Emergency Contacts!',
-                        ),
-                        backgroundColor: context.colors.error,
-                      ),
-                    );
+                  onPressed: () async {
+                    try {
+                      final authUid = FirebaseAuth.instance.currentUser?.uid;
+                      await FirebaseFirestore.instance
+                          .collection('emergency_events')
+                          .add({
+                        'rideId': rideId,
+                        'userId': authUid ?? rideData?['userId'],
+                        'captainId': captainId ?? rideData?['assignedCaptainId'],
+                        'pickupAddress': rideData?['pickupLocation'] is Map
+                            ? rideData!['pickupLocation']['address']
+                            : (rideData?['pickupAddress'] ?? 'Live Location'),
+                        'destinationAddress': rideData?['destinationLocation'] is Map
+                            ? rideData!['destinationLocation']['address']
+                            : (rideData?['destinationAddress'] ?? 'Live Destination'),
+                        'status': 'active',
+                        'reportedBy': 'rider',
+                        'timestamp': FieldValue.serverTimestamp(),
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '🚨 SOS Alert dispatched to Admin & Emergency Team!',
+                            ),
+                            backgroundColor: Color(0xFFDC2626),
+                            duration: Duration(seconds: 4),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Emergency alert failed to send. Please call emergency services (112) directly! ($e)',
+                            ),
+                            backgroundColor: context.colors.error,
+                            duration: const Duration(seconds: 5),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    }
                   },
                   icon: const Icon(Icons.shield_rounded, size: 16),
                   label: const Text('SOS Shield'),

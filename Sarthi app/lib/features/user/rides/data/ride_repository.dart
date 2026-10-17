@@ -30,6 +30,16 @@ class RideRepository {
     double? discountAmount,
     Map<String, dynamic>? fareBreakdown,
   }) async {
+    // Check if platform operations are temporarily suspended
+    try {
+      final configDoc = await _firestore.collection('config').doc('global_settings').get();
+      if (configDoc.exists && configDoc.data()?['isPlatformActive'] == false) {
+        throw Exception('Platform is temporarily paused for maintenance. Please check back shortly.');
+      }
+    } catch (e) {
+      if (e.toString().contains('Platform is temporarily paused')) rethrow;
+    }
+
     final docRef = _firestore.collection('ride_requests').doc();
 
     // Generate a random 4-digit OTP

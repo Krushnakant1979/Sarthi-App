@@ -4,7 +4,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:sarthi_app/app/router.dart';
 import 'package:sarthi_app/app/app_config.dart';
 import 'package:sarthi_app/core/utils/location_service.dart';
 import 'package:sarthi_app/core/error/error_logger.dart';
@@ -20,7 +19,9 @@ Future<void> bootstrap({required String env, required AppType appType}) async {
   await Firebase.initializeApp();
 
   // Initialize App Check (using debug for now, can be configured for prod)
+  // ignore: deprecated_member_use
   await FirebaseAppCheck.instance.activate(
+    // ignore: deprecated_member_use
     androidProvider: env == 'dev' ? AndroidProvider.debug : AndroidProvider.playIntegrity,
   );
 

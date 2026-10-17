@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../admin_design.dart';
 import '../admin_dashboard_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -298,16 +299,18 @@ class AsyncPage extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) {
-    if (loading)
+    if (loading) {
       return Center(
         child: CircularProgressIndicator(color: context.colors.adminAccent),
       );
-    if (error != null)
+    }
+    if (error != null) {
       return EmptyState(
         icon: Icons.cloud_off_rounded,
         title: 'Could not load data',
         subtitle: friendlyError(error!),
       );
+    }
     return child;
   }
 }
@@ -413,4 +416,173 @@ class DividerRow extends StatelessWidget {
     indent: 16,
     endIndent: 16,
   );
+}
+
+// ─── Sliding Segmented Control ────────────────────────────────────────────────
+class AdminSlidingSegment<T> {
+  const AdminSlidingSegment({
+    required this.value,
+    required this.label,
+    this.icon,
+  });
+
+  final T value;
+  final String label;
+  final IconData? icon;
+}
+
+class AdminSlidingSegmentedControl<T> extends StatelessWidget {
+  const AdminSlidingSegmentedControl({
+    super.key,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.backgroundColor,
+    this.indicatorColor,
+    this.selectedTextColor = Colors.white,
+    this.unselectedTextColor,
+    this.borderRadius = 14,
+    this.padding = const EdgeInsets.all(4),
+    this.itemPadding = const EdgeInsets.symmetric(vertical: 8),
+    this.fontSize = 11,
+    this.shadowColor,
+  });
+
+  final T value;
+  final List<AdminSlidingSegment<T>> items;
+  final ValueChanged<T> onChanged;
+  final Color? backgroundColor;
+  final Color? indicatorColor;
+  final Color selectedTextColor;
+  final Color? unselectedTextColor;
+  final double borderRadius;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry itemPadding;
+  final double fontSize;
+  final Color? shadowColor;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    final activeIndex = items.indexWhere((item) => item.value == value);
+    final selectedIndex = activeIndex >= 0 ? activeIndex : 0;
+    final count = items.length;
+    final bgColor = backgroundColor ?? AdminColors.background;
+    final indColor = indicatorColor ?? AdminColors.primary;
+    final unselColor = unselectedTextColor ?? AdminColors.textSecondary;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      padding: padding,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+
+          void handlePosition(double dx) {
+            if (width <= 0 || count <= 0) return;
+            final fraction = (dx / width).clamp(0.0, 0.999);
+            final index = (fraction * count).floor().clamp(0, count - 1);
+            if (items[index].value != value) {
+              HapticFeedback.selectionClick();
+              onChanged(items[index].value);
+            }
+          }
+
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) => handlePosition(details.localPosition.dx),
+            onHorizontalDragDown: (details) => handlePosition(details.localPosition.dx),
+            onHorizontalDragUpdate: (details) => handlePosition(details.localPosition.dx),
+            child: Stack(
+              children: [
+                // Smooth sliding indicator pill
+                Positioned.fill(
+                  child: AnimatedAlign(
+                    alignment: Alignment(
+                      count > 1
+                          ? -1.0 + (selectedIndex * 2.0 / (count - 1))
+                          : 0.0,
+                      0.0,
+                    ),
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    child: FractionallySizedBox(
+                      widthFactor: 1.0 / count,
+                      heightFactor: 1.0,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 1),
+                        decoration: BoxDecoration(
+                          color: indColor,
+                          borderRadius: BorderRadius.circular(
+                            (borderRadius - 4).clamp(4.0, 30.0),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (shadowColor ?? Colors.black).withValues(alpha: 0.12),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Segment content
+                Row(
+                  children: items.map((item) {
+                    final isSelected = item.value == value;
+                    return Expanded(
+                      child: Container(
+                        padding: itemPadding,
+                        alignment: Alignment.center,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (item.icon != null) ...[
+                              Icon(
+                                item.icon,
+                                size: fontSize + 3,
+                                color: isSelected ? selectedTextColor : unselColor,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Flexible(
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 200),
+                                style: GoogleFonts.inter(
+                                  fontSize: fontSize,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                  color: isSelected
+                                      ? selectedTextColor
+                                      : unselColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                child: Text(
+                                  item.label,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 }

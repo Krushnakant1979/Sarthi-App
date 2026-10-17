@@ -16,6 +16,8 @@ export const ToastProvider = ({ children }) => {
 
   const icons = { success: CheckCircle, error: XCircle, info: Info };
 
+  addToast.showToast = addToast;
+
   return (
     <ToastContext.Provider value={addToast}>
       {children}

@@ -79,6 +79,18 @@ class CaptainDocumentsDialog extends StatelessWidget {
                           url: user.drivingLicenceUrl,
                           width: width,
                         ),
+                        if (user.rcBookUrl != null)
+                          DocumentPreview(
+                            label: 'RC Book (Vehicle Reg)',
+                            url: user.rcBookUrl,
+                            width: width,
+                          ),
+                        if (user.insuranceUrl != null)
+                          DocumentPreview(
+                            label: 'Vehicle Insurance',
+                            url: user.insuranceUrl,
+                            width: width,
+                          ),
                       ],
                     );
                   },

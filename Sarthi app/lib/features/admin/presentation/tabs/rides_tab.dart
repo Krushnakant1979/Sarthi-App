@@ -6,6 +6,7 @@ import '../admin_providers.dart';
 import '../admin_design.dart';
 import '../../../shared/auth/domain/app_user.dart';
 import '../admin_dashboard_screen.dart';
+import '../widgets/admin_common_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ─── Status Helpers ─────────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ class RidesTabState extends ConsumerState<RidesTab> {
   String status = 'all';
   String search = '';
   String sort = 'newest';
+  int _displayLimit = 25;
   final TextEditingController _searchCtrl = TextEditingController();
 
   @override
@@ -133,8 +135,9 @@ class RidesTabState extends ConsumerState<RidesTab> {
     // Final filtered list based on selected status
     final rides = filteredByDateAndSearch.where((ride) {
       if (status == 'all') return true;
-      if (status == 'active')
+      if (status == 'active') {
         return !{'completed', 'cancelled'}.contains(ride['status']);
+      }
       return ride['status'] == status;
     }).toList();
 
@@ -211,34 +214,23 @@ class RidesTabState extends ConsumerState<RidesTab> {
                 SizedBox(height: 18),
 
                 // Status Filters
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _StatusChip(
-                      label: 'All',
-                      value: 'all',
-                      current: status,
-                      onTap: (v) => setState(() => status = v),
-                    ),
-                    _StatusChip(
-                      label: 'Completed',
-                      value: 'completed',
-                      current: status,
-                      onTap: (v) => setState(() => status = v),
-                    ),
-                    _StatusChip(
-                      label: 'Cancelled',
-                      value: 'cancelled',
-                      current: status,
-                      onTap: (v) => setState(() => status = v),
-                    ),
-                    _StatusChip(
-                      label: 'Active',
-                      value: 'active',
-                      current: status,
-                      onTap: (v) => setState(() => status = v),
-                    ),
+                AdminSlidingSegmentedControl<String>(
+                  value: status,
+                  items: const [
+                    AdminSlidingSegment(value: 'all', label: 'All'),
+                    AdminSlidingSegment(value: 'completed', label: 'Completed'),
+                    AdminSlidingSegment(value: 'cancelled', label: 'Cancelled'),
+                    AdminSlidingSegment(value: 'active', label: 'Active'),
                   ],
+                  fontSize: 11,
+                  indicatorColor: switch (status) {
+                    'completed' => AdminColors.success,
+                    'cancelled' => AdminColors.error,
+                    'active' => AdminColors.secondary,
+                    _ => AdminColors.primary,
+                  },
+                  itemPadding: const EdgeInsets.symmetric(vertical: 8),
+                  onChanged: (v) => setState(() => status = v),
                 ),
               ],
             ),
@@ -282,20 +274,85 @@ class RidesTabState extends ConsumerState<RidesTab> {
                       status = 'all';
                       sort = 'newest';
                       range = RideRange.today;
+                      _displayLimit = 25;
                     });
                   },
                 )
               : RefreshIndicator(
                   color: AdminColors.primary,
                   onRefresh: () async => ref.invalidate(allRidesProvider),
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                    itemCount: rides.length,
-                    itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: RideCard(ride: rides[i]),
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      final visibleRides = rides.take(_displayLimit).toList();
+                      final hasMore = rides.length > _displayLimit;
+
+                      return CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                            sliver: AdminResponsive.isWide(context)
+                                ? SliverGrid(
+                                    gridDelegate:
+                                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                                      maxCrossAxisExtent: 540,
+                                      mainAxisExtent: 136,
+                                      crossAxisSpacing: 14,
+                                      mainAxisSpacing: 12,
+                                    ),
+                                    delegate: SliverChildBuilderDelegate(
+                                      (_, i) => RideCard(ride: visibleRides[i]),
+                                      childCount: visibleRides.length,
+                                    ),
+                                  )
+                                : SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (_, i) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: RideCard(ride: visibleRides[i]),
+                                      ),
+                                      childCount: visibleRides.length,
+                                    ),
+                                  ),
+                          ),
+                          if (hasMore)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                                child: Center(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      HapticFeedback.lightImpact();
+                                      setState(() => _displayLimit += 25);
+                                    },
+                                    icon: const Icon(Icons.expand_more_rounded, size: 18),
+                                    label: Text(
+                                      'Load More (${rides.length - visibleRides.length} more)',
+                                      style: GoogleFonts.inter(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AdminColors.primary,
+                                      side: const BorderSide(color: AdminColors.primary),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                        ],
+                      );
+                    },
                   ),
                 ),
         ),
@@ -311,127 +368,19 @@ class _DateSegmentedControl extends StatelessWidget {
   final ValueChanged<RideRange> onChanged;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(2),
-    decoration: BoxDecoration(
-      color: AdminColors.background,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: AdminColors.border.withValues(alpha: 0.5)),
-    ),
-    child: Row(
-      children: [
-        _Segment(
-          label: 'Today',
-          selected: range == RideRange.today,
-          onTap: () => onChanged(RideRange.today),
-        ),
-        _Segment(
-          label: 'Last 30 Days',
-          selected: range == RideRange.last30Days,
-          onTap: () => onChanged(RideRange.last30Days),
-        ),
-        _Segment(
-          label: 'All Time',
-          selected: range == RideRange.all,
-          onTap: () => onChanged(RideRange.all),
-        ),
-      ],
-    ),
-  );
-}
-
-class _Segment extends StatelessWidget {
-  const _Segment({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-    child: GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AdminColors.secondary : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: AdminColors.secondary.withValues(alpha: 0.3),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-            color: selected ? Colors.white : AdminColors.textSecondary,
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-// ─── Status Chip ────────────────────────────────────────────────────────────────
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.label,
-    required this.value,
-    required this.current,
-    required this.onTap,
-  });
-  final String label, value, current;
-  final ValueChanged<String> onTap;
-
-  @override
   Widget build(BuildContext context) {
-    final sel = current == value;
-    final color = switch (value) {
-      'completed' => AdminColors.success,
-      'cancelled' => AdminColors.error,
-      'active' => AdminColors.secondary,
-      _ => AdminColors.primary,
-    };
-
-    return GestureDetector(
-      onTap: () => onTap(value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 10,
-        ), // Increased
-        decoration: BoxDecoration(
-          color: sel ? color : color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: sel ? color : color.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
-                color: sel ? Colors.white : color,
-              ),
-            ), // Increased font size
-          ],
-        ),
-      ),
+    const items = [
+      AdminSlidingSegment(value: RideRange.today, label: 'Today'),
+      AdminSlidingSegment(value: RideRange.last30Days, label: 'Last 30 Days'),
+      AdminSlidingSegment(value: RideRange.all, label: 'All Time'),
+    ];
+    return AdminSlidingSegmentedControl<RideRange>(
+      value: range,
+      items: items,
+      fontSize: 11,
+      indicatorColor: AdminColors.secondary,
+      itemPadding: const EdgeInsets.symmetric(vertical: 8),
+      onChanged: onChanged,
     );
   }
 }
@@ -561,11 +510,9 @@ class RideCard extends StatelessWidget {
         ride['destination']?['address']?.toString() ?? 'Destination unknown';
     final vehicleType = ride['vehicleType'] as String?;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: AdminColors.card,
-        borderRadius: BorderRadius.circular(18),
+    return Material(
+      color: AdminColors.card,
+      borderRadius: BorderRadius.circular(18),
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () {
@@ -574,7 +521,10 @@ class RideCard extends StatelessWidget {
               context: context,
               isScrollControlled: true,
               backgroundColor: Colors.transparent,
-              builder: (_) => RideDetails(ride: ride),
+              builder: (_) => buildResponsiveSheet(
+                context,
+                child: RideDetails(ride: ride),
+              ),
             );
           },
           child: Container(
@@ -739,8 +689,7 @@ class RideCard extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -773,12 +722,12 @@ class _StatusBadge extends StatelessWidget {
 }
 
 // ─── Ride Details Bottom Sheet ─────────────────────────────────────────────────
-class RideDetails extends StatelessWidget {
+class RideDetails extends ConsumerWidget {
   const RideDetails({super.key, required this.ride});
   final Map<String, dynamic> ride;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final date = rideDate(ride);
     final status = ride['status'] as String? ?? 'unknown';
     final color = _statusColor(status);
@@ -1116,6 +1065,48 @@ class RideDetails extends StatelessWidget {
                         ), // Decreased radius
                       ),
                     ),
+                    if (const [
+                      'searching',
+                      'pending',
+                      'accepted',
+                      'arriving',
+                      'arrived',
+                      'in_progress',
+                      'ongoing',
+                    ].contains(status)) ...[
+                      SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showCancelDialog(
+                            context,
+                            ref,
+                            rideId,
+                            status,
+                          ),
+                          icon: const Icon(
+                            Icons.cancel_outlined,
+                            color: AdminColors.error,
+                            size: 18,
+                          ),
+                          label: Text(
+                            'Force Cancel Ride (Admin Override)',
+                            style: GoogleFonts.inter(
+                              color: AdminColors.error,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AdminColors.error),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     SizedBox(height: 12),
                   ],
                 ),
@@ -1123,6 +1114,145 @@ class RideDetails extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showCancelDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String rideId,
+    String status,
+  ) {
+    final reasonCtrl = TextEditingController(
+      text: 'Cancelled by admin dispatcher',
+    );
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AdminColors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: AdminColors.error,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Force Cancel Ride',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: AdminColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Cancelling this active trip will release the user lock and notify participants. Specify the reason below:',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AdminColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 2,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: AdminColors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Enter cancellation reason...',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AdminColors.textSecondary,
+                ),
+                filled: true,
+                fillColor: AdminColors.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AdminColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AdminColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AdminColors.error),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(
+              'Dismiss',
+              style: GoogleFonts.inter(color: AdminColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () async {
+              final reason = reasonCtrl.text.trim().isEmpty
+                  ? 'Cancelled by admin dispatcher'
+                  : reasonCtrl.text.trim();
+              Navigator.pop(dialogCtx);
+              try {
+                await ref.read(adminRepositoryProvider).forceCancelRide(
+                  rideId,
+                  reason: reason,
+                  previousStatus: status,
+                  userId: ride['userId']?.toString(),
+                  captainId: (ride['assignedCaptainId'] ?? ride['captainId'])
+                      ?.toString(),
+                );
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Ride force-cancelled and passenger released.',
+                      ),
+                      backgroundColor: AdminColors.error,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to cancel ride: $e'),
+                      backgroundColor: AdminColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            child: Text(
+              'Force Cancel',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
       ),
     );
   }

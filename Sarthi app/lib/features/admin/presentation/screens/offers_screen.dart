@@ -6,7 +6,15 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../admin_design.dart';
 import '../admin_providers.dart';
+import '../widgets/admin_common_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+DateTime? _parseOfferDate(dynamic val) {
+  if (val is Timestamp) return val.toDate();
+  if (val is DateTime) return val;
+  if (val is String) return DateTime.tryParse(val);
+  return null;
+}
 
 class OffersScreen extends ConsumerWidget {
   const OffersScreen({super.key});
@@ -27,12 +35,8 @@ class OffersScreen extends ConsumerWidget {
             o['status'] as String? ??
             (o['isActive'] == true ? 'published' : 'draft');
         if (status == 'published') {
-          DateTime? start;
-          if (o['startDate'] != null)
-            start = (o['startDate'] as dynamic).toDate();
-          DateTime? expiry;
-          if (o['expiryDate'] != null)
-            expiry = (o['expiryDate'] as dynamic).toDate();
+          final start = _parseOfferDate(o['startDate']);
+          final expiry = _parseOfferDate(o['expiryDate']);
 
           if (expiry != null && expiry.isBefore(now)) {
             expiredCount++;
@@ -247,8 +251,9 @@ class OffersScreen extends ConsumerWidget {
                           ),
                         ],
                         onChanged: (val) {
-                          if (val != null)
+                          if (val != null) {
                             ref.read(offersSortProvider.notifier).state = val;
+                          }
                         },
                       ),
                     ],
@@ -376,47 +381,24 @@ class _OffersFilterTabs extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedTab = ref.watch(offersTabProvider);
-    final tabs = ['All', 'Active', 'Scheduled', 'Expired'];
+    const tabs = [
+      AdminSlidingSegment(value: 'All', label: 'All'),
+      AdminSlidingSegment(value: 'Active', label: 'Active'),
+      AdminSlidingSegment(value: 'Scheduled', label: 'Scheduled'),
+      AdminSlidingSegment(value: 'Expired', label: 'Expired'),
+    ];
 
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: context.colors.cardBorder),
-      ),
-      child: Row(
-        children: tabs.map((tab) {
-          final isSelected = selectedTab == tab;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                ref.read(offersTabProvider.notifier).state = tab;
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF0B1F3A)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  tab,
-                  style: GoogleFonts.inter(
-                    color: isSelected ? Colors.white : context.colors.textMuted,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+    return AdminSlidingSegmentedControl<String>(
+      value: selectedTab,
+      items: tabs,
+      fontSize: 11,
+      backgroundColor: context.colors.surface,
+      indicatorColor: const Color(0xFF0B1F3A),
+      unselectedTextColor: context.colors.textMuted,
+      itemPadding: const EdgeInsets.symmetric(vertical: 8),
+      onChanged: (tab) {
+        ref.read(offersTabProvider.notifier).state = tab;
+      },
     );
   }
 }
@@ -695,9 +677,7 @@ class _OfferCard extends StatelessWidget {
     final isFlat = offer['type'] == 'flat';
     final valStr = isFlat ? '₹${offer['value']}' : '${offer['value']}% OFF';
 
-    DateTime? expiry;
-    if (offer['expiryDate'] != null)
-      expiry = (offer['expiryDate'] as dynamic).toDate();
+    final expiry = _parseOfferDate(offer['expiryDate']);
 
     Color statusColor;
     switch (liveStatus) {
@@ -1188,13 +1168,16 @@ class _CreateOfferScreenState extends ConsumerState<CreateOfferScreen> {
                                       suffix: _type == 'percent' ? '%' : null,
                                     ),
                                     validator: (v) {
-                                      if (v == null || v.isEmpty)
+                                      if (v == null || v.isEmpty) {
                                         return 'Required';
+                                      }
                                       final val = double.tryParse(v);
-                                      if (val == null || val <= 0)
+                                      if (val == null || val <= 0) {
                                         return 'Invalid';
-                                      if (_type == 'percent' && val > 100)
+                                      }
+                                      if (_type == 'percent' && val > 100) {
                                         return 'Max 100%';
+                                      }
                                       return null;
                                     },
                                     onChanged: (_) => setState(() {}),
@@ -1428,8 +1411,9 @@ class _CreateOfferScreenState extends ConsumerState<CreateOfferScreen> {
                                           const Duration(days: 365),
                                         ),
                                       );
-                                      if (d != null)
+                                      if (d != null) {
                                         setState(() => _expiry = d);
+                                      }
                                     },
                                     child: Container(
                                       padding: const EdgeInsets.all(12),
@@ -1928,13 +1912,14 @@ class _CreateOfferScreenState extends ConsumerState<CreateOfferScreen> {
         );
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: context.colors.error,
             content: Text('Error: $e'),
           ),
         );
+      }
     } finally {
       if (mounted) {
         if (draft) {

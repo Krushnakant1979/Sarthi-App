@@ -22,7 +22,7 @@ class SarthiApp extends ConsumerWidget {
       title: appConfig.appName,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ref.watch(themeModeProvider),
       debugShowCheckedModeBanner: false,
       routerConfig: router,
     );

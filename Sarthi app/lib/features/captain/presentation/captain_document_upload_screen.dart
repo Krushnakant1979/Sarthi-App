@@ -272,6 +272,10 @@ class _CaptainDocumentUploadScreenState
   @override
   Widget build(BuildContext context) {
     final canComplete = _aadhaarUrl != null && _drivingLicenceUrl != null;
+    final currentUser = ref.watch(currentUserProvider).value;
+    final isRejected = currentUser?.verificationStatus == 'rejected';
+    final rejectionReason = currentUser?.rejectionReason;
+    final isPendingReview = currentUser?.verificationStatus == 'pending_review';
 
     return Scaffold(
       backgroundColor: context.colors.background,
@@ -313,6 +317,100 @@ class _CaptainDocumentUploadScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (isRejected) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFEF4444), width: 1.5),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.error_outline_rounded,
+                              color: Color(0xFFEF4444),
+                              size: 28,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Documents Rejected by Admin',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF991B1B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    rejectionReason != null && rejectionReason.isNotEmpty
+                                        ? 'Reason: $rejectionReason'
+                                        : 'Your submitted documents were rejected. Please review and re-upload valid, clear photos of your documents.',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFFB91C1C),
+                                      height: 1.4,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ] else if (isPendingReview) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFF59E0B), width: 1.5),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.hourglass_top_rounded,
+                              color: Color(0xFFF59E0B),
+                              size: 28,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Verification Under Review',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF92400E),
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Our team is currently reviewing your documents. You can re-upload if you need to update any document.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFFB45309),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                     Text(
                       'Almost there!',
                       style: TextStyle(

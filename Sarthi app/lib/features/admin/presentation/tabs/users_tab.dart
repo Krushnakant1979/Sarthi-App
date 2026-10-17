@@ -7,6 +7,7 @@ import '../admin_providers.dart';
 import '../admin_design.dart';
 import '../admin_dashboard_screen.dart';
 import '../widgets/captain_documents_dialog.dart';
+import '../widgets/admin_common_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ─── Brand Colors ──────────────────────────────────────────────────────────────
@@ -66,6 +67,7 @@ class UsersTab extends ConsumerStatefulWidget {
 class UsersTabState extends ConsumerState<UsersTab> {
   String search = '';
   String sort = 'newest';
+  int _displayLimit = 25;
   Map<String, dynamic> advancedFilters = {};
   final TextEditingController _searchCtrl = TextEditingController();
 
@@ -80,6 +82,7 @@ class UsersTabState extends ConsumerState<UsersTab> {
     setState(() {
       search = '';
       sort = 'newest';
+      _displayLimit = 25;
       advancedFilters.clear();
     });
     ref.read(usersFilterProvider.notifier).state = 'all';
@@ -90,7 +93,10 @@ class UsersTabState extends ConsumerState<UsersTab> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AdvancedFiltersSheet(initialFilters: advancedFilters),
+      builder: (_) => buildResponsiveSheet(
+        context,
+        child: _AdvancedFiltersSheet(initialFilters: advancedFilters),
+      ),
     );
     if (result != null) {
       setState(() => advancedFilters = result);
@@ -382,12 +388,84 @@ class UsersTabState extends ConsumerState<UsersTab> {
               : RefreshIndicator(
                   color: AdminColors.primary,
                   onRefresh: () async => ref.invalidate(allUsersProvider),
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 100),
-                    itemCount: users.length,
-                    itemBuilder: (_, i) =>
-                        UserCard(user: users[i], onAction: _performAction),
+                  child: Builder(
+                    builder: (context) {
+                      final visibleUsers = users.take(_displayLimit).toList();
+                      final hasMore = users.length > _displayLimit;
+
+                      return CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+                            sliver: AdminResponsive.isWide(context)
+                                ? SliverGrid(
+                                    gridDelegate:
+                                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                                      maxCrossAxisExtent: 520,
+                                      mainAxisExtent: 120,
+                                      crossAxisSpacing: 12,
+                                      mainAxisSpacing: 10,
+                                    ),
+                                    delegate: SliverChildBuilderDelegate(
+                                      (_, i) => UserCard(
+                                        user: visibleUsers[i],
+                                        onAction: _performAction,
+                                      ),
+                                      childCount: visibleUsers.length,
+                                    ),
+                                  )
+                                : SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (_, i) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 10),
+                                        child: UserCard(
+                                          user: visibleUsers[i],
+                                          onAction: _performAction,
+                                        ),
+                                      ),
+                                      childCount: visibleUsers.length,
+                                    ),
+                                  ),
+                          ),
+                          if (hasMore)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(14, 8, 14, 100),
+                                child: Center(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      HapticFeedback.lightImpact();
+                                      setState(() => _displayLimit += 25);
+                                    },
+                                    icon: const Icon(Icons.expand_more_rounded, size: 18),
+                                    label: Text(
+                                      'Load More Accounts (${users.length - visibleUsers.length} more)',
+                                      style: GoogleFonts.inter(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AdminColors.primary,
+                                      side: const BorderSide(color: AdminColors.primary),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                        ],
+                      );
+                    },
                   ),
                 ),
         ),
@@ -459,6 +537,7 @@ class UsersTabState extends ConsumerState<UsersTab> {
         await repo.updateCaptainVerification(
           user.uid,
           action == 'approve' ? 'verified' : 'rejected',
+          rejectionReason: action == 'reject' ? 'Incomplete or invalid KYC documents' : null,
         );
       } else {
         await repo.updateUserRole(user.uid, action);
@@ -500,54 +579,20 @@ class _RoleSegmentedControl extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final options = const {
-      'all': 'All Users',
-      'user': 'Passengers',
-      'captain': 'Captains',
-      'admin': 'Admins',
-    };
-    return Container(
-      decoration: BoxDecoration(
-        color: AdminColors.background,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: options.entries.map((e) {
-          final sel = role == e.key;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => ref.read(usersFilterProvider.notifier).state = e.key,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: sel ? AdminColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: sel
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : [],
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  e.value,
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
-                    color: sel ? Colors.white : AdminColors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+    const items = [
+      AdminSlidingSegment(value: 'all', label: 'All Users'),
+      AdminSlidingSegment(value: 'user', label: 'Passengers'),
+      AdminSlidingSegment(value: 'captain', label: 'Captains'),
+      AdminSlidingSegment(value: 'admin', label: 'Admins'),
+    ];
+    return AdminSlidingSegmentedControl<String>(
+      value: role,
+      items: items,
+      fontSize: 10,
+      itemPadding: const EdgeInsets.symmetric(vertical: 8),
+      onChanged: (newRole) {
+        ref.read(usersFilterProvider.notifier).state = newRole;
+      },
     );
   }
 }
@@ -687,8 +732,14 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = AdminResponsive.isNarrow(context);
+    final horizontalPad = isNarrow ? 6.0 : 10.0;
+    final iconPad = isNarrow ? 4.0 : 6.0;
+    final iconSize = isNarrow ? 14.0 : 18.0;
+    final gap = isNarrow ? 6.0 : 10.0;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPad, vertical: 12),
       decoration: BoxDecoration(
         color: AdminColors.card,
         borderRadius: BorderRadius.circular(16),
@@ -707,14 +758,14 @@ class _SummaryCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: EdgeInsets.all(iconPad),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: 18),
+                child: Icon(icon, color: color, size: iconSize),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: gap),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,11 +813,9 @@ class UserCard extends StatelessWidget {
     final roleColor = _roleColor(user.role);
     final initials = _initials(user.name);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: AdminColors.card,
-        borderRadius: BorderRadius.circular(16),
+    return Material(
+      color: AdminColors.card,
+      borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
@@ -776,16 +825,20 @@ class UserCard extends StatelessWidget {
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
-                builder: (_) =>
-                    _CaptainDetailsSheet(user: user, onAction: onAction),
+                builder: (_) => buildResponsiveSheet(
+                  context,
+                  child: _CaptainDetailsSheet(user: user, onAction: onAction),
+                ),
               );
             } else {
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
-                builder: (_) =>
-                    _UserDetailsSheet(user: user, onAction: onAction),
+                builder: (_) => buildResponsiveSheet(
+                  context,
+                  child: _UserDetailsSheet(user: user, onAction: onAction),
+                ),
               );
             }
           },
@@ -829,6 +882,7 @@ class UserCard extends StatelessWidget {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         user.name.isEmpty ? 'Unnamed User' : user.name,
@@ -840,7 +894,7 @@ class UserCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         user.email,
                         style: GoogleFonts.inter(
@@ -851,21 +905,23 @@ class UserCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (user.phone != null && user.phone!.isNotEmpty) ...[
-                        SizedBox(height: 1),
+                        const SizedBox(height: 1),
                         Text(
                           user.phone!,
                           style: GoogleFonts.inter(
                             color: AdminColors.textSecondary,
                             fontSize: 9,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                      SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Row(
                         children: [
                           _RoleBadge(role: user.role),
                           if (user.role == 'captain') ...[
-                            SizedBox(width: 6),
+                            const SizedBox(width: 6),
                             _VerifBadge(status: user.verificationStatus),
                           ],
                         ],
@@ -932,8 +988,7 @@ class UserCard extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   PopupMenuItem<String> _popItem(
@@ -1052,173 +1107,113 @@ class _AdvancedFiltersSheetState extends State<_AdvancedFiltersSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       decoration: const BoxDecoration(
         color: AdminColors.card,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + bottomInset),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Advanced Filters',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AdminColors.textPrimary,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AdminColors.textSecondary,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
               Text(
-                'Advanced Filters',
+                'Verification Status',
                 style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                   color: AdminColors.textPrimary,
                 ),
               ),
-              IconButton(
-                icon: const Icon(
-                  Icons.close_rounded,
-                  color: AdminColors.textSecondary,
-                ),
-                onPressed: () => Navigator.pop(context),
+              const SizedBox(height: 12),
+              AdminSlidingSegmentedControl<String>(
+                value: _verificationStatus,
+                items: const [
+                  AdminSlidingSegment(value: 'all', label: 'All'),
+                  AdminSlidingSegment(value: 'verified', label: 'Verified'),
+                  AdminSlidingSegment(value: 'pending_review', label: 'Pending'),
+                  AdminSlidingSegment(value: 'rejected', label: 'Rejected'),
+                ],
+                fontSize: 11,
+                itemPadding: const EdgeInsets.symmetric(vertical: 9),
+                onChanged: (v) => setState(() => _verificationStatus = v),
               ),
-            ],
-          ),
-          SizedBox(height: 24),
-          Text(
-            'Verification Status',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AdminColors.textPrimary,
-            ),
-          ),
-          SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _filterChip(
-                'All',
-                'all',
-                _verificationStatus,
-                (v) => setState(() => _verificationStatus = v),
-              ),
-              _filterChip(
-                'Verified',
-                'verified',
-                _verificationStatus,
-                (v) => setState(() => _verificationStatus = v),
-              ),
-              _filterChip(
-                'Pending',
-                'pending_review',
-                _verificationStatus,
-                (v) => setState(() => _verificationStatus = v),
-              ),
-              _filterChip(
-                'Rejected',
-                'rejected',
-                _verificationStatus,
-                (v) => setState(() => _verificationStatus = v),
-              ),
-            ],
-          ),
-          SizedBox(height: 24),
-          Text(
-            'Vehicle Type',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AdminColors.textPrimary,
-            ),
-          ),
-          SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _filterChip(
-                'All',
-                'all',
-                _vehicleType,
-                (v) => setState(() => _vehicleType = v),
-              ),
-              _filterChip(
-                'Two Wheeler',
-                'two_wheeler',
-                _vehicleType,
-                (v) => setState(() => _vehicleType = v),
-              ),
-              _filterChip(
-                'Auto',
-                'auto',
-                _vehicleType,
-                (v) => setState(() => _vehicleType = v),
-              ),
-              _filterChip(
-                'Cab',
-                'cab',
-                _vehicleType,
-                (v) => setState(() => _vehicleType = v),
-              ),
-            ],
-          ),
-          SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AdminColors.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () {
-                Navigator.pop(context, {
-                  'verificationStatus': _verificationStatus,
-                  'vehicleType': _vehicleType,
-                });
-              },
-              child: Text(
-                'Apply Filters',
+              const SizedBox(height: 24),
+              Text(
+                'Vehicle Type',
                 style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
+                  color: AdminColors.textPrimary,
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _filterChip(
-    String label,
-    String value,
-    String groupValue,
-    ValueChanged<String> onSelected,
-  ) {
-    final sel = value == groupValue;
-    return GestureDetector(
-      onTap: () => onSelected(value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: sel ? AdminColors.primary : AdminColors.background,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: sel ? AdminColors.primary : AdminColors.border,
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
-            color: sel ? Colors.white : AdminColors.textSecondary,
+              const SizedBox(height: 12),
+              AdminSlidingSegmentedControl<String>(
+                value: _vehicleType,
+                items: const [
+                  AdminSlidingSegment(value: 'all', label: 'All'),
+                  AdminSlidingSegment(value: 'two_wheeler', label: 'Two Wheeler'),
+                  AdminSlidingSegment(value: 'auto', label: 'Auto'),
+                  AdminSlidingSegment(value: 'cab', label: 'Cab'),
+                ],
+                fontSize: 10.5,
+                itemPadding: const EdgeInsets.symmetric(vertical: 9),
+                onChanged: (v) => setState(() => _vehicleType = v),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context, {
+                      'verificationStatus': _verificationStatus,
+                      'vehicleType': _vehicleType,
+                    });
+                  },
+                  child: Text(
+                    'Apply Filters',
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1823,24 +1818,25 @@ class _EmptyUsersState extends StatelessWidget {
   final VoidCallback onClear;
   @override
   Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(40),
+    child: SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: AdminColors.primary.withValues(alpha: 0.06),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.people_outline_rounded,
-              size: 40,
+              size: 38,
               color: AdminColors.primary,
             ),
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 16),
           Text(
             'No accounts found',
             style: GoogleFonts.inter(
@@ -1849,7 +1845,7 @@ class _EmptyUsersState extends StatelessWidget {
               color: AdminColors.textPrimary,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             'There are no accounts matching the selected filters.',
             style: GoogleFonts.inter(
@@ -1858,7 +1854,7 @@ class _EmptyUsersState extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 20),
           OutlinedButton(
             onPressed: onClear,
             style: OutlinedButton.styleFrom(

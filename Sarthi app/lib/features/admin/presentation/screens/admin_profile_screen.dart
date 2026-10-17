@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/auth/presentation/auth_providers.dart';
 import '../../../shared/auth/domain/app_user.dart';
+import '../../../../core/design/theme.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ─── Brand Colors ──────────────────────────────────────────────────────────────
 const _navy = Color(0xFF0B2748);
 const _yellow = Color(0xFFFFD21E);
 const _green = Color(0xFF16A34A);
-const _orange = Color(0xFFF59E0B);
 const _red = Color(0xFFDC2626);
 const _bg = Color(0xFFF4F7FA);
 const _card = Colors.white;
@@ -203,7 +204,9 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
 
     if (confirm == true) {
       ref.read(authRepositoryProvider).signOut();
-      Navigator.pop(context); // Go back after logout triggers auth state change
+      if (mounted) {
+        Navigator.pop(context); // Go back after logout triggers auth state change
+      }
     }
   }
 
@@ -254,6 +257,8 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
                 _buildAdminAccess(user),
                 SizedBox(height: 20),
                 _buildAccountAndSecurity(user),
+                SizedBox(height: 20),
+                _buildThemeSettings(),
                 SizedBox(height: 32),
                 _buildLogoutAction(),
                 SizedBox(height: 24),
@@ -533,6 +538,99 @@ class _AdminProfileScreenState extends ConsumerState<AdminProfileScreen> {
             value: 'Verified',
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThemeSettings() {
+    final currentTheme = ref.watch(themeModeProvider);
+
+    return _CardWrapper(
+      title: 'Display & Appearance',
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Interface Theme',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Toggle Light, Dark or System adaptive mode',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: _muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: _bg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Row(
+                    children: [
+                      _buildThemeChip(ThemeMode.light, Icons.light_mode_rounded, 'Light', currentTheme),
+                      _buildThemeChip(ThemeMode.dark, Icons.dark_mode_rounded, 'Dark', currentTheme),
+                      _buildThemeChip(ThemeMode.system, Icons.brightness_auto_rounded, 'Auto', currentTheme),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeChip(ThemeMode mode, IconData icon, String label, ThemeMode current) {
+    final isSelected = current == mode;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        ref.read(themeModeProvider.notifier).state = mode;
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? _navy : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.white : _muted,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? Colors.white : _muted,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

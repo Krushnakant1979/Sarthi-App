@@ -212,31 +212,18 @@ class RideHistoryScreen extends ConsumerStatefulWidget {
   ConsumerState<RideHistoryScreen> createState() => _RideHistoryScreenState();
 }
 
-class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
-    with TickerProviderStateMixin {
+class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
   final _scrollController = ScrollController();
-  AnimationController? _headerAnimController;
-  Animation<double> _headerFadeAnim = const AlwaysStoppedAnimation(1.0);
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _headerAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _headerFadeAnim = CurvedAnimation(
-      parent: _headerAnimController!,
-      curve: Curves.easeOut,
-    );
-    _headerAnimController!.forward();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
-    _headerAnimController?.dispose();
     super.dispose();
   }
 
@@ -925,25 +912,6 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen>
       ),
     );
   }
-}
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.03)
-      ..strokeWidth = 1;
-    const spacing = 32.0;
-    for (double x = 0; x < size.width; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _RideCard extends StatefulWidget {

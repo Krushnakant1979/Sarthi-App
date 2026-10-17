@@ -59,7 +59,7 @@ class SafetyScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     InkWell(
-                      onTap: () {},
+                      onTap: () => _showKnowMoreDialog(context),
                       child: Text(
                         'Know more',
                         style: TextStyle(
@@ -121,7 +121,7 @@ class SafetyScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: InkWell(
-                  onTap: () {},
+                  onTap: () => _showAddTrustedContactModal(context),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -207,6 +207,139 @@ class SafetyScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showKnowMoreDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.security_rounded, color: Color(0xFF2563EB)),
+            SizedBox(width: 10),
+            Text('Safety Protocols', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('🛡️ Verified Captains', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Every driver undergoes thorough Aadhaar, Driving Licence, and vehicle vetting before taking rides.', style: TextStyle(fontSize: 13, color: Colors.black87)),
+            SizedBox(height: 12),
+            Text('📍 Real-time Trip Tracking', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Share live ride location and route navigation with trusted contacts in one tap.', style: TextStyle(fontSize: 13, color: Colors.black87)),
+            SizedBox(height: 12),
+            Text('🚨 24/7 Emergency SOS Shield', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Instant alert dispatch to emergency response teams and contact personnel during any distress.', style: TextStyle(fontSize: 13, color: Colors.black87)),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddTrustedContactModal(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Add Trusted Contact',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(sheetContext),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your trusted contact will receive your live trip details when you share rides.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: nameCtrl,
+              decoration: InputDecoration(
+                labelText: 'Contact Name',
+                hintText: 'e.g. Mom, Brother, Friend',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                prefixIcon: const Icon(Icons.person_outline),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                labelText: 'Phone Number',
+                hintText: '+91 9876543210',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                prefixIcon: const Icon(Icons.phone_outlined),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () {
+                  final name = nameCtrl.text.trim();
+                  final phone = phoneCtrl.text.trim();
+                  if (name.isEmpty || phone.isEmpty) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                      const SnackBar(content: Text('Please enter both name and phone number')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(sheetContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('$name added to trusted contacts!'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Save Contact', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

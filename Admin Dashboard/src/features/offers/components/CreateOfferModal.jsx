@@ -52,6 +52,7 @@ export const CreateOfferModal = ({ onClose, onCreated }) => {
         minAmount: Number(form.minAmount),
         expiryDate: new Date(form.expiryDate),
         isActive: true,
+        status: 'published',
         createdAt: serverTimestamp(),
         createdBy: auth.currentUser?.uid,
       });

@@ -14,7 +14,6 @@ import { Captains } from './features/captains';
 import { Users } from './features/users';
 import { Rides } from './features/rides';
 import { Offers } from './features/offers';
-import { Settings } from './features/settings';
 import { Marketing } from './features/marketing';
 import { Reviews } from './features/reviews';
 import { Vehicles } from './features/vehicles';
@@ -22,6 +21,7 @@ import { Support } from './features/support';
 import { Login } from './features/auth';
 import { Finance } from './features/finance';
 import { Pricing } from './features/pricing';
+import { Settings } from './features/settings';
 
 function AppInner() {
   const [user, setUser] = useState(null);

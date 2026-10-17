@@ -1,21 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, MagnifyingGlass, SteeringWheel, ArrowLeft, SignOut, List, Sun, Moon } from '@phosphor-icons/react';
+import { Bell, MagnifyingGlass, SteeringWheel, ArrowLeft, SignOut, List, Sun, Moon, WarningCircle, ShieldWarning } from '@phosphor-icons/react';
 import { auth } from '../../config/firebase';
 import { signOut } from 'firebase/auth';
 import { useNotifications } from '../../context/NotificationContext';
 import { useTheme } from '../../context/ThemeContext';
 import { CaptainVerifyModal } from '../../features/captains/components/CaptainVerifyModal';
+import { AdminProfileModal } from './AdminProfileModal';
 
 export const Topbar = ({ toggleMobileMenu }) => {
   const user = auth.currentUser;
   const initials = user?.email ? user.email.charAt(0).toUpperCase() : 'A';
-  const { notifications, count } = useNotifications();
+  const { notifications, count, hasEmergency } = useNotifications();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [panelOpen, setPanelOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [selectedCaptain, setSelectedCaptain] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const bellRef = useRef(null);
   const panelRef = useRef(null);
 
@@ -30,9 +33,24 @@ export const Topbar = ({ toggleMobileMenu }) => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      const q = searchQuery.trim();
+      if (q.toUpperCase().startsWith('RIDE-') || q.startsWith('ride_')) {
+        navigate(`/rides?search=${encodeURIComponent(q)}`);
+      } else {
+        navigate(`/users?search=${encodeURIComponent(q)}`);
+      }
+    }
+  };
+
   const handleNotifClick = (notif) => {
     if (notif.type === 'captain_pending') {
       setSelectedCaptain(notif.data);
+      setPanelOpen(false);
+    } else if (notif.type === 'emergency_sos') {
+      const rideId = notif.data?.rideId || '';
+      navigate(`/rides?search=${encodeURIComponent(rideId)}&emergency=true`);
       setPanelOpen(false);
     }
   };
@@ -66,7 +84,13 @@ export const Topbar = ({ toggleMobileMenu }) => {
           
           <div className="topbar-search" style={{ flex: 1, maxWidth: '400px' }}>
             <MagnifyingGlass size={16} className="topbar-search-icon" />
-            <input type="text" placeholder="Search captains, rides, users..." />
+            <input 
+              type="text" 
+              placeholder="Search rides, users, captains (Press Enter)..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+            />
           </div>
         </div>
 
@@ -87,33 +111,63 @@ export const Topbar = ({ toggleMobileMenu }) => {
               className="topbar-icon-btn"
               title={`${count} pending notifications`}
               onClick={() => setPanelOpen(v => !v)}
+              style={hasEmergency ? { borderColor: 'var(--error)', color: 'var(--error)' } : {}}
             >
               <Bell size={18} weight={count > 0 ? 'fill' : 'regular'} />
-              {count > 0 && <span className="notif-dot badge-pulse"></span>}
+              {count > 0 && (
+                <span 
+                  className={`notif-dot badge-pulse`} 
+                  style={hasEmergency ? { background: 'var(--error)', boxShadow: '0 0 10px rgba(220, 38, 38, 0.8)' } : {}}
+                />
+              )}
             </button>
 
             {/* Notification Panel */}
             {panelOpen && (
               <div ref={panelRef} className="notif-panel">
-                <div className="notif-panel-header">
-                  <span className="notif-panel-title">Notifications</span>
-                  {count > 0 && <span className="badge badge-error">{count} pending</span>}
+                <div className="notif-panel-header" style={hasEmergency ? { background: 'rgba(220, 38, 38, 0.1)', borderBottom: '1px solid rgba(220, 38, 38, 0.2)' } : {}}>
+                  <span className="notif-panel-title">
+                    {hasEmergency ? '🚨 Emergency & Operations' : 'Notifications'}
+                  </span>
+                  {count > 0 && (
+                    <span className={`badge ${hasEmergency ? 'badge-error' : 'badge-warning'}`}>
+                      {count} pending
+                    </span>
+                  )}
                 </div>
 
                 {notifications.length === 0 ? (
-                  <div className="notif-empty">No pending captain registrations</div>
+                  <div className="notif-empty">No pending alerts or captain registrations</div>
                 ) : (
                   notifications.map(notif => (
                     <div
                       key={notif.id}
-                      className="notif-item unread"
+                      className={`notif-item unread ${notif.priority === 'emergency' ? 'emergency-item' : ''}`}
                       onClick={() => handleNotifClick(notif)}
+                      style={notif.priority === 'emergency' ? {
+                        background: 'rgba(220, 38, 38, 0.08)',
+                        borderLeft: '3px solid var(--error)'
+                      } : {}}
                     >
-                      <div className="notif-icon" style={{ background: 'var(--warning-bg)' }}>
-                        <SteeringWheel size={18} weight="bold" style={{ color: 'var(--warning)' }} />
+                      <div 
+                        className="notif-icon" 
+                        style={{ 
+                          background: notif.priority === 'emergency' ? 'rgba(220, 38, 38, 0.15)' : 'var(--warning-bg)' 
+                        }}
+                      >
+                        {notif.priority === 'emergency' ? (
+                          <ShieldWarning size={18} weight="fill" style={{ color: 'var(--error)' }} />
+                        ) : (
+                          <SteeringWheel size={18} weight="bold" style={{ color: 'var(--warning)' }} />
+                        )}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="notif-item-title">{notif.title}</div>
+                        <div 
+                          className="notif-item-title" 
+                          style={notif.priority === 'emergency' ? { color: 'var(--error)', fontWeight: 800 } : {}}
+                        >
+                          {notif.title}
+                        </div>
                         <div className="notif-item-desc">{notif.desc}</div>
                         <div className="notif-item-time">{formatTime(notif.time)}</div>
                       </div>
@@ -135,7 +189,12 @@ export const Topbar = ({ toggleMobileMenu }) => {
           </button>
 
           {/* User Chip */}
-          <div className="user-chip">
+          <div 
+            className="user-chip" 
+            onClick={() => setProfileOpen(true)}
+            style={{ cursor: 'pointer' }}
+            title="View Admin Profile & Security"
+          >
             <div className="user-avatar">{initials}</div>
             <div className="user-chip-info">
               <span className="user-chip-name">{user?.email?.split('@')[0] || 'Admin'}</span>
@@ -144,6 +203,11 @@ export const Topbar = ({ toggleMobileMenu }) => {
           </div>
         </div>
       </header>
+
+      {/* Admin Profile Modal */}
+      {profileOpen && (
+        <AdminProfileModal onClose={() => setProfileOpen(false)} />
+      )}
 
       {/* Captain Verify Modal triggered from notification */}
       {selectedCaptain && (

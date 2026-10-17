@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 /// A full-screen overlay shown to the captain after they complete a ride.
 class RideCompleteScreen extends StatefulWidget {
@@ -56,8 +56,7 @@ class _RideCompleteScreenState extends State<RideCompleteScreen>
 
   @override
   Widget build(BuildContext context) {
-    final distanceKm = (widget.distanceMeters / 1000.0).toStringAsFixed(1);
-    final fareStr = 'Rs.';
+    final fareStr = '₹${widget.fare.toStringAsFixed(0)}';
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E21),

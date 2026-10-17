@@ -43,6 +43,7 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
   Future<void> _onRefresh() async {
     ref.invalidate(allRidesProvider);
     ref.invalidate(allUsersProvider);
+    ref.invalidate(totalRevenueProvider);
     // Add artificial delay for UX feel
     await Future.delayed(const Duration(milliseconds: 800));
   }
@@ -65,6 +66,7 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
   Widget build(BuildContext context) {
     final ridesAsync = ref.watch(allRidesProvider);
     final usersAsync = ref.watch(allUsersProvider);
+    final totalRevAsync = ref.watch(totalRevenueProvider);
 
     if (ridesAsync.isLoading || usersAsync.isLoading) {
       return const _SkeletonDashboard();
@@ -89,16 +91,21 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
     final active = rideList
         .where((r) => !{'completed', 'cancelled'}.contains(r['status']))
         .length;
-    final revenue = rideList
+    final fallbackRev = rideList
         .where((r) => r['status'] == 'completed')
         .fold<double>(
           0,
-          (acc, r) => acc + ((r['fareEstimate'] as num?)?.toDouble() ?? 0),
+          (acc, r) => acc + (((r['actualFare'] ?? r['finalFare'] ?? r['fareEstimate']) as num?)?.toDouble() ?? 0),
         );
+    final revenue = (totalRevAsync.value != null && totalRevAsync.value! > 0)
+        ? totalRevAsync.value!
+        : fallbackRev;
     final pending = userList
         .where(
           (u) =>
-              u.role == 'captain' && u.verificationStatus == 'pending_review',
+              u.role == 'captain' &&
+              (u.verificationStatus == 'pending_review' ||
+               u.verificationStatus == 'pending'),
         )
         .length;
 
@@ -110,22 +117,24 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
           .where((r) => r['status'] == 'completed')
           .fold<double>(
             0,
-            (acc, r) => acc + ((r['fareEstimate'] as num?)?.toDouble() ?? 0),
+            (acc, r) => acc + (((r['actualFare'] ?? r['finalFare'] ?? r['fareEstimate']) as num?)?.toDouble() ?? 0),
           );
     }
 
-    return RefreshIndicator(
-      onRefresh: _onRefresh,
-      color: AdminColors.primary,
-      backgroundColor: AdminColors.card,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(
-          left: 14,
-          right: 14,
-          top: 10,
-          bottom: 120,
-        ),
+    return ResponsiveCenter(
+      maxWidth: 1100,
+      child: RefreshIndicator(
+        onRefresh: _onRefresh,
+        color: AdminColors.primary,
+        backgroundColor: AdminColors.card,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(
+            left: 14,
+            right: 14,
+            top: 10,
+            bottom: 120,
+          ),
         children: [
           // Header / Snapshot
           Row(
@@ -301,11 +310,12 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
           ),
           SizedBox(height: 12),
 
-          // Statistics Grid (2x2)
+          // Statistics Grid (Responsive 2x2 or 4x1)
           LayoutBuilder(
             builder: (context, constraints) {
               final w = constraints.maxWidth;
-              final itemWidth = (w - 8) / 2;
+              final isWide = w >= 600;
+              final itemWidth = isWide ? (w - 24) / 4 : (w - 8) / 2;
               return Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -533,8 +543,9 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
           SizedBox(height: 20),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildChartSection(List<Map<String, dynamic>> rides) {
     return Container(
@@ -1077,8 +1088,9 @@ class _ListTween extends Tween<List<double>> {
 
   @override
   List<double> lerp(double t) {
-    if (begin == null || end == null || begin!.length != end!.length)
+    if (begin == null || end == null || begin!.length != end!.length) {
       return end ?? [];
+    }
     return List.generate(
       begin!.length,
       (i) => begin![i] + (end![i] - begin![i]) * t,

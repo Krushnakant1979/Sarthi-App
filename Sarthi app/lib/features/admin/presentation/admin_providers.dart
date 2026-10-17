@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/admin_repository.dart';
 import '../../shared/auth/domain/app_user.dart';
@@ -256,6 +257,13 @@ class ProcessedAnalyticsData {
   });
 }
 
+DateTime? _parseDate(dynamic val) {
+  if (val is Timestamp) return val.toDate();
+  if (val is DateTime) return val;
+  if (val is String) return DateTime.tryParse(val);
+  return null;
+}
+
 final processedAnalyticsProvider = Provider<ProcessedAnalyticsData>((ref) {
   final ridesAsync = ref.watch(filteredRidesProvider);
   final prevRidesAsync = ref.watch(previousFilteredRidesProvider);
@@ -269,7 +277,11 @@ final processedAnalyticsProvider = Provider<ProcessedAnalyticsData>((ref) {
   Map<String, int> locCounts = {};
 
   for (var ride in rides) {
-    final fare = (ride['fareEstimate'] as num?)?.toDouble() ?? 0.0;
+    final fare = ((ride['actualFare'] ??
+            ride['finalFare'] ??
+            ride['fareEstimate']) as num?)
+        ?.toDouble() ??
+        0.0;
     totalRev += fare;
 
     final type = (ride['vehicleType'] as String?)?.toLowerCase() ?? 'bike';
@@ -288,8 +300,9 @@ final processedAnalyticsProvider = Provider<ProcessedAnalyticsData>((ref) {
       int offset = parts.length - 1;
       if (offset >= 0 && parts[offset].toLowerCase() == 'india') offset--;
       if (offset >= 0 && RegExp(r'^\d+$').hasMatch(parts[offset])) offset--;
-      if (offset - 1 >= 0)
+      if (offset - 1 >= 0) {
         city = parts[offset - 1].replaceAll(RegExp(r'\d'), '').trim();
+      }
       if (city.isNotEmpty) {
         locCounts[city] = (locCounts[city] ?? 0) + 1;
       }
@@ -298,7 +311,11 @@ final processedAnalyticsProvider = Provider<ProcessedAnalyticsData>((ref) {
 
   double prevTotalRev = 0;
   for (var ride in prevRides) {
-    prevTotalRev += (ride['fareEstimate'] as num?)?.toDouble() ?? 0.0;
+    prevTotalRev += ((ride['actualFare'] ??
+            ride['finalFare'] ??
+            ride['fareEstimate']) as num?)
+        ?.toDouble() ??
+        0.0;
   }
 
   final topLocs = locCounts.entries.toList()
@@ -322,9 +339,13 @@ final processedAnalyticsProvider = Provider<ProcessedAnalyticsData>((ref) {
           : '',
     );
     for (var ride in rides) {
-      final dt = (ride['createdAt'] as dynamic)?.toDate() as DateTime?;
+      final dt = _parseDate(ride['createdAt']);
       if (dt != null) {
-        chartData[dt.hour] += (ride['fareEstimate'] as num?)?.toDouble() ?? 0.0;
+        chartData[dt.hour] += ((ride['actualFare'] ??
+                ride['finalFare'] ??
+                ride['fareEstimate']) as num?)
+            ?.toDouble() ??
+            0.0;
       }
     }
   } else if (filter.period == RevenuePeriod.month) {
@@ -339,10 +360,13 @@ final processedAnalyticsProvider = Provider<ProcessedAnalyticsData>((ref) {
       (i) => (i + 1) % 5 == 1 ? '${i + 1}' : '',
     );
     for (var ride in rides) {
-      final dt = (ride['createdAt'] as dynamic)?.toDate() as DateTime?;
+      final dt = _parseDate(ride['createdAt']);
       if (dt != null) {
-        chartData[dt.day - 1] +=
-            (ride['fareEstimate'] as num?)?.toDouble() ?? 0.0;
+        chartData[dt.day - 1] += ((ride['actualFare'] ??
+                ride['finalFare'] ??
+                ride['fareEstimate']) as num?)
+            ?.toDouble() ??
+            0.0;
       }
     }
   } else {
@@ -363,10 +387,13 @@ final processedAnalyticsProvider = Provider<ProcessedAnalyticsData>((ref) {
       '',
     ];
     for (var ride in rides) {
-      final dt = (ride['createdAt'] as dynamic)?.toDate() as DateTime?;
+      final dt = _parseDate(ride['createdAt']);
       if (dt != null) {
-        chartData[dt.month - 1] +=
-            (ride['fareEstimate'] as num?)?.toDouble() ?? 0.0;
+        chartData[dt.month - 1] += ((ride['actualFare'] ??
+                ride['finalFare'] ??
+                ride['fareEstimate']) as num?)
+            ?.toDouble() ??
+            0.0;
       }
     }
   }
@@ -385,3 +412,21 @@ final processedAnalyticsProvider = Provider<ProcessedAnalyticsData>((ref) {
         .toList(),
   );
 });
+
+final allCampaignsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  return ref.watch(adminRepositoryProvider).streamCampaigns();
+});
+
+final allReviewsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  return ref.watch(adminRepositoryProvider).streamReviews();
+});
+
+final activeEmergencyEventsProvider =
+    StreamProvider<List<Map<String, dynamic>>>((ref) {
+      return ref.watch(adminRepositoryProvider).streamActiveEmergencyEvents();
+    });
+
+final totalRevenueProvider = FutureProvider<double>((ref) async {
+  return ref.watch(adminRepositoryProvider).fetchTotalRevenue();
+});
+

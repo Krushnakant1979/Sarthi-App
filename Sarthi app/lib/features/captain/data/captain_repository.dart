@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart' hide Query;
 import 'package:firebase_core/firebase_core.dart';
 
@@ -216,14 +217,19 @@ class CaptainRepository {
     required String captainId,
     required String fromStatus,
     required String toStatus,
+    Map<String, dynamic>? extraData,
   }) async {
     final rideRef = _firestore.collection('ride_requests').doc(rideId);
     await _withFirestoreRetry(() async {
-      await rideRef.update({
+      final updates = <String, dynamic>{
         'status': toStatus,
         '${toStatus}At': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+      if (extraData != null) {
+        updates.addAll(extraData);
+      }
+      await rideRef.update(updates);
     });
   }
 
@@ -234,10 +240,28 @@ class CaptainRepository {
   }) async {
     final rideRef = _firestore.collection('ride_requests').doc(rideId);
     await _withFirestoreRetry(() async {
-      await rideRef.update({
-        'status': 'in_progress',
-        'startedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(rideRef);
+        if (!snapshot.exists) {
+          throw StateError('Ride request no longer exists.');
+        }
+        final data = snapshot.data();
+        if (data?['assignedCaptainId'] != captainId) {
+          throw StateError('You are not assigned to this ride.');
+        }
+        if (data?['status'] != 'arrived') {
+          throw StateError('Ride must be in arrived status to start.');
+        }
+        final expectedOtp = data?['otp']?.toString().trim();
+        if (expectedOtp == null || expectedOtp != enteredOtp.trim()) {
+          throw StateError('Incorrect OTP! Please check with rider.');
+        }
+
+        transaction.update(rideRef, {
+          'status': 'in_progress',
+          'startedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       });
     });
   }
@@ -330,7 +354,13 @@ class CaptainRepository {
   }
 
   // Submit a rating for a captain
-  Future<void> rateCaptain(String captainId, int stars) async {
+  Future<void> rateCaptain(
+    String captainId,
+    int stars, {
+    String? userId,
+    String? rideId,
+    String? comment,
+  }) async {
     final captainRef = _firestore.collection('users').doc(captainId);
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(captainRef);
@@ -347,5 +377,22 @@ class CaptainRepository {
         'ratingCount': currentCount + 1,
       });
     });
+
+    try {
+      final effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
+      if (effectiveUid != null) {
+        await _firestore.collection('reviews').add({
+          'captainId': captainId,
+          'userId': effectiveUid,
+          'rideId': rideId,
+          'rating': stars,
+          'comment': comment ?? '',
+          'status': 'active',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (_) {
+      // Best-effort review document write
+    }
   }
 }

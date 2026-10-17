@@ -24,7 +24,9 @@ class LocationService {
       if (!svcOn) return;
       final perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) return;
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
 
       // Fire-and-forget: just reading last-known is enough to prime the chip.
       final last = await Geolocator.getLastKnownPosition();
@@ -99,7 +101,9 @@ class LocationService {
 
     final perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied ||
-        perm == LocationPermission.deniedForever) return null;
+        perm == LocationPermission.deniedForever) {
+      return null;
+    }
 
     final pos = await Geolocator.getLastKnownPosition();
     if (pos != null) {

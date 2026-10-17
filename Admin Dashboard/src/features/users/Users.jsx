@@ -1,14 +1,25 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { db } from '../../config/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { MagnifyingGlass, Users as UsersIcon, ShieldCheck, Star, Eye, Copy, Check } from '@phosphor-icons/react';
 import { publicIdService } from '../../services/publicIdService';
+import { UserDetailsModal } from './components/UserDetailsModal';
 
 const Users = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [copiedId, setCopiedId] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  useEffect(() => {
+    const qParam = searchParams.get('search') || '';
+    if (qParam !== search) {
+      setSearch(qParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const q = query(collection(db, 'users'), where('role', '==', 'user'));
@@ -130,7 +141,15 @@ const Users = () => {
               type="text"
               placeholder="Search by name, email or phone..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => {
+                const val = e.target.value;
+                setSearch(val);
+                if (val) {
+                  setSearchParams({ search: val }, { replace: true });
+                } else {
+                  setSearchParams({}, { replace: true });
+                }
+              }}
               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.875rem', width: '100%', color: 'var(--text-primary)' }}
             />
           </div>
@@ -153,7 +172,7 @@ const Users = () => {
               ) : filtered.length === 0 ? (
                 <tr><td colSpan="4" className="table-empty">No users found</td></tr>
               ) : filtered.map(user => (
-                <tr key={user.id} style={{ cursor: 'pointer' }}>
+                <tr key={user.id} onClick={() => setSelectedUser(user)} style={{ cursor: 'pointer' }}>
                   <td style={{ paddingLeft: '1.5rem' }}>
                     <div className="user-row-info">
                       <div className="user-row-avatar" style={{ background: 'linear-gradient(135deg, #7C3AED, #5B21B6)', color: 'white' }}>
@@ -196,6 +215,7 @@ const Users = () => {
                     <div className="action-row" style={{ justifyContent: 'flex-end' }}>
                       <button 
                         className="btn btn-sm" 
+                        onClick={(e) => { e.stopPropagation(); setSelectedUser(user); }}
                         style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
                         title="View Full Profile"
                       >
@@ -209,6 +229,14 @@ const Users = () => {
           </table>
         </div>
       </div>
+
+      {/* User Details Modal */}
+      {selectedUser && (
+        <UserDetailsModal 
+          user={selectedUser} 
+          onClose={() => setSelectedUser(null)} 
+        />
+      )}
     </div>
   );
 };

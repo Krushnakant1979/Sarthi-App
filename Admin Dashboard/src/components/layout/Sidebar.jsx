@@ -8,7 +8,6 @@ import {
   Car,
   Tag,
   ChartLineUp,
-  Gear,
   CaretLeft,
   CaretRight,
   Megaphone,
@@ -16,7 +15,8 @@ import {
   CarProfile,
   Headset,
   Bank,
-  CurrencyInr
+  CurrencyInr,
+  Gear
 } from '@phosphor-icons/react';
 
 const navItems = [

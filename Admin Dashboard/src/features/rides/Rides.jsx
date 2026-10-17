@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { db } from '../../config/firebase';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { MagnifyingGlass, Circle, Eye, MapTrifold, NavigationArrow, CheckCircle, XCircle } from '@phosphor-icons/react';
@@ -6,10 +7,26 @@ import { RideDetailsModal } from './components/RideDetailsModal';
 import { publicIdService } from '../../services/publicIdService';
 
 const statusConfig = {
-  completed: { class: 'badge-success', label: 'Completed' },
-  cancelled:  { class: 'badge-error',   label: 'Cancelled'  },
-  ongoing:    { class: 'badge-warning',  label: 'Ongoing'    },
-  pending:    { class: 'badge-neutral',  label: 'Pending'    },
+  searching:   { class: 'badge-neutral', label: 'Searching' },
+  pending:     { class: 'badge-neutral', label: 'Searching' },
+  accepted:    { class: 'badge-warning', label: 'Accepted' },
+  arriving:    { class: 'badge-warning', label: 'Arriving' },
+  arrived:     { class: 'badge-warning', label: 'Arrived' },
+  in_progress: { class: 'badge-warning', label: 'In Progress' },
+  ongoing:     { class: 'badge-warning', label: 'In Progress' },
+  completed:   { class: 'badge-success', label: 'Completed' },
+  cancelled:   { class: 'badge-error',   label: 'Cancelled' },
+};
+
+const ONGOING_STATUSES = ['accepted', 'arriving', 'arrived', 'in_progress', 'ongoing'];
+const PENDING_STATUSES = ['searching', 'pending'];
+
+const getRideCategory = (status) => {
+  if (ONGOING_STATUSES.includes(status)) return 'ongoing';
+  if (PENDING_STATUSES.includes(status)) return 'pending';
+  if (status === 'completed') return 'completed';
+  if (status === 'cancelled') return 'cancelled';
+  return 'other';
 };
 
 const TABS = [
@@ -21,11 +38,25 @@ const TABS = [
 ];
 
 const Rides = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedRide, setSelectedRide] = useState(null);
+
+  useEffect(() => {
+    const qParam = searchParams.get('search') || '';
+    if (qParam !== search) {
+      setSearch(qParam);
+    }
+    if (searchParams.get('emergency') === 'true' && rides.length > 0 && qParam) {
+      const match = rides.find(r => r.id === qParam || r.publicId?.toLowerCase() === qParam.toLowerCase());
+      if (match) {
+        setSelectedRide(match);
+      }
+    }
+  }, [searchParams, rides]);
 
   useEffect(() => {
     const q = query(collection(db, 'ride_requests'), orderBy('createdAt', 'desc'), limit(200));
@@ -44,18 +75,28 @@ const Rides = () => {
   }, []);
 
   const counts = rides.reduce((acc, r) => {
-    acc[r.status] = (acc[r.status] || 0) + 1;
+    const cat = getRideCategory(r.status);
+    if (acc[cat] !== undefined) {
+      acc[cat] += 1;
+    }
     acc['all'] = (acc['all'] || 0) + 1;
     return acc;
   }, { all: 0, ongoing: 0, completed: 0, cancelled: 0, pending: 0 });
 
   const filtered = rides.filter(r => {
-    if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+    if (statusFilter !== 'all') {
+      const cat = getRideCategory(r.status);
+      if (cat !== statusFilter) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       return r.id.toLowerCase().includes(q) ||
+        (r.publicId && r.publicId.toLowerCase().includes(q)) ||
         r.pickup?.address?.toLowerCase().includes(q) ||
-        r.destination?.address?.toLowerCase().includes(q);
+        r.destination?.address?.toLowerCase().includes(q) ||
+        (r.passengerName && r.passengerName.toLowerCase().includes(q)) ||
+        (r.userName && r.userName.toLowerCase().includes(q)) ||
+        (r.captainName && r.captainName.toLowerCase().includes(q));
     }
     return true;
   });
@@ -176,7 +217,15 @@ const Rides = () => {
               type="text"
               placeholder="Search by ID or address..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => {
+                const val = e.target.value;
+                setSearch(val);
+                if (val) {
+                  setSearchParams({ search: val }, { replace: true });
+                } else {
+                  setSearchParams({}, { replace: true });
+                }
+              }}
               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.875rem', width: '100%', color: 'var(--text-primary)' }}
             />
           </div>

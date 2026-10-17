@@ -28,8 +28,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   bool _hasChanges(Map<String, dynamic> data) {
-    if (_localEmail == null || _localPhone == null || _localZones == null)
+    if (_localEmail == null || _localPhone == null || _localZones == null) {
       return false;
+    }
 
     final remoteEmail = data['supportEmail'] as String? ?? '';
     final remotePhone = data['supportPhone'] as String? ?? '';
@@ -47,8 +48,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _saveChanges() async {
-    if (_localEmail == null || _localPhone == null || _localZones == null)
+    if (_localEmail == null || _localPhone == null || _localZones == null) {
       return;
+    }
 
     setState(() => _isSaving = true);
     try {

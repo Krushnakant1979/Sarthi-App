@@ -28,12 +28,20 @@ service cloud.firestore {
         (signedIn() && request.auth.uid == uid &&
           request.resource.data.role == resource.data.role &&
           request.resource.data.verificationStatus in
-            [resource.data.verificationStatus, 'pending', 'pending_review']);
+            [resource.data.verificationStatus, 'pending', 'pending_review']) ||
+        (signedIn() && resource.data.role == 'captain' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingScore', 'ratingCount']));
       allow delete: if isAdmin();
+    }
+
+    function isPlatformActive() {
+      return !exists(/databases/$(database)/documents/config/global_settings) ||
+        get(/databases/$(database)/documents/config/global_settings).data.isPlatformActive != false;
     }
 
     match /ride_requests/{rideId} {
       allow create: if signedIn() &&
+        isPlatformActive() &&
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.status == 'searching';
 
@@ -43,8 +51,8 @@ service cloud.firestore {
           (resource.data.status == 'searching' ||
            resource.data.assignedCaptainId == request.auth.uid));
 
-      allow update: if isAdmin() || riderCancellation() ||
-        captainDecline() || captainAcceptance() || captainTransition();
+      allow update: if isAdmin() || riderCancellation() || riderQueueUpdate() ||
+        captainDecline() || captainAcceptance() || captainTransition() || captainCancellation();
       allow delete: if isAdmin();
 
       function riderCancellation() {
@@ -53,7 +61,16 @@ service cloud.firestore {
           request.resource.data.status == 'cancelled' &&
           resource.data.status in ['searching', 'accepted', 'arriving'] &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'updatedAt']);
+            .hasOnly(['status', 'cancelledBy', 'cancelledAt', 'updatedAt']);
+      }
+
+      function riderQueueUpdate() {
+        return signedIn() &&
+          resource.data.userId == request.auth.uid &&
+          resource.data.status == 'searching' &&
+          request.resource.data.status == 'searching' &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['currentRouteIndex', 'routeStartedAt', 'updatedAt']);
       }
 
       function captainDecline() {
@@ -87,6 +104,16 @@ service cloud.firestore {
            (resource.data.status == 'in_progress' && request.resource.data.status == 'completed'));
       }
 
+      function captainCancellation() {
+        return isVerifiedCaptain() &&
+          resource.data.assignedCaptainId == request.auth.uid &&
+          request.resource.data.assignedCaptainId == request.auth.uid &&
+          request.resource.data.status == 'cancelled' &&
+          resource.data.status in ['accepted', 'arriving'] &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'cancelledBy', 'cancelledAt', 'updatedAt']);
+      }
+
       match /issues/{issueId} {
         allow read: if isAdmin() ||
           (isVerifiedCaptain() &&
@@ -104,11 +131,72 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /pricing/{document=**} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
     match /admin_audit_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isAdmin() &&
         request.resource.data.adminUid == request.auth.uid;
       allow update, delete: if false;
     }
+
+    match /support_tickets/{ticketId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /payout_history/{payoutId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.captainId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /payouts/{payoutId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.captainId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /offers/{offerId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /campaigns/{campaignId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (request.resource.data.userId == request.auth.uid || request.resource.data.captainId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || (signedIn() && request.resource.data.ownerId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /config/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /emergency_events/{eventId} {
+      allow read: if isAdmin() || (signedIn() && (resource.data.userId == request.auth.uid || resource.data.captainId == request.auth.uid));
+      allow create: if signedIn() && (request.resource.data.userId == request.auth.uid || request.resource.data.captainId == request.auth.uid);
+      allow update: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /broadcast_notifications/{notifId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
   }
 }
+

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import '../../services/presentation/services_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -21,7 +20,6 @@ import '../../../captain/data/captain_repository.dart';
 import '../../rides/presentation/ride_history_screen.dart';
 import '../../profile/presentation/profile_tab.dart';
 import '../../../../core/widgets/fade_indexed_stack.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'widgets/default_bottom_sheet.dart';
 import 'widgets/searching_bottom_sheet.dart';
 import 'widgets/captain_found_bottom_sheet.dart';
@@ -130,6 +128,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
               FirebaseFirestore.instance.collection('ride_requests').doc(_dispatchRideId).update({
                 'currentRouteIndex': _dispatchIndex,
                 'routeStartedAt': FieldValue.serverTimestamp(),
+                'updatedAt': FieldValue.serverTimestamp(),
               }).catchError((_) {});
            } else {
               timer.cancel();
@@ -453,6 +452,10 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         _mapController?.clearRoute();
         _mapController?.toggleNativeUserLocation(true);
         if (newStatus == 'cancelled') {
+          final cancelledBy = next.value?.data()?['cancelledBy'];
+          final cancelMessage = cancelledBy == 'captain'
+              ? 'Your ride was cancelled by the captain'
+              : 'Your ride request has been cancelled';
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && oldStatus != null) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -468,10 +471,10 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                         child: const Icon(Icons.info_outline, color: Colors.white, size: 20),
                       ),
                       const SizedBox(width: 12),
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'Your ride was cancelled by the captain',
-                          style: TextStyle(
+                          cancelMessage,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -631,16 +634,22 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                           } else if (event is Map && event['event'] == 'cameraIdle') {
                             _isProgrammaticMove = false;
                             if (_bookingState == 'default') {
-                              final lat = event['lat'] as double?;
-                              final lng = event['lng'] as double?;
+                              final lat = (event['lat'] as num?)?.toDouble();
+                              final lng = (event['lng'] as num?)?.toDouble();
                               if (lat != null && lng != null) {
                                 if (mounted) {
                                   setState(() {
                                     _isMapMoving = false;
+                                    _pickupLocation = {
+                                      'lat': lat,
+                                      'lng': lng,
+                                      'description': _pickupLocation?['description'] ?? 'Selected Location'
+                                    };
                                   });
                                 }
                                 final address = await OlaMapsRepository().reverseGeocode(lat, lng);
-                                if (mounted && _bookingState == 'default') {
+                                if (mounted && _bookingState == 'default' &&
+                                    _pickupLocation?['lat'] == lat && _pickupLocation?['lng'] == lng) {
                                   setState(() {
                                     _pickupLocation = {
                                       'lat': lat,
@@ -722,6 +731,17 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                           width: 2,
                                           height: 16,
                                           color: Colors.black87,
+                                        ),
+                                        Positioned(
+                                          bottom: 0,
+                                          child: Container(
+                                            width: 4,
+                                            height: 4,
+                                            decoration: const BoxDecoration(
+                                              color: Colors.black87,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
                                         ),
                                         Positioned(
                                           top: 0,
@@ -876,7 +896,15 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                         if (rideId != null) {
                                           ref
                                               .read(rideRepositoryProvider)
-                                              .updateRideStatus(rideId, 'cancelled');
+                                              .updateRideStatus(
+                                                rideId,
+                                                'cancelled',
+                                                extraData: {
+                                                  'cancelledBy': 'user',
+                                                  'cancelledAt': FieldValue.serverTimestamp(),
+                                                  'updatedAt': FieldValue.serverTimestamp(),
+                                                },
+                                              );
                                           ref.read(currentRideIdProvider.notifier).state = null;
                                         }
                                         setState(() {
@@ -899,9 +927,64 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                       fare: fare,
                                       status: displayState,
                                       captainId: rideData?['assignedCaptainId'],
+                                      onCancelRide: () async {
+                                        if (rideId == null) return;
+                                        final confirmed = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            backgroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            title: const Text('Cancel Ride?'),
+                                            content: const Text(
+                                              'Are you sure you want to cancel this ride request?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(ctx, false),
+                                                child: const Text('No, Keep Ride'),
+                                              ),
+                                              FilledButton(
+                                                style: FilledButton.styleFrom(
+                                                  backgroundColor: const Color(0xFFDC2626),
+                                                ),
+                                                onPressed: () => Navigator.pop(ctx, true),
+                                                child: const Text('Yes, Cancel'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirmed == true) {
+                                          ref.read(rideRepositoryProvider).updateRideStatus(
+                                            rideId,
+                                            'cancelled',
+                                            extraData: {
+                                              'cancelledBy': 'user',
+                                              'cancelledAt': FieldValue.serverTimestamp(),
+                                              'updatedAt': FieldValue.serverTimestamp(),
+                                            },
+                                          );
+                                          ref.read(currentRideIdProvider.notifier).state = null;
+                                          setState(() {
+                                            _bookingState = 'default';
+                                            _destination = null;
+                                            _pickupLocation = null;
+                                            _routePolyline = null;
+                                            _routePoints = null;
+                                            _followUser = true;
+                                          });
+                                          _mapController?.clearRoute();
+                                          _mapController?.toggleNativeUserLocation(true);
+                                        }
+                                      },
                                     );
                                   } else if (displayState == 'in_progress') {
-                                    stateContent = const InProgressBottomSheet();
+                                    stateContent = InProgressBottomSheet(
+                                      rideId: rideId,
+                                      captainId: rideData?['assignedCaptainId'],
+                                      rideData: rideData,
+                                    );
                                   } else if (displayState == 'completed') {
                                     stateContent = CompletedBottomSheet(
                                       fare: fare,
@@ -950,6 +1033,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                     );
                                   } else {
                                     stateContent = DefaultBottomSheet(
+                                      pickupLocation: _pickupLocation,
                                       onDestinationSelected: (dest) {
                                         _processDestination(context, dest);
                                       },
@@ -1022,7 +1106,6 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                     valueListenable: _sheetExtent,
                     builder: (context, extent, child) {
                       final screenHeight = MediaQuery.of(context).size.height;
-                      final screenWidth = MediaQuery.of(context).size.width;
                       final showButton = _bookingState == 'default' && _mapInteracted && extent < 0.45;
                       return Positioned(
                         bottom: (screenHeight * extent) + 16,
@@ -1059,6 +1142,17 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       ),
                       child: ElevatedButton(
                         onPressed: () async {
+                          if (_mapController != null) {
+                            final center = await _mapController!.getCenterCoordinates();
+                            if (center != null) {
+                              _pickupLocation = {
+                                'lat': center['lat'],
+                                'lng': center['lng'],
+                                'description': _pickupLocation?['description'] ?? 'Selected Location',
+                              };
+                            }
+                          }
+                          if (!context.mounted) return;
                           final result = await context.push('/search', extra: {
                             if (_pickupLocation != null) 'pickup': _pickupLocation,
                           });
@@ -1849,12 +1943,12 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         ? (result['destination'] as Map<String, dynamic>)
         : result;
     final Map<String, dynamic>? pickupResult = isDual
-        ? (result['pickup'] as Map<String, dynamic>?)
-        : null;
+        ? (result['pickup'] as Map<String, dynamic>? ?? _pickupLocation)
+        : _pickupLocation;
 
     setState(() {
       _destination = destResult;
-      _pickupLocation = pickupResult;
+      _pickupLocation = pickupResult ?? _pickupLocation;
       _routePolyline = null;
       _routePoints = null;
       _bookingState = 'selected';
@@ -1957,6 +2051,9 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     if (pickupLat != null && pickupLng != null) {
       pLat = pickupLat;
       pLng = pickupLng;
+    } else if (_pickupLocation?['lat'] != null && _pickupLocation?['lng'] != null) {
+      pLat = (_pickupLocation!['lat'] as num).toDouble();
+      pLng = (_pickupLocation!['lng'] as num).toDouble();
     } else {
       final pos = await _locationService.getCurrentPosition();
       if (pos == null) {

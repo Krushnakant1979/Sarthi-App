@@ -9,13 +9,13 @@ class IncomingRequestSheetWidget extends StatefulWidget {
   final bool isActionLoading;
 
   const IncomingRequestSheetWidget({
-    Key? key,
+    super.key,
     required this.request,
     required this.dragHandle,
     required this.onSkip,
     required this.onAccept,
     required this.isActionLoading,
-  }) : super(key: key);
+  });
 
   @override
   State<IncomingRequestSheetWidget> createState() => _IncomingRequestSheetWidgetState();

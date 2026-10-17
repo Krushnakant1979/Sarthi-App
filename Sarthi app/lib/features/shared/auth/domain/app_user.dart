@@ -8,6 +8,7 @@ class AppUser {
   final String role;
   final String? profilePictureUrl;
   final String verificationStatus;
+  final String? rejectionReason;
   final String? aadhaarCardUrl;
   final String? drivingLicenceUrl;
   final num ratingScore;
@@ -16,6 +17,10 @@ class AppUser {
   final Map<String, dynamic>? workAddress;
   final List<Map<String, dynamic>>? recentSearches;
   final String? vehicleType;
+  final String? vehicleNumber;
+  final String? registrationNumber;
+  final String? rcBookUrl;
+  final String? insuranceUrl;
   final DateTime createdAt;
 
   String get publicId {
@@ -36,6 +41,7 @@ class AppUser {
     this.role = 'user',
     this.profilePictureUrl,
     this.verificationStatus = 'pending',
+    this.rejectionReason,
     this.aadhaarCardUrl,
     this.drivingLicenceUrl,
     this.ratingScore = 0,
@@ -44,6 +50,10 @@ class AppUser {
     this.workAddress,
     this.recentSearches,
     this.vehicleType,
+    this.vehicleNumber,
+    this.registrationNumber,
+    this.rcBookUrl,
+    this.insuranceUrl,
     required this.createdAt,
   });
 
@@ -56,6 +66,7 @@ class AppUser {
       'role': role,
       'profilePictureUrl': profilePictureUrl,
       'verificationStatus': verificationStatus,
+      'rejectionReason': rejectionReason,
       'aadhaarCardUrl': aadhaarCardUrl,
       'drivingLicenceUrl': drivingLicenceUrl,
       'ratingScore': ratingScore,
@@ -64,6 +75,10 @@ class AppUser {
       'workAddress': workAddress,
       'recentSearches': recentSearches,
       'vehicleType': vehicleType,
+      'vehicleNumber': vehicleNumber ?? registrationNumber,
+      'registrationNumber': registrationNumber ?? vehicleNumber,
+      'rcBookUrl': rcBookUrl,
+      'insuranceUrl': insuranceUrl,
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -77,6 +92,7 @@ class AppUser {
       role: map['role'] ?? 'user',
       profilePictureUrl: map['profilePictureUrl'],
       verificationStatus: map['verificationStatus'] ?? 'pending',
+      rejectionReason: map['rejectionReason'] as String?,
       aadhaarCardUrl: map['aadhaarCardUrl'],
       drivingLicenceUrl: map['drivingLicenceUrl'],
       ratingScore: map['ratingScore'] ?? 0,
@@ -95,6 +111,10 @@ class AppUser {
             )
           : null,
       vehicleType: map['vehicleType'],
+      vehicleNumber: map['vehicleNumber'] ?? map['registrationNumber'],
+      registrationNumber: map['registrationNumber'] ?? map['vehicleNumber'],
+      rcBookUrl: map['rcBookUrl'],
+      insuranceUrl: map['insuranceUrl'],
       createdAt: _parseDate(map['createdAt']),
     );
   }

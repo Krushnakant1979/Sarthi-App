@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:dio/dio.dart';
 import '../domain/app_user.dart';
 
@@ -62,7 +63,21 @@ class UserRepository {
     String docType,
     File imageFile,
   ) async {
-    return _uploadToCloudinary('${uid}_$docType.jpg', imageFile);
+    try {
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('kyc_documents')
+          .child(uid)
+          .child('${docType}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final uploadTask = await storageRef.putFile(
+        imageFile,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      return await uploadTask.ref.getDownloadURL();
+    } catch (_) {
+      // Graceful fallback to Cloudinary if Firebase Storage bucket is uninitialized
+      return _uploadToCloudinary('${uid}_$docType.jpg', imageFile);
+    }
   }
 
   Future<void> createSupportTicket(

@@ -195,8 +195,21 @@ class OlaMapsController {
         false;
   }
 
+  /// Returns the exact geographic coordinates of the visual focal point (pin tip).
+  Future<Map<String, double>?> getCenterCoordinates() async {
+    try {
+      final res = await _channel.invokeMapMethod<String, dynamic>('getCenterCoordinates');
+      if (res != null && res.containsKey('lat') && res.containsKey('lng')) {
+        return {
+          'lat': (res['lat'] as num).toDouble(),
+          'lng': (res['lng'] as num).toDouble(),
+        };
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Stream<dynamic> get mapEvents {
     return _eventChannel.receiveBroadcastStream();
   }
-
 }

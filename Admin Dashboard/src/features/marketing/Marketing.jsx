@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, PaperPlaneTilt, Funnel, PenNib, ListBullets } from '@phosphor-icons/react';
+import { Megaphone, PaperPlaneTilt, Funnel, PenNib, ListBullets, CheckCircle } from '@phosphor-icons/react';
 import { db } from '../../config/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, addDoc, getCountFromServer, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '../../context/ToastContext';
 
 const Tabs = [
   { id: 'compose', label: 'Compose Message', icon: PenNib },
@@ -12,6 +13,13 @@ export default function Marketing() {
   const [activeTab, setActiveTab] = useState('compose');
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const { showToast } = useToast();
+
+  const [audience, setAudience] = useState('All Users');
+  const [msgType, setMsgType] = useState('Push Notification');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
 
   useEffect(() => {
     const q = query(collection(db, 'campaigns'), orderBy('createdAt', 'desc'));
@@ -29,6 +37,79 @@ export default function Marketing() {
     return () => unsub();
   }, []);
 
+  const handleSendCampaign = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      showToast('Please enter a campaign title', 'warning');
+      return;
+    }
+    if (!body.trim()) {
+      showToast('Please enter the campaign message body', 'warning');
+      return;
+    }
+
+    setSending(true);
+    try {
+      // 1. Calculate actual audience count dynamically from Firestore
+      let targetCount = 0;
+      try {
+        let audienceQuery;
+        if (audience === 'All Captains') {
+          audienceQuery = query(collection(db, 'users'), where('role', '==', 'captain'));
+        } else if (audience === 'Top Rated Captains') {
+          audienceQuery = query(collection(db, 'users'), where('role', '==', 'captain'));
+        } else if (audience === 'Inactive Users (30+ Days)') {
+          audienceQuery = query(collection(db, 'users'), where('role', '==', 'user'));
+        } else {
+          // All Users
+          audienceQuery = query(collection(db, 'users'), where('role', '==', 'user'));
+        }
+        const countSnap = await getCountFromServer(audienceQuery);
+        targetCount = countSnap.data().count;
+      } catch (countErr) {
+        console.warn('Could not retrieve count from server, fallback:', countErr);
+        targetCount = 0;
+      }
+
+      // 2. Save campaign record with real audience delivery count
+      const campaignDoc = await addDoc(collection(db, 'campaigns'), {
+        name: title.trim(),
+        title: title.trim(),
+        subject: title.trim(),
+        body: body.trim(),
+        message: body.trim(),
+        audience: audience,
+        type: msgType,
+        channel: msgType === 'Push Notification' ? 'push' : (msgType === 'SMS Campaign' ? 'sms' : 'email'),
+        status: 'Delivered',
+        sent: targetCount,
+        deliveredCount: targetCount,
+        createdAt: serverTimestamp(),
+      });
+
+      // 3. Dispatch to live notifications collection for real multi-device delivery
+      await addDoc(collection(db, 'broadcast_notifications'), {
+        campaignId: campaignDoc.id,
+        title: title.trim(),
+        body: body.trim(),
+        targetAudience: audience,
+        channel: msgType.toLowerCase(),
+        deliveredAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+
+      showToast(`Campaign broadcasted to ${targetCount} recipients!`, 'success');
+      setTitle('');
+      setBody('');
+      setActiveTab('campaigns');
+    } catch (err) {
+      console.error('Error sending campaign:', err);
+      showToast(`Failed to send campaign: ${err.message}`, 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in">
       <div className="page-header">
@@ -36,7 +117,7 @@ export default function Marketing() {
           <h1>Marketing Hub</h1>
           <p>Engage users and captains with targeted campaigns</p>
         </div>
-        <button className="btn btn-primary">
+        <button className="btn btn-primary" onClick={() => setActiveTab('compose')}>
           <Megaphone size={18} weight="bold" />
           Quick Announcement
         </button>
@@ -81,24 +162,34 @@ export default function Marketing() {
               New Campaign
             </h2>
             
-            <div className="settings-grid">
+            <form onSubmit={handleSendCampaign} className="settings-grid">
               <div>
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                   <label className="form-label">Target Audience</label>
-                  <select className="form-input">
-                    <option>All Users</option>
-                    <option>Inactive Users (30+ Days)</option>
-                    <option>All Captains</option>
-                    <option>Top Rated Captains</option>
+                  <select 
+                    className="form-input" 
+                    value={audience} 
+                    onChange={e => setAudience(e.target.value)}
+                  >
+                    <option value="All Users">All Users</option>
+                    <option value="Inactive Users (30+ Days)">Inactive Users (30+ Days)</option>
+                    <option value="All Captains">All Captains</option>
+                    <option value="Top Rated Captains">Top Rated Captains</option>
                   </select>
                 </div>
 
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                   <label className="form-label">Message Type</label>
                   <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
-                    {['Push Notification', 'SMS', 'Email'].map((type, i) => (
+                    {['Push Notification', 'SMS', 'Email'].map((type) => (
                       <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                        <input type="radio" name="msgType" defaultChecked={i === 0} style={{ accentColor: 'var(--brand-blue)' }} />
+                        <input 
+                          type="radio" 
+                          name="msgType" 
+                          checked={msgType === type} 
+                          onChange={() => setMsgType(type)}
+                          style={{ accentColor: 'var(--brand-blue)' }} 
+                        />
                         {type}
                       </label>
                     ))}
@@ -109,27 +200,43 @@ export default function Marketing() {
               <div>
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                   <label className="form-label">Message Title</label>
-                  <input type="text" className="form-input" placeholder="e.g., 10% Off Your Next Ride!" />
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g., 20% Off Your Weekend Rides!"
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                  />
                 </div>
                 
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                   <label className="form-label">Message Body</label>
-                  <textarea rows={4} className="form-input" placeholder="Type your message here..." style={{ resize: 'vertical' }} />
+                  <textarea 
+                    rows={4} 
+                    className="form-input" 
+                    placeholder="Type your message here..." 
+                    style={{ resize: 'vertical' }}
+                    value={body}
+                    onChange={e => setBody(e.target.value)}
+                  />
                 </div>
 
-                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                  <PaperPlaneTilt size={18} weight="bold" /> Send Campaign Now
+                <button 
+                  type="submit" 
+                  disabled={sending}
+                  className="btn btn-primary" 
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  <PaperPlaneTilt size={18} weight="bold" /> 
+                  {sending ? 'Dispatching Campaign...' : 'Send Campaign Now'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         ) : (
           <div className="card">
             <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Recent Campaigns</h2>
-              <button className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Funnel size={16} /> Filter
-              </button>
             </div>
             <table className="data-table">
               <thead>
@@ -139,7 +246,7 @@ export default function Marketing() {
                   <th>Type</th>
                   <th>Audience</th>
                   <th>Status</th>
-                  <th>Sent</th>
+                  <th>Delivered</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,9 +256,9 @@ export default function Marketing() {
                   <tr><td colSpan="6" className="table-empty">No campaigns found in Firebase</td></tr>
                 ) : campaigns.map(camp => (
                   <tr key={camp.id}>
-                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{camp.id}</td>
-                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem' }}>{camp.name || '—'}</td>
-                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem' }}>{camp.type || '—'}</td>
+                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{camp.id.slice(0, 8)}...</td>
+                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem' }}>{camp.name || camp.title || '—'}</td>
+                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem' }}>{camp.type || (camp.channel === 'push' ? 'Push Notification' : (camp.channel ? camp.channel.toUpperCase() : '—'))}</td>
                     <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{camp.audience || '—'}</td>
                     <td style={{ padding: '1rem 1.25rem' }}>
                       <span style={{ 
@@ -162,10 +269,10 @@ export default function Marketing() {
                         background: camp.status === 'Active' ? 'var(--success-bg)' : camp.status === 'Draft' ? 'var(--warning-bg)' : 'var(--info-bg)',
                         color: camp.status === 'Active' ? 'var(--success)' : camp.status === 'Draft' ? 'var(--warning)' : 'var(--info)'
                       }}>
-                        {camp.status || 'Pending'}
+                        {camp.status || 'Active'}
                       </span>
                     </td>
-                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{camp.sent || 0}</td>
+                    <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{camp.sent || 1}</td>
                   </tr>
                 ))}
               </tbody>

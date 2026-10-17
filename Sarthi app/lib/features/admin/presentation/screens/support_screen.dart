@@ -56,10 +56,17 @@ class SupportScreen extends ConsumerWidget {
         final subject = (t['subject'] as String? ?? '').toLowerCase();
         final msg = (t['message'] as String? ?? '').toLowerCase();
         final userId = (t['userId'] as String? ?? '').toLowerCase();
+        final userName = (t['userName'] as String? ??
+                t['reporterName'] as String? ??
+                t['name'] as String? ??
+                t['userPhone'] as String? ??
+                '')
+            .toLowerCase();
         return id.contains(search) ||
             subject.contains(search) ||
             msg.contains(search) ||
-            userId.contains(search);
+            userId.contains(search) ||
+            userName.contains(search);
       }).toList();
     }
 
@@ -133,62 +140,65 @@ class SupportScreen extends ConsumerWidget {
           ref.invalidate(supportTicketsProvider);
         },
         color: AdminColors.primary,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ComplaintStatusTabs(
-                      openCount: openTickets.length,
-                      resolvedCount: resolvedTickets.length,
-                    ),
-                    const SizedBox(height: 16),
-                    const _ComplaintSearchField(),
-                    const SizedBox(height: 16),
-                    _ComplaintRoleFilters(
-                      allCount: allCount,
-                      usersCount: usersCount,
-                      captainsCount: captainsCount,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ),
-              ),
-            ),
-            if (ticketsAsync.isLoading && !ticketsAsync.hasValue)
-              const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (filteredList.isEmpty)
-              const SliverFillRemaining(child: _ComplaintsEmptyState())
-            else ...[
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final ticket = filteredList[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _ComplaintPreviewCard(ticket: ticket),
-                    );
-                  }, childCount: filteredList.length),
-                ),
-              ),
-              const SliverToBoxAdapter(
+        child: ResponsiveCenter(
+          maxWidth: 960,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: _ComplaintsUpToDateCard(),
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _ComplaintStatusTabs(
+                        openCount: openTickets.length,
+                        resolvedCount: resolvedTickets.length,
+                      ),
+                      const SizedBox(height: 16),
+                      const _ComplaintSearchField(),
+                      const SizedBox(height: 16),
+                      _ComplaintRoleFilters(
+                        allCount: allCount,
+                        usersCount: usersCount,
+                        captainsCount: captainsCount,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
                 ),
               ),
+              if (ticketsAsync.isLoading && !ticketsAsync.hasValue)
+                const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (filteredList.isEmpty)
+                const SliverFillRemaining(child: _ComplaintsEmptyState())
+              else ...[
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final ticket = filteredList[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _ComplaintPreviewCard(ticket: ticket),
+                      );
+                    }, childCount: filteredList.length),
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: _ComplaintsUpToDateCard(),
+                  ),
+                ),
+              ],
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 40),
+              ), // Bottom padding
             ],
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 40),
-            ), // Bottom padding
-          ],
+          ),
         ),
       ),
     );
@@ -416,9 +426,10 @@ class _ComplaintRoleFilters extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final roleFilter = ref.watch(supportRoleProvider);
+    final isNarrow = AdminResponsive.isNarrow(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      padding: EdgeInsets.symmetric(horizontal: isNarrow ? 8.0 : 24.0),
       child: Row(
         children: [
           Expanded(
@@ -487,7 +498,7 @@ class _ComplaintRoleFilters extends ConsumerWidget {
               style: GoogleFonts.inter(
                 color: isSelected ? Colors.white : brandColor,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                fontSize: 11,
+                fontSize: AdminResponsive.isNarrow(context) ? 9 : 11,
               ),
             ),
             const SizedBox(width: 4),
@@ -552,7 +563,10 @@ class _ComplaintPreviewCard extends StatelessWidget {
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          builder: (ctx) => _ComplaintDetailSheet(ticket: ticket),
+          builder: (ctx) => buildResponsiveSheet(
+            context,
+            child: _ComplaintDetailSheet(ticket: ticket),
+          ),
         );
       },
       borderRadius: BorderRadius.circular(14),
@@ -781,27 +795,44 @@ class _ComplaintDetailSheet extends ConsumerStatefulWidget {
 
 class _ComplaintDetailSheetState extends ConsumerState<_ComplaintDetailSheet> {
   final _resolutionController = TextEditingController();
+  bool _isResolving = false;
 
-  void _resolveTicket() {
+  Future<void> _resolveTicket() async {
     final msg = _resolutionController.text.trim();
     if (msg.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please enter a resolution message'),
+          content: const Text('Please enter a resolution message'),
           backgroundColor: context.colors.error,
         ),
       );
       return;
     }
 
-    ref.read(adminRepositoryProvider).resolveTicket(widget.ticket['id'], msg);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Complaint resolved successfully'),
-        backgroundColor: context.colors.success,
-      ),
-    );
-    Navigator.pop(context);
+    setState(() => _isResolving = true);
+    try {
+      await ref.read(adminRepositoryProvider).resolveTicket(widget.ticket['id'], msg);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Complaint resolved successfully'),
+          backgroundColor: context.colors.success,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to resolve complaint: $e'),
+          backgroundColor: context.colors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isResolving = false);
+      }
+    }
   }
 
   @override
@@ -1065,7 +1096,7 @@ class _ComplaintDetailSheetState extends ConsumerState<_ComplaintDetailSheet> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: _resolveTicket,
+                              onPressed: _isResolving ? null : _resolveTicket,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF16A36A),
                                 foregroundColor: Colors.white,
@@ -1077,13 +1108,22 @@ class _ComplaintDetailSheetState extends ConsumerState<_ComplaintDetailSheet> {
                                 ),
                                 elevation: 0,
                               ),
-                              child: Text(
-                                'Mark Resolved',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                              child: _isResolving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : Text(
+                                      'Mark Resolved',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                             ),
                           ),
                         ],

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../admin_providers.dart';
 import '../admin_design.dart';
 import '../admin_dashboard_screen.dart';
+import '../widgets/admin_common_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class PricingTab extends ConsumerStatefulWidget {
@@ -152,6 +153,15 @@ class PricingTabState extends ConsumerState<PricingTab> {
         surgeEndTime != _original['surgeEndAt'];
   }
 
+  String? _validatePositiveDouble(String? v) {
+    if (v == null || v.isEmpty) return 'Required';
+    final n = double.tryParse(v);
+    if (n == null) return 'Enter a valid number';
+    if (n <= 0) return 'Must be greater than 0';
+    if (n > 10000) return 'Value is too large';
+    return null;
+  }
+
   String? _validateDouble(String? v) {
     if (v == null || v.isEmpty) return 'Required';
     final n = double.tryParse(v);
@@ -172,8 +182,9 @@ class PricingTabState extends ConsumerState<PricingTab> {
 
   String? _validateSurgeReason(String? v) {
     if (!dynamicPricingEnabled) return null;
-    if (v == null || v.trim().isEmpty)
+    if (v == null || v.trim().isEmpty) {
       return 'Reason required when dynamic pricing is on';
+    }
     return null;
   }
 
@@ -237,45 +248,51 @@ class PricingTabState extends ConsumerState<PricingTab> {
       children: [
         CustomScrollView(
           slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 180),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildHeader(),
-                  SizedBox(height: 24),
-                  _buildVehicleSelector(),
-                  SizedBox(height: 24),
-                  if (_conflictDetected) _buildConflictWarning(),
-                  if (_conflictDetected) SizedBox(height: 24),
+            SliverToBoxAdapter(
+              child: ResponsiveCenter(
+                maxWidth: 800,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 180),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 24),
+                      _buildVehicleSelector(),
+                      const SizedBox(height: 24),
+                      if (_conflictDetected) _buildConflictWarning(),
+                      if (_conflictDetected) const SizedBox(height: 24),
 
-                  fareRulesAsync.when(
-                    data: (data) {
-                      if (_loadedVersion == -1 && data != null) {
-                        // Waiting for listen to catch it, or just populate directly if missed
-                        Future.microtask(() => _populateForm(data));
-                        return Center(child: CircularProgressIndicator());
-                      }
-                      return Column(
-                        children: [
-                          _buildFareForm(),
-                          SizedBox(height: 24),
-                          _buildWaitingChargesForm(),
-                          SizedBox(height: 24),
-                          _buildDynamicPricingForm(),
-                          SizedBox(height: 24),
-                          _buildLivePreview(),
-                        ],
-                      );
-                    },
-                    loading: () => Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(40),
-                        child: CircularProgressIndicator(),
+                      fareRulesAsync.when(
+                        data: (data) {
+                          if (_loadedVersion == -1 && data != null) {
+                            // Waiting for listen to catch it, or just populate directly if missed
+                            Future.microtask(() => _populateForm(data));
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          return Column(
+                            children: [
+                              _buildFareForm(),
+                              const SizedBox(height: 24),
+                              _buildWaitingChargesForm(),
+                              const SizedBox(height: 24),
+                              _buildDynamicPricingForm(),
+                              const SizedBox(height: 24),
+                              _buildLivePreview(),
+                            ],
+                          );
+                        },
+                        loading: () => const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(40),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        error: (err, stack) => Center(child: Text('Error: $err')),
                       ),
-                    ),
-                    error: (err, stack) => Center(child: Text('Error: $err')),
+                    ],
                   ),
-                ]),
+                ),
               ),
             ),
           ],
@@ -285,7 +302,10 @@ class PricingTabState extends ConsumerState<PricingTab> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: _buildStickyBottomBar(),
+            child: ResponsiveCenter(
+              maxWidth: 800,
+              child: _buildStickyBottomBar(),
+            ),
           ),
       ],
     );
@@ -425,80 +445,48 @@ class PricingTabState extends ConsumerState<PricingTab> {
   }
 
   Widget _buildVehicleSelector() {
-    final options = [
-      {'id': 'auto', 'label': 'Auto', 'icon': Icons.electric_rickshaw_rounded},
-      {'id': 'cab', 'label': 'Cab', 'icon': Icons.local_taxi_rounded},
-      {'id': 'bike', 'label': 'Bike', 'icon': Icons.motorcycle_rounded},
-      {'id': 'parcel', 'label': 'Parcel', 'icon': Icons.local_shipping_rounded},
+    const items = [
+      AdminSlidingSegment(
+        value: 'auto',
+        label: 'Auto',
+        icon: Icons.electric_rickshaw_rounded,
+      ),
+      AdminSlidingSegment(
+        value: 'cab',
+        label: 'Cab',
+        icon: Icons.local_taxi_rounded,
+      ),
+      AdminSlidingSegment(
+        value: 'bike',
+        label: 'Bike',
+        icon: Icons.motorcycle_rounded,
+      ),
+      AdminSlidingSegment(
+        value: 'parcel',
+        label: 'Parcel',
+        icon: Icons.local_shipping_rounded,
+      ),
     ];
 
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: context.colors.cardBorder,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: options.map((opt) {
-          final isSelected = _vehicle == opt['id'];
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                if (_vehicle != opt['id']) {
-                  setState(() {
-                    _vehicle = opt['id'] as String;
-                    _loadedVersion =
-                        -1; // reset version to trigger reload on next frame
-                    _conflictDetected = false;
-                  });
-                }
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? context.colors.adminAccent
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : [],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      opt['icon'] as IconData,
-                      size: 14,
-                      color: isSelected
-                          ? const Color(0xFF0B2748)
-                          : context.colors.textMuted,
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      opt['label'] as String,
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 10,
-                        color: isSelected
-                            ? const Color(0xFF0B2748)
-                            : context.colors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+    return AdminSlidingSegmentedControl<String>(
+      value: _vehicle,
+      items: items,
+      fontSize: 10.5,
+      indicatorColor: context.colors.adminAccent,
+      selectedTextColor: const Color(0xFF0B2748),
+      unselectedTextColor: context.colors.textMuted,
+      backgroundColor: context.colors.cardBorder,
+      itemPadding: const EdgeInsets.symmetric(vertical: 8),
+      onChanged: (val) {
+        if (_vehicle != val) {
+          setState(() {
+            _vehicle = val;
+            _loadedVersion =
+                -1; // reset version to trigger reload on next frame
+            _conflictDetected = false;
+          });
+        }
+      },
     );
   }
 
@@ -535,7 +523,7 @@ class PricingTabState extends ConsumerState<PricingTab> {
               label: 'Base Fare',
               unit: '₹',
               icon: Icons.flag_rounded,
-              validator: _validateDouble,
+              validator: _validatePositiveDouble,
             ),
             SizedBox(height: 12),
             FareField(
@@ -551,7 +539,7 @@ class PricingTabState extends ConsumerState<PricingTab> {
               label: 'Rate per Extra Km',
               unit: '₹/km',
               icon: Icons.route_rounded,
-              validator: _validateDouble,
+              validator: _validatePositiveDouble,
             ),
             SizedBox(height: 12),
             FareField(
@@ -567,7 +555,7 @@ class PricingTabState extends ConsumerState<PricingTab> {
               label: 'Minimum Fare',
               unit: '₹',
               icon: Icons.money_rounded,
-              validator: _validateDouble,
+              validator: _validatePositiveDouble,
             ),
           ],
         ),
@@ -1124,24 +1112,25 @@ class PricingTabState extends ConsumerState<PricingTab> {
                 onPressed: (!hasChanges || saving || _conflictDetected)
                     ? null
                     : () async {
-                        if (!(formKey.currentState?.validate() ?? false))
+                        if (!(formKey.currentState?.validate() ?? false)) {
                           return;
+                        }
                         setState(() => saving = true);
                         try {
                           await ref
                               .read(adminRepositoryProvider)
                               .updateFareRules(
                                 _vehicle,
-                                double.parse(base.text),
-                                double.parse(includedDistance.text),
-                                double.parse(km.text),
-                                double.parse(minute.text),
-                                double.parse(minFare.text),
-                                double.parse(freeWaitingTime.text),
-                                double.parse(waitingChargePerMin.text),
+                                double.tryParse(base.text) ?? 0.0,
+                                double.tryParse(includedDistance.text) ?? 0.0,
+                                double.tryParse(km.text) ?? 0.0,
+                                double.tryParse(minute.text) ?? 0.0,
+                                double.tryParse(minFare.text) ?? 0.0,
+                                double.tryParse(freeWaitingTime.text) ?? 0.0,
+                                double.tryParse(waitingChargePerMin.text) ?? 0.0,
                                 dynamicPricingEnabled,
-                                double.parse(surgeMultiplier.text),
-                                surgeReason.text,
+                                double.tryParse(surgeMultiplier.text) ?? 1.0,
+                                surgeReason.text.trim(),
                                 surgeStartTime,
                                 surgeEndTime,
                               );
@@ -1156,10 +1145,11 @@ class PricingTabState extends ConsumerState<PricingTab> {
                             // and _populateForm will be called automatically if there are no conflicts.
                           }
                         } catch (e) {
-                          if (mounted)
+                          if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(friendlyError(e))),
                             );
+                          }
                         } finally {
                           if (mounted) setState(() => saving = false);
                         }

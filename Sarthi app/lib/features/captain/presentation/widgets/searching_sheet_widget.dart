@@ -5,9 +5,9 @@ class SearchingSheetWidget extends StatelessWidget {
   final Widget dragHandle;
 
   const SearchingSheetWidget({
-    Key? key,
+    super.key,
     required this.dragHandle,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

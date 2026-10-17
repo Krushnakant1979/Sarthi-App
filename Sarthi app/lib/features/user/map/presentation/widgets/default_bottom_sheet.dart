@@ -6,6 +6,7 @@ import '../../../../../core/design/tokens.dart';
 import '../../../../shared/auth/presentation/auth_providers.dart';
 import 'drag_handle.dart';
 class DefaultBottomSheet extends ConsumerStatefulWidget {
+  final Map<String, dynamic>? pickupLocation;
   final Function(Map<String, dynamic> destination) onDestinationSelected;
   final VoidCallback onLocationPermissionRequested;
   final bool hasLocationPermission;
@@ -13,6 +14,7 @@ class DefaultBottomSheet extends ConsumerStatefulWidget {
 
   const DefaultBottomSheet({
     super.key,
+    this.pickupLocation,
     required this.onDestinationSelected,
     required this.onLocationPermissionRequested,
     required this.hasLocationPermission,
@@ -93,7 +95,9 @@ class _DefaultBottomSheetState extends ConsumerState<DefaultBottomSheet> {
               // ── 3D Hero Banner ───────────────────────────────────
               GestureDetector(
                 onTap: () async {
-                  final result = await context.push('/search');
+                  final result = await context.push('/search', extra: {
+                    if (widget.pickupLocation != null) 'pickup': widget.pickupLocation,
+                  });
                   if (result != null && result is Map<String, dynamic>) {
                     if (!context.mounted) return;
                     widget.onDestinationSelected(result);
@@ -255,7 +259,9 @@ class _DefaultBottomSheetState extends ConsumerState<DefaultBottomSheet> {
               // Search destination bar inside bottom sheet
               GestureDetector(
                 onTap: () async {
-                  final result = await context.push('/search');
+                  final result = await context.push('/search', extra: {
+                    if (widget.pickupLocation != null) 'pickup': widget.pickupLocation,
+                  });
                   if (result != null && result is Map<String, dynamic>) {
                     if (!context.mounted) return;
                     widget.onDestinationSelected(result);
@@ -363,7 +369,9 @@ class _DefaultBottomSheetState extends ConsumerState<DefaultBottomSheet> {
               // Pickup Location Row
               GestureDetector(
                 onTap: () async {
-                  final result = await context.push('/search');
+                  final result = await context.push('/search', extra: {
+                    if (widget.pickupLocation != null) 'pickup': widget.pickupLocation,
+                  });
                   if (result != null && result is Map<String, dynamic>) {
                     if (!context.mounted) return;
                     widget.onDestinationSelected(result);

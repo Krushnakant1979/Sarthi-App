@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, MapPin, NavigationArrow, CurrencyInr, Car, User, Circle, Copy, Check } from '@phosphor-icons/react';
+import { X, MapPin, NavigationArrow, CurrencyInr, Car, User, Circle, Copy, Check, WarningCircle } from '@phosphor-icons/react';
 import { db } from '../../../config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { publicIdService } from '../../../services/publicIdService';
+import { logAdminAction } from '../../../services/auditService';
+import { useToast } from '../../../context/ToastContext';
 
 const formatDate = (val) => {
   if (!val) return '—';
@@ -28,6 +30,10 @@ export const RideDetailsModal = ({ ride, onClose }) => {
   const [captain, setCaptain] = useState(null);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [copiedId, setCopiedId] = useState(null);
+  const [showCancelPrompt, setShowCancelPrompt] = useState(false);
+  const [cancelReason, setCancelReason] = useState('Cancelled by admin dispatcher due to driver inactivity');
+  const [cancelling, setCancelling] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (!ride) return;
@@ -70,6 +76,52 @@ export const RideDetailsModal = ({ ride, onClose }) => {
     navigator.clipboard.writeText(id);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const canCancel = ['searching', 'pending', 'accepted', 'arriving', 'arrived', 'in_progress', 'ongoing'].includes(ride?.status);
+
+  const handleForceCancel = async () => {
+    if (!cancelReason.trim()) {
+      toast('Please provide a reason for cancelling this trip', 'warning');
+      return;
+    }
+    setCancelling(true);
+    try {
+      const rideRef = doc(db, 'ride_requests', ride.id);
+      await updateDoc(rideRef, {
+        status: 'cancelled',
+        cancelReason: cancelReason.trim(),
+        cancelledBy: 'admin',
+        updatedAt: serverTimestamp(),
+      });
+      const actualCaptainId = ride.assignedCaptainId || ride.captainId;
+      if (actualCaptainId) {
+        try {
+          await updateDoc(doc(db, 'users', actualCaptainId), {
+            onTrip: false,
+            isAvailable: true,
+            currentRideId: deleteField(),
+            updatedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn('Could not reset captain availability:', e);
+        }
+      }
+
+      await logAdminAction('ride_force_cancelled', ride.id, {
+        reason: cancelReason.trim(),
+        previousStatus: ride.status,
+        userId: ride.userId,
+        captainId: actualCaptainId,
+      });
+      toast('Ride force-cancelled and captain/passenger released!', 'success');
+      onClose();
+    } catch (err) {
+      console.error('Error force-cancelling ride:', err);
+      toast(`Failed to cancel ride: ${err.message}`, 'error');
+    } finally {
+      setCancelling(false);
+    }
   };
 
   if (!ride) return null;
@@ -231,6 +283,100 @@ export const RideDetailsModal = ({ ride, onClose }) => {
               </div>
             </div>
           </div>
+
+          {/* Dispatcher Override: Force Cancel */}
+          {canCancel && (
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
+              {!showCancelPrompt ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCancelPrompt(true)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--r-md)',
+                    border: '1px solid var(--error-border, #fca5a5)',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    color: 'var(--error, #ef4444)',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <WarningCircle size={18} weight="bold" />
+                  Force Cancel Ride (Dispatcher Override)
+                </button>
+              ) : (
+                <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid var(--error-border, #fca5a5)', borderRadius: 'var(--r-md)', padding: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--error, #ef4444)', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                    <WarningCircle size={18} weight="bold" />
+                    Confirm Ride Force-Cancellation
+                  </div>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: 1.4 }}>
+                    Cancelling this active trip will release the user lock and notify both passenger and captain. Please specify the administrative reason:
+                  </p>
+                  <input
+                    type="text"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Enter cancellation reason..."
+                    style={{
+                      width: '100%',
+                      padding: '0.625rem 0.75rem',
+                      borderRadius: 'var(--r-sm)',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                      marginBottom: '0.75rem',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelPrompt(false)}
+                      disabled={cancelling}
+                      style={{
+                        padding: '0.5rem 0.875rem',
+                        borderRadius: 'var(--r-sm)',
+                        border: '1px solid var(--border)',
+                        background: 'transparent',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.8125rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Dismiss
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleForceCancel}
+                      disabled={cancelling}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: 'var(--r-sm)',
+                        border: 'none',
+                        background: 'var(--error, #ef4444)',
+                        color: 'white',
+                        fontWeight: 600,
+                        fontSize: '0.8125rem',
+                        cursor: cancelling ? 'not-allowed' : 'pointer',
+                        opacity: cancelling ? 0.7 : 1
+                      }}
+                    >
+                      {cancelling ? 'Cancelling...' : 'Confirm Force Cancel'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
         

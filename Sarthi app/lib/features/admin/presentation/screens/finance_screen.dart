@@ -65,14 +65,18 @@ class FinanceScreen extends ConsumerWidget {
 
               for (final ride in rides) {
                 if (ride['status'] == 'completed') {
-                  final fare = (ride['fareEstimate'] as num?)?.toDouble() ?? 0;
+                  final fare = ((ride['actualFare'] ??
+                          ride['finalFare'] ??
+                          ride['fareEstimate']) as num?)
+                      ?.toDouble() ??
+                      0;
                   totalRevenue += fare;
                   final comm = fare * 0.15; // 15% commission
                   platformEarnings += comm;
 
                   // Check if ride is unsettled
                   if (ride['isSettled'] != true) {
-                    final capId = ride['assignedCaptainId'];
+                    final capId = ride['assignedCaptainId'] ?? ride['captainId'];
                     if (capId != null) {
                       pendingByCaptain.putIfAbsent(capId, () => []).add(ride);
                       pendingPayoutsTotal += (fare - comm);
@@ -148,8 +152,11 @@ class FinanceScreen extends ConsumerWidget {
                                   double gross = 0;
                                   for (final r in capRides) {
                                     gross +=
-                                        (r['fareEstimate'] as num?)
-                                            ?.toDouble() ??
+                                        ((r['actualFare'] ??
+                                                r['finalFare'] ??
+                                                r['fareEstimate'])
+                                            as num?)
+                                        ?.toDouble() ??
                                         0;
                                   }
                                   final comm = gross * 0.15;
@@ -502,8 +509,9 @@ class _PendingPayoutCardState extends ConsumerState<_PendingPayoutCard> {
                               widget.captainId,
                               widget.rideIds,
                               widget.netPayout,
+                              captainName: widget.captainName,
                             );
-                        if (mounted)
+                        if (mounted) {
                           messenger.showSnackBar(
                             SnackBar(
                               backgroundColor: colors.success,
@@ -512,14 +520,16 @@ class _PendingPayoutCardState extends ConsumerState<_PendingPayoutCard> {
                               ),
                             ),
                           );
+                        }
                       } catch (e) {
-                        if (mounted)
+                        if (mounted) {
                           messenger.showSnackBar(
                             SnackBar(
                               backgroundColor: colors.error,
                               content: Text(e.toString()),
                             ),
                           );
+                        }
                       } finally {
                         if (mounted) setState(() => settling = false);
                       }

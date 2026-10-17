@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../config/firebase';
-import { collection, onSnapshot, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, limit, getCountFromServer, getAggregateFromServer, sum } from 'firebase/firestore';
 import {
   Car, Users, CurrencyInr, SteeringWheel,
-  Gear, Tag, ChartLineUp
+  Tag, ChartLineUp
 } from '@phosphor-icons/react';
 import { DashboardStatCard } from './components/DashboardStatCard';
 import { RecentRidesTable } from './components/RecentRidesTable';
@@ -133,6 +133,40 @@ const DashboardHome = () => {
       setLoading(false);
     };
 
+    const fetchTotalRidesCount = async () => {
+      try {
+        const countSnap = await getCountFromServer(collection(db, 'ride_requests'));
+        currentStats.rides = countSnap.data().count;
+        updateUI();
+      } catch (err) {
+        console.error('Failed to get total rides count:', err);
+      }
+    };
+
+    const fetchTotalRevenue = async () => {
+      try {
+        const qCompleted = query(collection(db, 'ride_requests'), where('status', '==', 'completed'));
+        const aggSnap = await getAggregateFromServer(qCompleted, {
+          totalActualFare: sum('actualFare'),
+          totalFinalFare: sum('finalFare'),
+          totalFareEstimate: sum('fareEstimate'),
+        });
+        const aggData = aggSnap.data();
+        const serverSum = (aggData.totalActualFare || 0) + (aggData.totalFinalFare || 0);
+        if (serverSum > 0) {
+          currentStats.revenue = serverSum;
+        } else if (aggData.totalFareEstimate > 0) {
+          currentStats.revenue = aggData.totalFareEstimate;
+        }
+        updateUI();
+      } catch (err) {
+        console.warn('Server revenue aggregation fallback:', err);
+      }
+    };
+
+    fetchTotalRidesCount();
+    fetchTotalRevenue();
+
     const unsubCaptains = onSnapshot(query(collection(db, 'users'), where('role', '==', 'captain')), (snap) => {
       let active = 0;
       snap.forEach(doc => { if (doc.data().isOnline) active++; });
@@ -155,17 +189,32 @@ const DashboardHome = () => {
       let rList = [];
       snap.forEach(doc => {
         const d = doc.data();
-        if (d.status === 'completed' && d.fareEstimate) rev += Number(d.fareEstimate);
+        const fare = Number(d.actualFare ?? d.finalFare ?? d.fareEstimate ?? 0);
+        if (d.status === 'completed' && fare > 0) rev += fare;
         rList.push({ id: doc.id, ...d });
       });
-      currentStats.rides = snap.size; 
-      currentStats.revenue = rev;
+
+      // If snapshot is under 500, snap.size and rev are exact
+      if (snap.size < 500) {
+        currentStats.rides = snap.size;
+        currentStats.revenue = rev;
+      } else {
+        // More than 500 rides: use server aggregation
+        if (!currentStats.rides || currentStats.rides < snap.size) {
+          currentStats.rides = snap.size;
+          fetchTotalRidesCount();
+        }
+        if (!currentStats.revenue || currentStats.revenue < rev) {
+          currentStats.revenue = rev;
+          fetchTotalRevenue();
+        }
+      }
       
       currentTrends.rides = calculateTrend(snap.docs);
-      currentTrends.revenue = calculateTrend(snap.docs, (d) => (d.status === 'completed' && d.fareEstimate) ? Number(d.fareEstimate) : 0);
+      currentTrends.revenue = calculateTrend(snap.docs, (d) => (d.status === 'completed') ? Number(d.actualFare ?? d.finalFare ?? d.fareEstimate ?? 0) : 0);
       
       currentSparklines.rides = calculateSparkline(snap.docs);
-      currentSparklines.revenue = calculateSparkline(snap.docs, (d) => (d.status === 'completed' && d.fareEstimate) ? Number(d.fareEstimate) : 0);
+      currentSparklines.revenue = calculateSparkline(snap.docs, (d) => (d.status === 'completed') ? Number(d.actualFare ?? d.finalFare ?? d.fareEstimate ?? 0) : 0);
       
       setRecentRides(rList.slice(0, 5));
       updateUI();
@@ -217,8 +266,8 @@ const DashboardHome = () => {
 
       {/* 2. Quick Actions */}
       <div className="animate-fade-up stagger-2" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-        <button onClick={() => navigate('/settings')} className="btn btn-secondary" style={{ flex: 1, padding: '1rem', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
-          <Gear size={20} style={{ color: 'var(--brand-blue)' }} /> Configure Pricing
+        <button onClick={() => navigate('/pricing')} className="btn btn-secondary" style={{ flex: 1, padding: '1rem', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+          <CurrencyInr size={20} style={{ color: 'var(--brand-blue)' }} /> Configure Pricing
         </button>
         <button onClick={() => navigate('/offers')} className="btn btn-secondary" style={{ flex: 1, padding: '1rem', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
           <Tag size={20} style={{ color: 'var(--warning)' }} /> Create Offer

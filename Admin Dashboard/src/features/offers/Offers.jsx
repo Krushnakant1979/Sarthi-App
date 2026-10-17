@@ -30,8 +30,12 @@ const Offers = () => {
 
   const toggleActive = async (offer) => {
     try {
-      await updateDoc(doc(db, 'offers', offer.id), { isActive: !offer.isActive });
-      toast(`Offer "${offer.code}" ${offer.isActive ? 'deactivated' : 'activated'}.`, 'success');
+      const nextActive = !offer.isActive;
+      await updateDoc(doc(db, 'offers', offer.id), { 
+        isActive: nextActive,
+        status: nextActive ? 'published' : 'inactive'
+      });
+      toast(`Offer "${offer.code}" ${nextActive ? 'activated' : 'deactivated'}.`, 'success');
     } catch (e) {
       toast(`Error: ${e.message}`, 'error');
     }
@@ -48,8 +52,13 @@ const Offers = () => {
     }
   };
 
-  const active   = offers.filter(o => o.isActive);
-  const inactive = offers.filter(o => !o.isActive);
+  const isOfferActive = (o) => {
+    if (o.isActive === false || o.status === 'inactive' || o.status === 'draft') return false;
+    return o.isActive === true || o.status === 'published';
+  };
+
+  const active   = offers.filter(isOfferActive);
+  const inactive = offers.filter(o => !isOfferActive(o));
 
   const isExpired = (offer) => {
     if (!offer.expiryDate) return false;

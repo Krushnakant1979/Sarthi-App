@@ -1,21 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'widgets/incoming_request_sheet_widget.dart';
 import 'widgets/offline_sheet_widget.dart';
 import 'widgets/searching_sheet_widget.dart';
 import 'widgets/captain_completed_sheet_widget.dart';
-import '../../../core/utils/measure_size.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'captain_providers.dart';
 import '../../../ola_maps_bridge/ola_maps_view.dart';
 import '../../../core/utils/location_service.dart';
 import '../../../core/design/tokens.dart';
 import '../../user/map/data/ola_maps_repository.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import 'widgets/captain_drawer.dart';
 
 class CaptainMapScreen extends ConsumerStatefulWidget {
@@ -46,7 +45,6 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
   final DraggableScrollableController _sheetController =
       DraggableScrollableController();
   final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(0.45);
-  double? _targetSheetFraction;
   bool _isActiveRideExpanded = true;
   bool _isNavigatingInApp = false;
   List _navigationSteps = [];
@@ -437,7 +435,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: context.colors.error,
           ),
         );
@@ -666,9 +664,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
          }
        }
     }
-    if (targetStep == null) {
-      targetStep = _navigationSteps.first as Map?;
-    }
+    targetStep ??= _navigationSteps.first as Map?;
     
     if (targetStep == null) return;
 
@@ -729,7 +725,47 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                 context: context,
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
-                builder: (ctx) => CaptainCompletedSheetWidget(rideData: previous!.value!),
+                builder: (ctx) => CaptainCompletedSheetWidget(rideData: previous.value!),
+              );
+            }
+          });
+        } else if (previousStatus == 'accepted' || previousStatus == 'arriving' || previousStatus == 'arrived') {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              HapticFeedback.heavyImpact();
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 48),
+                  title: const Text(
+                    'Ride Cancelled',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  content: const Text(
+                    'The passenger has cancelled this ride request.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15),
+                  ),
+                  actionsAlignment: MainAxisAlignment.center,
+                  actions: [
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0B2545),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
               );
             }
           });
@@ -968,7 +1004,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                       scale: 0.8,
                       child: Switch(
                         value: _isOnline,
-                        activeColor: Colors.white,
+                        activeThumbColor: Colors.white,
                         activeTrackColor: const Color(0xFF22C55E),
                         inactiveThumbColor: Colors.white,
                         inactiveTrackColor: const Color(0xFFD1D5DB),
@@ -1354,9 +1390,6 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     final mainAddress = addressParts.first;
     final subAddress = addressParts.length > 1 ? addressParts.sublist(1).join(',').trim() : '';
 
-    final sw = MediaQuery.of(context).size.width;
-    final sh = MediaQuery.of(context).size.height;
-
     return SafeArea(
       top: false,
       child: AnimatedSize(
@@ -1702,6 +1735,11 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                       captainId: captainId,
                                       fromStatus: status,
                                       toStatus: 'cancelled',
+                                      extraData: {
+                                        'cancelledBy': 'captain',
+                                        'cancelledAt': FieldValue.serverTimestamp(),
+                                        'updatedAt': FieldValue.serverTimestamp(),
+                                      },
                                     ),
                               );
                             },
@@ -1862,22 +1900,14 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                                         setInnerState(() {
                                           _enteredOtp = entered;
                                         });
-                                        if (_enteredOtp == activeRide['otp']) {
-                                          _runRideAction(
-                                            () => ref.read(captainRepositoryProvider).transitionRide(
-                                                  rideId: rideId,
-                                                  captainId: captainId!,
-                                                  fromStatus: 'arrived',
-                                                  toStatus: 'in_progress',
-                                                ),
-                                          );
-                                        } else {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: const Text('Incorrect OTP! Please check with rider.'),
-                                              backgroundColor: context.colors.error,
-                                            ),
-                                          );
+                                        await _runRideAction(
+                                          () => ref.read(captainRepositoryProvider).verifyOtpAndStartRide(
+                                                rideId: rideId,
+                                                captainId: captainId!,
+                                                enteredOtp: entered,
+                                              ),
+                                        );
+                                        if (mounted) {
                                           setInnerState(() {
                                             _enteredOtp = '';
                                           });
@@ -2048,100 +2078,7 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
               ],
           ],
         ),
-        ),
       ),
-    );
-  }
-
-  Widget _etaChip({required IconData icon, required String value}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 12),
-          const SizedBox(width: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 11.5,
-              letterSpacing: -0.1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _captainMetricCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  color.withValues(alpha: 0.15),
-                  color.withValues(alpha: 0.08),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: context.colors.primary,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF9CA3AF),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

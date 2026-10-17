@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Star, WarningCircle, Funnel, ListBullets } from '@phosphor-icons/react';
+import { Star, WarningCircle, Funnel, ListBullets, Check, Flag } from '@phosphor-icons/react';
 import { db } from '../../config/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { publicIdService } from '../../services/publicIdService';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '../../context/ToastContext';
+import { logAdminAction } from '../../services/auditService';
 
 const Tabs = [
   { id: 'attention', label: 'Needs Attention', icon: WarningCircle },
@@ -13,6 +14,8 @@ export default function Reviews() {
   const [activeTab, setActiveTab] = useState('attention');
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const q = query(collection(db, 'reviews'), orderBy('createdAt', 'desc'));
@@ -30,10 +33,31 @@ export default function Reviews() {
     return () => unsub();
   }, []);
 
+  const handleUpdateStatus = async (reviewId, newStatus) => {
+    setUpdatingId(reviewId);
+    try {
+      await updateDoc(doc(db, 'reviews', reviewId), {
+        status: newStatus,
+        reviewedAt: serverTimestamp(),
+      });
+      await logAdminAction('review_moderated', reviewId, { status: newStatus });
+      showToast(`Review marked as ${newStatus}`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to update review status', 'error');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const filteredReviews = reviews.filter(r => {
-    if (activeTab === 'attention') return r.rating <= 2 || r.status === 'Flagged';
+    if (activeTab === 'attention') return (r.rating <= 2 && r.status !== 'Resolved') || r.status === 'Flagged';
     return true;
   });
+
+  const avgCaptainRating = reviews.length > 0 
+    ? (reviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / reviews.length).toFixed(1)
+    : '5.0';
 
   return (
     <div className="animate-fade-in">
@@ -45,15 +69,15 @@ export default function Reviews() {
         
         <div style={{ display: 'flex', gap: '1rem' }}>
           <div className="stat-card-modern" style={{ padding: '0.75rem 1.25rem', minWidth: '140px', background: 'var(--surface-2)', boxShadow: 'none', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Avg Captain Rating</div>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Avg Rating</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              4.7 <Star weight="fill" color="var(--brand-yellow)" size={16} />
+              {avgCaptainRating} <Star weight="fill" color="var(--brand-yellow)" size={16} />
             </div>
           </div>
           <div className="stat-card-modern" style={{ padding: '0.75rem 1.25rem', minWidth: '140px', background: 'var(--surface-2)', boxShadow: 'none', border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Flagged Reviews</div>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Attention Required</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--error)' }}>
-              {reviews.filter(r => r.status === 'Flagged').length}
+              {reviews.filter(r => (r.rating <= 2 && r.status !== 'Resolved') || r.status === 'Flagged').length}
             </div>
           </div>
         </div>
@@ -95,14 +119,11 @@ export default function Reviews() {
           <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {activeTab === 'attention' ? (
-                <><WarningCircle size={20} color="var(--error)" /> Needs Attention</>
+                <><WarningCircle size={20} color="var(--error)" /> Needs Attention ({filteredReviews.length})</>
               ) : (
-                <><ListBullets size={20} color="var(--brand-blue)" /> All Reviews</>
+                <><ListBullets size={20} color="var(--brand-blue)" /> All Reviews ({filteredReviews.length})</>
               )}
             </h2>
-            <button className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Funnel size={16} /> Filter
-            </button>
           </div>
           
           <table className="data-table">
@@ -114,28 +135,30 @@ export default function Reviews() {
                 <th>Rating</th>
                 <th>Comment</th>
                 <th>Status</th>
-                <th>Action</th>
+                <th style={{ textAlign: 'right', paddingRight: '1.5rem' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr><td colSpan="7" className="table-empty">Loading reviews...</td></tr>
               ) : filteredReviews.length === 0 ? (
-                <tr><td colSpan="7" className="table-empty">No reviews found in Firebase</td></tr>
+                <tr><td colSpan="7" className="table-empty">No reviews in this view</td></tr>
               ) : filteredReviews.map(review => (
                 <tr key={review.id}>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--brand-blue)' }}>{review.tripId || '—'}</td>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewer || '—'}</td>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewee || '—'}</td>
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--brand-blue)' }}>
+                    {review.tripId || review.rideId || review.id.slice(0, 8)}
+                  </td>
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewer || review.userName || 'Passenger'}</td>
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewee || review.captainName || 'Captain'}</td>
                   <td style={{ padding: '1rem 1.25rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={14} weight={i < (review.rating || 0) ? "fill" : "regular"} color={i < (review.rating || 0) ? "var(--error)" : "var(--text-muted)"} />
+                        <Star key={i} size={14} weight={i < (review.rating || 0) ? "fill" : "regular"} color={i < (review.rating || 0) ? "var(--brand-yellow)" : "var(--text-muted)"} />
                       ))}
                     </div>
                   </td>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-secondary)', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={review.comment}>
-                    "{review.comment || ''}"
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-secondary)', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={review.comment || review.feedback}>
+                    "{review.comment || review.feedback || 'No comments provided'}"
                   </td>
                   <td style={{ padding: '1rem 1.25rem' }}>
                     <span style={{ 
@@ -143,16 +166,42 @@ export default function Reviews() {
                       borderRadius: 'var(--r-full)', 
                       fontSize: '0.75rem', 
                       fontWeight: 600,
-                      background: review.status === 'Flagged' ? 'var(--error-bg)' : 'var(--warning-bg)',
-                      color: review.status === 'Flagged' ? 'var(--error)' : 'var(--warning)'
+                      background: review.status === 'Resolved' ? 'var(--success-bg)' : review.status === 'Flagged' ? 'var(--error-bg)' : 'var(--warning-bg)',
+                      color: review.status === 'Resolved' ? 'var(--success)' : review.status === 'Flagged' ? 'var(--error)' : 'var(--warning)'
                     }}>
-                      {review.status || 'Pending'}
+                      {review.status || 'Open'}
                     </span>
                   </td>
-                  <td style={{ padding: '1rem 1.25rem' }}>
-                    <button className="btn btn-secondary btn-sm" style={{ padding: '0.375rem 0.75rem' }}>
-                      Review
-                    </button>
+                  <td style={{ paddingRight: '1.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      {review.status !== 'Resolved' && (
+                        <button 
+                          className="btn btn-sm"
+                          disabled={updatingId === review.id}
+                          onClick={() => handleUpdateStatus(review.id, 'Resolved')}
+                          style={{ background: 'var(--success-bg)', color: 'var(--success)', border: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          title="Resolve Issue"
+                        >
+                          <Check size={14} weight="bold" /> Resolve
+                        </button>
+                      )}
+                      {review.status !== 'Flagged' && review.status !== 'Resolved' && (
+                        <button 
+                          className="btn btn-sm"
+                          disabled={updatingId === review.id}
+                          onClick={() => handleUpdateStatus(review.id, 'Flagged')}
+                          style={{ background: 'var(--error-bg)', color: 'var(--error)', border: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          title="Flag for Disciplinary Action"
+                        >
+                          <Flag size={14} /> Flag
+                        </button>
+                      )}
+                      {review.status === 'Resolved' && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Check size={14} weight="bold" /> Case Closed
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

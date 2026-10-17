@@ -8,6 +8,7 @@ import 'dart:ui' as ui;
 
 import '../admin_design.dart';
 import '../admin_providers.dart';
+import '../widgets/admin_common_widgets.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -84,28 +85,31 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildToggle(),
-                  const SizedBox(height: 12),
-                  if (_selectedTab == 'Analytics') ...[
-                    const _RevenuePeriodSelector(),
+            child: ResponsiveCenter(
+              maxWidth: 1000,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildToggle(),
                     const SizedBox(height: 12),
-                    const _RevenueSummaryCard(),
-                    const SizedBox(height: 12),
-                    const _KpiCards(),
-                    const SizedBox(height: 12),
-                    const _RevenueTrendChart(),
-                    const SizedBox(height: 12),
-                    const _RevenueByServiceCard(),
-                  ] else ...[
-                    const _HeatmapView(),
+                    if (_selectedTab == 'Analytics') ...[
+                      const _RevenuePeriodSelector(),
+                      const SizedBox(height: 12),
+                      const _RevenueSummaryCard(),
+                      const SizedBox(height: 12),
+                      const _KpiCards(),
+                      const SizedBox(height: 12),
+                      const _RevenueTrendChart(),
+                      const SizedBox(height: 12),
+                      const _RevenueByServiceCard(),
+                    ] else ...[
+                      const _HeatmapView(),
+                    ],
+                    const SizedBox(height: 120),
                   ],
-                  const SizedBox(height: 120),
-                ],
+                ),
               ),
             ),
           ),
@@ -115,101 +119,29 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 
   Widget _buildToggle() {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: context.colors.cardBorder.withValues(alpha: 0.5),
+    return AdminSlidingSegmentedControl<String>(
+      value: _selectedTab,
+      items: const [
+        AdminSlidingSegment(
+          value: 'Analytics',
+          label: 'Analytics',
+          icon: Icons.bar_chart_rounded,
         ),
-      ),
-      padding: const EdgeInsets.all(2),
-      child: Row(
-        children: [
-          Expanded(
-            child: InkWell(
-              onTap: () => setState(() => _selectedTab = 'Analytics'),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: _selectedTab == 'Analytics'
-                      ? AdminColors.primary.withValues(alpha: 0.85)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.bar_chart_rounded,
-                      size: 14,
-                      color: _selectedTab == 'Analytics'
-                          ? Colors.white
-                          : context.colors.text,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Analytics',
-                      style: GoogleFonts.inter(
-                        color: _selectedTab == 'Analytics'
-                            ? Colors.white
-                            : context.colors.text,
-                        fontWeight: _selectedTab == 'Analytics'
-                            ? FontWeight.w700
-                            : FontWeight.w600,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: InkWell(
-              onTap: () => setState(() => _selectedTab = 'Heatmaps'),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: _selectedTab == 'Heatmaps'
-                      ? AdminColors.primary.withValues(alpha: 0.85)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.map_outlined,
-                      size: 14,
-                      color: _selectedTab == 'Heatmaps'
-                          ? Colors.white
-                          : context.colors.textMuted,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Heatmaps',
-                      style: GoogleFonts.inter(
-                        color: _selectedTab == 'Heatmaps'
-                            ? Colors.white
-                            : context.colors.textMuted,
-                        fontWeight: _selectedTab == 'Heatmaps'
-                            ? FontWeight.w700
-                            : FontWeight.w600,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        AdminSlidingSegment(
+          value: 'Heatmaps',
+          label: 'Heatmaps',
+          icon: Icons.map_outlined,
+        ),
+      ],
+      fontSize: 12,
+      backgroundColor: context.colors.surface,
+      indicatorColor: AdminColors.primary,
+      selectedTextColor: Colors.white,
+      unselectedTextColor: context.colors.textMuted,
+      borderRadius: 12,
+      padding: const EdgeInsets.all(4),
+      itemPadding: const EdgeInsets.symmetric(vertical: 8),
+      onChanged: (tab) => setState(() => _selectedTab = tab),
     );
   }
 }
@@ -284,48 +216,31 @@ class _RevenuePeriodSelector extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           // Day / Month / Year Tabs
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: context.colors.background.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: RevenuePeriod.values.map((p) {
-                final isSelected = filterState.period == p;
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      notifier.setPeriod(p);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AdminColors.primary.withValues(alpha: 0.85)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        p.name.substring(0, 1).toUpperCase() +
-                            p.name.substring(1),
-                        style: GoogleFonts.inter(
-                          color: isSelected
-                              ? Colors.white
-                              : context.colors.textMuted,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
+          AdminSlidingSegmentedControl<RevenuePeriod>(
+            value: filterState.period,
+            items: const [
+              AdminSlidingSegment(
+                value: RevenuePeriod.day,
+                label: 'Day',
+              ),
+              AdminSlidingSegment(
+                value: RevenuePeriod.month,
+                label: 'Month',
+              ),
+              AdminSlidingSegment(
+                value: RevenuePeriod.year,
+                label: 'Year',
+              ),
+            ],
+            fontSize: 11,
+            backgroundColor: context.colors.background.withValues(alpha: 0.7),
+            indicatorColor: AdminColors.primary,
+            selectedTextColor: Colors.white,
+            unselectedTextColor: context.colors.textMuted,
+            borderRadius: 10,
+            padding: const EdgeInsets.all(3),
+            itemPadding: const EdgeInsets.symmetric(vertical: 7),
+            onChanged: (p) => notifier.setPeriod(p),
           ),
           const SizedBox(height: 8),
           // Calendar Selector
@@ -792,8 +707,13 @@ class _MiniKpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = AdminResponsive.isNarrow(context);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: isNarrow ? 6 : 8,
+        vertical: isNarrow ? 8 : 10,
+      ),
       decoration: BoxDecoration(
         color: context.colors.surface,
         borderRadius: BorderRadius.circular(14),
@@ -810,25 +730,29 @@ class _MiniKpiCard extends StatelessWidget {
               color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(icon, color: color, size: 14),
+            child: Icon(icon, color: color, size: isNarrow ? 12 : 14),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: isNarrow ? 6 : 8),
           Text(
             value,
             style: GoogleFonts.inter(
               color: context.colors.text,
-              fontSize: 14,
+              fontSize: isNarrow ? 12 : 14,
               fontWeight: FontWeight.w900,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
           Text(
             title,
             style: GoogleFonts.inter(
               color: context.colors.textMuted,
-              fontSize: 8,
+              fontSize: isNarrow ? 7 : 8,
               fontWeight: FontWeight.w600,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1415,7 +1339,6 @@ class _TrendAreaPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    final path = Path();
     final stepX = chartWidth / (data.length > 1 ? data.length - 1 : 1);
 
     // Create bezier curve path

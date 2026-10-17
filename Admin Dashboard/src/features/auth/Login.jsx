@@ -24,8 +24,18 @@ const Login = ({ onLogin }) => {
         await auth.signOut();
         setError('Access denied. This account does not have administrator privileges.');
       }
-    } catch {
-      setError('Invalid email or password. Please try again.');
+    } catch (err) {
+      if (err.code === 'auth/user-disabled') {
+        setError('This administrator account has been disabled. Contact system support.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Too many failed attempts. Access is temporarily locked. Please wait a few minutes.');
+      } else if (err.code === 'auth/network-request-failed') {
+        setError('Network connection error. Please check your internet connection.');
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Invalid administrator email or password. Please try again.');
+      } else {
+        setError(err.message || 'Authentication failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

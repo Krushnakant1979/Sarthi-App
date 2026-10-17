@@ -4,9 +4,9 @@ class OfflineSheetWidget extends StatelessWidget {
   final Widget dragHandle;
 
   const OfflineSheetWidget({
-    Key? key,
+    super.key,
     required this.dragHandle,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

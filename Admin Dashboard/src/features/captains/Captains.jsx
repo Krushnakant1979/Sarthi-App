@@ -42,21 +42,18 @@ const Captains = () => {
     }
   };
 
-  const handleReject = async (captain, e) => {
+  const handleReject = (captain, e) => {
     e?.stopPropagation();
-    try {
-      await captainService.rejectCaptain(captain.id);
-      toast(`${captain.name || 'Captain'} documents rejected.`, 'info');
-    } catch (err) {
-      toast(err.message, 'error');
-    }
+    setSelected(captain);
   };
 
 
 
+  const isPending = (status) => status === 'pending' || status === 'pending_review';
+
   const counts = {
     all:      captains.length,
-    pending:  captains.filter(c => c.verificationStatus === 'pending').length,
+    pending:  captains.filter(c => isPending(c.verificationStatus)).length,
     verified: captains.filter(c => c.verificationStatus === 'verified').length,
     rejected: captains.filter(c => c.verificationStatus === 'rejected').length,
   };
@@ -69,7 +66,7 @@ const Captains = () => {
   }, [captains]);
 
   const filtered = captains.filter(c => {
-    const statusMatch = tab === 'all' || c.verificationStatus === tab;
+    const statusMatch = tab === 'all' || (tab === 'pending' ? isPending(c.verificationStatus) : c.verificationStatus === tab);
     const searchMatch = !search ||
       c.name?.toLowerCase().includes(search.toLowerCase()) ||
       c.phone?.includes(search) ||
@@ -108,7 +105,7 @@ const Captains = () => {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: 0, letterSpacing: '-0.03em', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <SteeringWheel size={32} weight="duotone" style={{ color: 'var(--brand-teal)' }} /> 
-            Fleet Management
+            Captain Management
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '1rem', marginTop: '0.5rem', marginLeft: '3.125rem' }}>
             Monitor and manage your network of Sarthi captains.
@@ -123,7 +120,7 @@ const Captains = () => {
             <SteeringWheel size={18} weight="fill" />
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Fleet Size</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Captains</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2, marginTop: '0.125rem' }}>
               {loading ? <span className="skeleton" style={{ width: 40, height: 24, display: 'inline-block' }}></span> : counts.all}
             </div>
@@ -147,7 +144,7 @@ const Captains = () => {
             <Star size={18} weight="fill" />
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Fleet Rating</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Captain Rating</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2, marginTop: '0.125rem' }}>
               {loading ? <span className="skeleton" style={{ width: 40, height: 24, display: 'inline-block' }}></span> : avgRating}
             </div>
@@ -200,7 +197,7 @@ const Captains = () => {
             <MagnifyingGlass size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             <input
               type="text"
-              placeholder="Search fleet..."
+              placeholder="Search captains..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.875rem', width: '100%', color: 'var(--text-primary)' }}
@@ -223,7 +220,7 @@ const Captains = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr key="empty-loading"><td colSpan="6" className="table-empty">Syncing fleet data...</td></tr>
+                <tr key="empty-loading"><td colSpan="6" className="table-empty">Syncing captain data...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr key="empty-nodata"><td colSpan="6" className="table-empty">No captains found</td></tr>
               ) : filtered.map(cap => (
@@ -282,9 +279,9 @@ const Captains = () => {
                       cap.verificationStatus === 'verified' ? 'badge-success' :
                       cap.verificationStatus === 'rejected' ? 'badge-error' :
                       'badge-warning'
-                    } ${cap.verificationStatus === 'pending' ? 'badge-pulse' : ''}`}>
+                    } ${isPending(cap.verificationStatus) ? 'badge-pulse' : ''}`}>
                       <Circle size={6} weight="fill" />
-                      {cap.verificationStatus || 'pending'}
+                      {cap.verificationStatus === 'pending_review' ? 'Pending' : (cap.verificationStatus || 'pending')}
                     </span>
                   </td>
                   <td>
