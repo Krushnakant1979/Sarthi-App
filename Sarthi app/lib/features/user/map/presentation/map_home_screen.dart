@@ -46,7 +46,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen>
 
   // Live location tracking
   StreamSubscription<Position>? _locationSubscription;
-  bool _followUser = true; // auto-pan to user while no destination is selected
+  bool _followUser = false; // Kept false so map camera stays steady and does not move automatically
   bool _isMapMoving = false;
   bool _mapInteracted = false;
   bool _isProgrammaticMove = true;
@@ -385,29 +385,45 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen>
     final pos = await _locationService.getCurrentPosition();
     if (!context.mounted) return;
     if (pos != null) {
-      // Only re-fetch city label if location changed significantly
       unawaited(_updateCityStateText(pos.latitude, pos.longitude));
+      final shouldMoveCamera = _lastValidPosition == null ||
+          Geolocator.distanceBetween(
+                _lastValidPosition!.latitude,
+                _lastValidPosition!.longitude,
+                pos.latitude,
+                pos.longitude,
+              ) >=
+              15;
+      _lastValidPosition = pos;
       if (_mapController != null) {
-        _lastValidPosition = pos;
-        _safeMoveCamera(_mapController, pos.latitude, pos.longitude, zoom: 16.0);
+        if (shouldMoveCamera) {
+          _safeMoveCamera(_mapController, pos.latitude, pos.longitude, zoom: 16.0);
+        }
         _mapController!.updateUserLocation(pos.latitude, pos.longitude);
       }
     }
 
-    // Subscribe to live stream — update user dot and auto-pan while following
-    _locationSubscription = _locationService.getPositionStream().listen((
+    // Subscribe to live stream with 10m distance filter — update live dot without automatic camera panning
+    _locationSubscription = _locationService.getPositionStream(distanceFilter: 10).listen((
       position,
     ) {
       if (!mounted || _mapController == null) return;
+      // Discard low-accuracy / jittery triangulations
+      if (position.accuracy > 35) return;
+
+      // Filter out micro-jitter (< 12 meters) when user is stationary
+      if (_lastValidPosition != null) {
+        final dist = Geolocator.distanceBetween(
+          _lastValidPosition!.latitude,
+          _lastValidPosition!.longitude,
+          position.latitude,
+          position.longitude,
+        );
+        if (dist < 12) return;
+      }
+
       _lastValidPosition = position;
       _mapController!.updateUserLocation(position.latitude, position.longitude);
-
-      // Periodically update the city/state string (e.g., if we moved significantly)
-      // but for now, we just rely on the initial fetch and recenter events.
-
-      if (_followUser) {
-        _safeMoveCamera(_mapController, position.latitude, position.longitude, zoom: 16.0);
-      }
     });
   }
 
@@ -430,7 +446,6 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen>
     Position? fastPos =
         _lastValidPosition ?? await _locationService.getLastKnownPosition();
     if (fastPos != null && _mapController != null && context.mounted) {
-      setState(() => _followUser = true);
       _safeMoveCamera(_mapController, fastPos.latitude, fastPos.longitude, zoom: 16.0);
       _mapController!.updateUserLocation(fastPos.latitude, fastPos.longitude);
     }
@@ -876,31 +891,32 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen>
                               }
                             }
 
-                            // If not in an active ride, center camera on user's location
+                            // If not in an active ride, center camera directly on user's location ONCE
+                            if (!context.mounted) return;
                             if (_bookingState == 'default') {
-                              // 1. Immediately jump to India to avoid showing the whole world map
-                              _safeMoveCamera(controller, 20.5937, 78.9629, zoom: 4.5);
+                              final topPadding = MediaQuery.of(context).padding.top;
+                              await controller.setPadding(top: topPadding, bottom: 300);
 
-                              if (!context.mounted) return;
-
-                              // 2. Try to get a fast last known location and animate there
-                              final lastKnown = await _locationService
-                                  .getLastKnownPosition();
-                              if (lastKnown != null && context.mounted) {
-                                _safeMoveCamera(controller, lastKnown.latitude, lastKnown.longitude, zoom: 14.0);
-                              }
-
-                              // 3. Fetch the accurate current location
-                              final pos = await _locationService
-                                  .getCurrentPosition();
-                              if (pos != null && context.mounted) {
-                                final topPadding = MediaQuery.of(context).padding.top;
-                                await controller.setPadding(top: topPadding, bottom: 300);
-                                _safeMoveCamera(controller, pos.latitude, pos.longitude, zoom: 16.0);
+                              // 1. Fast path: use already acquired position or last known
+                              final targetPos = _lastValidPosition ??
+                                  await _locationService.getLastKnownPosition();
+                              if (targetPos != null && context.mounted) {
+                                _safeMoveCamera(controller, targetPos.latitude, targetPos.longitude, zoom: 16.0);
                                 controller.updateUserLocation(
-                                  pos.latitude,
-                                  pos.longitude,
+                                  targetPos.latitude,
+                                  targetPos.longitude,
                                 );
+                              } else {
+                                // 2. Fallback to accurate fix
+                                final pos = await _locationService.getCurrentPosition();
+                                if (pos != null && context.mounted) {
+                                  _lastValidPosition = pos;
+                                  _safeMoveCamera(controller, pos.latitude, pos.longitude, zoom: 16.0);
+                                  controller.updateUserLocation(
+                                    pos.latitude,
+                                    pos.longitude,
+                                  );
+                                }
                               }
                             } else {
                               controller.toggleNativeUserLocation(true);

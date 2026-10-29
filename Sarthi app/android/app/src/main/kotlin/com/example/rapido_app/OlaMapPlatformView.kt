@@ -201,6 +201,7 @@ class OlaMapPlatformView(
                                         .accuracyColor(android.graphics.Color.TRANSPARENT)
                                         .build()
                                     locationComponent.applyStyle(options)
+                                    locationComponent.cameraMode = org.maplibre.android.location.modes.CameraMode.NONE
                                 } catch (e: Exception) {
                                     Log.e("OlaMap", "Failed to configure LocationComponent", e)
                                 }
