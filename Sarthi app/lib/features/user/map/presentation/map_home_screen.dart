@@ -1059,7 +1059,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen>
                                             decoration: BoxDecoration(
                                               color: Colors.white,
                                               shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.blue, width: 6),
+                                              border: Border.all(color: const Color(0xFF22C55E), width: 6),
                                               boxShadow: [
                                                 BoxShadow(
                                                   color: Colors.black.withValues(alpha: 0.3),

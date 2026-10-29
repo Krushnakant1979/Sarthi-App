@@ -375,7 +375,7 @@ class OlaMapPlatformView(
             val outerOptions = OlaCircleOptions.Builder()
                 .setOlaLatLng(position)
                 .setRadius(10.0f)
-                .setColorHexCode("#0B2545")
+                .setColorHexCode("#22C55E")
                 .setCircleOpacity(1.0f)
                 .build()
             pickupNativeCircle = map.addCircle(outerOptions)
