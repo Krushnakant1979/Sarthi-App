@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/ride_repository.dart';
@@ -9,21 +9,29 @@ final rideRepositoryProvider = Provider<RideRepository>((ref) {
 
 final currentRideIdProvider = StateProvider<String?>((ref) => null);
 
+final activeRideProvider = StreamProvider<Map<String, dynamic>?>((ref) {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return Stream.value(null);
+  return ref.watch(rideRepositoryProvider).streamActiveRide(user.uid);
+});
+
 final currentRideStreamProvider =
-    StreamProvider.autoDispose<DocumentSnapshot<Map<String, dynamic>>?>((ref) {
-      final rideId = ref.watch(currentRideIdProvider);
+    StreamProvider<DocumentSnapshot<Map<String, dynamic>>?>((ref) {
+      String? rideId = ref.watch(currentRideIdProvider);
+
+      // If in-memory ride ID is not set (e.g. app reopened, resumed, or cold start),
+      // seamlessly fall back to the active ride discovered from the backend
+      if (rideId == null) {
+        final activeRide = ref.watch(activeRideProvider).valueOrNull;
+        rideId = activeRide?['id'] as String?;
+      }
+
       if (rideId == null) {
         return Stream.value(null);
       }
       final repo = ref.watch(rideRepositoryProvider);
       return repo.streamRideRequest(rideId);
     });
-
-final activeRideProvider = StreamProvider<Map<String, dynamic>?>((ref) {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return Stream.value(null);
-  return ref.watch(rideRepositoryProvider).streamActiveRide(user.uid);
-});
 
 // Family provider to listen to a specific captain's live location
 final captainLiveLocationProvider =

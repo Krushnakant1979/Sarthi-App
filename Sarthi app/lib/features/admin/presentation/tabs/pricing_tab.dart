@@ -369,14 +369,14 @@ class PricingTabState extends ConsumerState<PricingTab> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0B2748), Color(0xFF143963)],
+          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0B2748).withValues(alpha: 0.2),
+            color: const Color(0xFF2563EB).withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -473,7 +473,7 @@ class PricingTabState extends ConsumerState<PricingTab> {
       items: items,
       fontSize: 10.5,
       indicatorColor: context.colors.adminAccent,
-      selectedTextColor: const Color(0xFF0B2748),
+      selectedTextColor: const Color(0xFF0F172A),
       unselectedTextColor: context.colors.textMuted,
       backgroundColor: context.colors.cardBorder,
       itemPadding: const EdgeInsets.symmetric(vertical: 8),
@@ -810,11 +810,11 @@ class PricingTabState extends ConsumerState<PricingTab> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF0B2748),
+        color: const Color(0xFF2563EB),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0B2748).withValues(alpha: 0.15),
+            color: const Color(0xFF2563EB).withValues(alpha: 0.15),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -954,7 +954,7 @@ class PricingTabState extends ConsumerState<PricingTab> {
                         style: GoogleFonts.inter(
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
-                          color: Color(0xFF0B2748),
+                          color: const Color(0xFF0F172A),
                         ),
                       ),
                       Text(
@@ -1002,7 +1002,7 @@ class PricingTabState extends ConsumerState<PricingTab> {
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF0B2748),
+                color: const Color(0xFF0F172A),
               ),
             ),
           ],
@@ -1014,7 +1014,7 @@ class PricingTabState extends ConsumerState<PricingTab> {
             inactiveTrackColor: context.colors.adminAccent.withValues(
               alpha: 0.2,
             ),
-            thumbColor: const Color(0xFF0B2748),
+            thumbColor: const Color(0xFF2563EB),
             overlayColor: context.colors.adminAccent.withValues(alpha: 0.1),
           ),
           child: Slider(value: val, min: min, max: max, onChanged: onChanged),
@@ -1155,7 +1155,7 @@ class PricingTabState extends ConsumerState<PricingTab> {
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0B2748),
+                  backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(

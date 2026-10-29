@@ -33,6 +33,11 @@ class OlaMapsRepository {
       {};
   static const _geocodeCacheTtl = Duration(minutes: 30);
 
+  // directions: keyed by "startLat,startLng-endLat,endLng" — 10-minute TTL
+  static final Map<String, _CacheEntry<Map<String, dynamic>>> _directionsCache =
+      {};
+  static const _directionsCacheTtl = Duration(minutes: 10);
+
   // ── Autocomplete ───────────────────────────────────────────────────────
   Future<List<Map<String, dynamic>>> autocomplete(String input) async {
     if (input.trim().isEmpty) return [];
@@ -165,9 +170,16 @@ class OlaMapsRepository {
     double endLat,
     double endLng,
   ) async {
-    // 1. Try Ola Maps Directions API (GET request)
+    final cacheKey =
+        '${startLat.toStringAsFixed(4)},${startLng.toStringAsFixed(4)}-${endLat.toStringAsFixed(4)},${endLng.toStringAsFixed(4)}';
+    final cached = _directionsCache[cacheKey];
+    if (cached != null && !cached.isExpired(_directionsCacheTtl)) {
+      return cached.value;
+    }
+
+    // 1. Try Ola Maps Directions API (POST request with query parameters)
     try {
-      final response = await _dio.get(
+      final response = await _dio.post(
         'https://api.olamaps.io/routing/v1/directions',
         queryParameters: {
           'origin': '$startLat,$startLng',
@@ -218,7 +230,7 @@ class OlaMapsRepository {
           }
 
           if (decodedPoints.isNotEmpty) {
-            return {
+            final result = {
               'distance_meters': distanceMeters > 0
                   ? distanceMeters
                   : _calculateDistanceMeters(
@@ -230,6 +242,8 @@ class OlaMapsRepository {
               'points': decodedPoints,
               'steps': steps,
             };
+            _directionsCache[cacheKey] = _CacheEntry(result);
+            return result;
           }
         }
       }
@@ -273,13 +287,15 @@ class OlaMapsRepository {
           }
 
           if (points.isNotEmpty) {
-            return {
+            final result = {
               'distance_meters': distanceMeters,
               'duration_seconds': durationSeconds,
               'polyline': polylineStr,
               'points': points,
               'steps': steps,
             };
+            _directionsCache[cacheKey] = _CacheEntry(result);
+            return result;
           }
         }
       }

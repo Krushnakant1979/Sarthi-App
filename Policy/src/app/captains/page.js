@@ -1,6 +1,6 @@
 import styles from "../page.module.css";
 import Link from "next/link";
-import { ArrowRight, Wallet, Clock, MapPin, Car, BarChart3, Headphones, CheckCircle2 } from "lucide-react";
+import { Wallet, Clock, MapPin, Car, BarChart3, Headphones } from "lucide-react";
 
 export const metadata = {
   title: "Captains | Sarthi",
@@ -40,9 +40,13 @@ export default function CaptainsPage() {
                 Become a Sarthi Captain and turn your time on the road into a seamless opportunity to earn with daily payouts.
               </p>
               <div className={`${styles.heroAppButtons} ${styles.fadeUp} ${styles.fadeUp2}`} style={{ marginTop: "40px" }}>
-                <button className={styles.btnNavPrimary} style={{ padding: "16px 40px", fontSize: "1.1rem", borderRadius: "999px" }}>
+                <Link 
+                  href="/captains/register" 
+                  className={styles.btnNavPrimary} 
+                  style={{ padding: "16px 40px", fontSize: "1.1rem", borderRadius: "999px", display: "inline-block", textDecoration: "none" }}
+                >
                   Join Sarthi Today
-                </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -118,8 +122,12 @@ export default function CaptainsPage() {
           <h2 className={styles.ctaTitle}>Ready to become a Sarthi Captain?</h2>
           <p className={styles.ctaDesc}>Join thousands of Captains earning daily on their own terms.</p>
           <div className={styles.ctaButtons} style={{ justifyContent: "center" }}>
-            <button className={styles.btnCtaPrimary}>Join Sarthi Now</button>
-            <button className={styles.btnCtaOutline}>Contact Support</button>
+            <Link href="/captains/register" className={styles.btnCtaPrimary} style={{ textDecoration: "none" }}>
+              Join Sarthi Now
+            </Link>
+            <Link href="/contact" className={styles.btnCtaOutline} style={{ textDecoration: "none" }}>
+              Contact Support
+            </Link>
           </div>
         </div>
       </section>

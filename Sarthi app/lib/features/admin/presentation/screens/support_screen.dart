@@ -33,20 +33,28 @@ class SupportScreen extends ConsumerWidget {
         ? openTickets
         : resolvedTickets;
 
+    final users = ref.watch(allUsersProvider).value ?? [];
+
     // Role Counts for current tab
     final usersCount = currentTabList
-        .where((t) => (t['reporterRole'] ?? 'user') == 'user')
+        .where((t) => (t['reporterRole']?.toString().toLowerCase() ?? 'user') == 'user')
         .length;
     final captainsCount = currentTabList
-        .where((t) => t['reporterRole'] == 'captain')
+        .where((t) => t['reporterRole']?.toString().toLowerCase() == 'captain')
         .length;
     final allCount = currentTabList.length;
 
-    // Apply Role Filter
+    // Apply Role Filter (handles 'Users' -> 'user' and 'Captains' -> 'captain')
     var filteredList = currentTabList.where((t) {
       if (roleFilter == 'All') return true;
-      final role = t['reporterRole'] as String? ?? 'user';
-      return role.toLowerCase() == roleFilter.toLowerCase();
+      final role = (t['reporterRole']?.toString() ?? 'user').toLowerCase();
+      if (roleFilter == 'Users' || roleFilter.toLowerCase() == 'user') {
+        return role == 'user';
+      }
+      if (roleFilter == 'Captains' || roleFilter.toLowerCase() == 'captain') {
+        return role == 'captain';
+      }
+      return role == roleFilter.toLowerCase();
     }).toList();
 
     // Apply Search Filter
@@ -56,17 +64,26 @@ class SupportScreen extends ConsumerWidget {
         final subject = (t['subject'] as String? ?? '').toLowerCase();
         final msg = (t['message'] as String? ?? '').toLowerCase();
         final userId = (t['userId'] as String? ?? '').toLowerCase();
-        final userName = (t['userName'] as String? ??
+        AppUser? user;
+        try {
+          user = users.firstWhere((u) => u.uid.toLowerCase() == userId);
+        } catch (_) {
+          user = null;
+        }
+        final userName = (user?.name ??
+                t['userName'] as String? ??
                 t['reporterName'] as String? ??
                 t['name'] as String? ??
                 t['userPhone'] as String? ??
                 '')
             .toLowerCase();
+        final userPhone = (user?.phone ?? t['userPhone'] as String? ?? '').toLowerCase();
         return id.contains(search) ||
             subject.contains(search) ||
             msg.contains(search) ||
             userId.contains(search) ||
-            userName.contains(search);
+            userName.contains(search) ||
+            userPhone.contains(search);
       }).toList();
     }
 
@@ -217,86 +234,147 @@ class _ComplaintStatusTabs extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(supportTabProvider);
+    final isOpen = tab == 'Open Complaints';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.colors.cardBorder, width: 0.5),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildTab(
-              context,
-              ref,
-              'Open Complaints',
-              openCount,
-              tab == 'Open Complaints',
+    void selectTab(String newTab) {
+      if (ref.read(supportTabProvider) != newTab) {
+        HapticFeedback.selectionClick();
+        ref.read(supportTabProvider.notifier).state = newTab;
+      }
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+
+        void handlePosition(double localX) {
+          if (totalWidth <= 0) return;
+          if (localX < totalWidth / 2) {
+            selectTab('Open Complaints');
+          } else {
+            selectTab('Resolved');
+          }
+        }
+
+        return Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: context.colors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: context.colors.cardBorder, width: 0.8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(4),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) => handlePosition(details.localPosition.dx),
+            onHorizontalDragDown: (details) => handlePosition(details.localPosition.dx),
+            onHorizontalDragUpdate: (details) => handlePosition(details.localPosition.dx),
+            child: Stack(
+              children: [
+                // Smooth sliding indicator pill
+                Positioned.fill(
+                  child: AnimatedAlign(
+                    alignment: isOpen ? Alignment.centerLeft : Alignment.centerRight,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    child: FractionallySizedBox(
+                      widthFactor: 0.5,
+                      heightFactor: 1.0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AdminColors.primary,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AdminColors.primary.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Tab labels & counts
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildItem(
+                        context: context,
+                        title: 'Open Complaints',
+                        count: openCount,
+                        isSelected: isOpen,
+                        activeBadgeColor: const Color(0xFFF59E0B),
+                        onTap: () => selectTab('Open Complaints'),
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildItem(
+                        context: context,
+                        title: 'Resolved',
+                        count: resolvedCount,
+                        isSelected: !isOpen,
+                        activeBadgeColor: const Color(0xFF16A36A),
+                        onTap: () => selectTab('Resolved'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          Expanded(
-            child: _buildTab(
-              context,
-              ref,
-              'Resolved',
-              resolvedCount,
-              tab == 'Resolved',
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildTab(
-    BuildContext context,
-    WidgetRef ref,
-    String title,
-    int count,
-    bool isSelected,
-  ) {
-    return InkWell(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        ref.read(supportTabProvider.notifier).state = title;
-      },
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? AdminColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        alignment: Alignment.center,
+  Widget _buildItem({
+    required BuildContext context,
+    required String title,
+    required int count,
+    required bool isSelected,
+    required Color activeBadgeColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.translucent,
+      child: Center(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              title,
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
               style: GoogleFonts.inter(
                 color: isSelected ? Colors.white : context.colors.text,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                 fontSize: 12,
               ),
+              child: Text(title),
             ),
             const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? (title == 'Open Complaints'
-                          ? const Color(0xFFF59E0B)
-                          : const Color(0xFF16A36A))
-                    : context.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                color: isSelected ? activeBadgeColor : context.colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 '$count',
                 style: GoogleFonts.inter(
                   color: isSelected ? Colors.white : context.colors.textMuted,
-                  fontSize: 9,
+                  fontSize: 10,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -526,16 +604,32 @@ class _ComplaintRoleFilters extends ConsumerWidget {
   }
 }
 
-class _ComplaintPreviewCard extends StatelessWidget {
+class _ComplaintPreviewCard extends ConsumerWidget {
   final Map<String, dynamic> ticket;
 
   const _ComplaintPreviewCard({required this.ticket});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isResolved = ticket['status'] == 'resolved';
     final role = ticket['reporterRole'] as String? ?? 'user';
     final isCaptain = role.toLowerCase() == 'captain';
+    final userId = ticket['userId'] as String? ?? '';
+
+    final users = ref.watch(allUsersProvider).value ?? [];
+    AppUser? user;
+    try {
+      user = users.firstWhere((u) => u.uid == userId);
+    } catch (_) {
+      user = null;
+    }
+
+    final submitterName = (user?.name.trim().isNotEmpty == true)
+        ? user!.name.trim()
+        : (ticket['userName'] as String? ??
+            ticket['reporterName'] as String? ??
+            ticket['name'] as String? ??
+            (isCaptain ? 'Captain' : 'User'));
 
     final roleColor = isCaptain
         ? const Color(0xFF7C3AED)
@@ -579,16 +673,6 @@ class _ComplaintPreviewCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Status Border
-            Container(
-              height: 3,
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(14),
-                ),
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
@@ -678,7 +762,9 @@ class _ComplaintPreviewCard extends StatelessWidget {
                         radius: 14,
                         backgroundColor: roleColor.withValues(alpha: 0.1),
                         child: Text(
-                          isCaptain ? 'C' : 'U',
+                          submitterName.isNotEmpty
+                              ? submitterName[0].toUpperCase()
+                              : (isCaptain ? 'C' : 'U'),
                           style: GoogleFonts.inter(
                             color: roleColor,
                             fontWeight: FontWeight.w800,
@@ -687,28 +773,32 @@ class _ComplaintPreviewCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Submitted by',
-                            style: GoogleFonts.inter(
-                              color: context.colors.textMuted,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w500,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Submitted by',
+                              style: GoogleFonts.inter(
+                                color: context.colors.textMuted,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                          Text(
-                            isCaptain ? 'Captain' : 'User',
-                            style: GoogleFonts.inter(
-                              color: context.colors.text,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                            Text(
+                              submitterName,
+                              style: GoogleFonts.inter(
+                                color: context.colors.text,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -849,6 +939,23 @@ class _ComplaintDetailSheetState extends ConsumerState<_ComplaintDetailSheet> {
         ? DateFormat('MMM d, yyyy • h:mm a').format(createdAt.toDate())
         : '';
 
+    final users = ref.watch(allUsersProvider).value ?? [];
+    AppUser? user;
+    try {
+      user = users.firstWhere((u) => u.uid == userId);
+    } catch (_) {
+      user = null;
+    }
+
+    final submitterName = (user?.name.trim().isNotEmpty == true)
+        ? user!.name.trim()
+        : (t['userName'] as String? ??
+            t['reporterName'] as String? ??
+            t['name'] as String? ??
+            (isCaptain ? 'Captain' : 'User'));
+    final submitterPhone = user?.phone ?? (t['userPhone'] as String? ?? '');
+    final submitterEmail = user?.email ?? (t['userEmail'] as String? ?? '');
+
     return Container(
       decoration: BoxDecoration(
         color: context.colors.surface,
@@ -971,6 +1078,25 @@ class _ComplaintDetailSheetState extends ConsumerState<_ComplaintDetailSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          _DetailRow(
+                            title: 'Name',
+                            value: submitterName,
+                          ),
+                          const SizedBox(height: 8),
+                          if (submitterPhone.isNotEmpty) ...[
+                            _DetailRow(
+                              title: 'Phone',
+                              value: submitterPhone,
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          if (submitterEmail.isNotEmpty) ...[
+                            _DetailRow(
+                              title: 'Email',
+                              value: submitterEmail,
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           _DetailRow(
                             title: 'Role',
                             value: isCaptain ? 'Captain' : 'User',

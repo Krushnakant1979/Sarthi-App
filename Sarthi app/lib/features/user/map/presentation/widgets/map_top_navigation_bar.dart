@@ -63,44 +63,10 @@ class MapTopNavigationBar extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // ── Logo ─────────────────────────────
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF0B2144).withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: const SarthiLogo(size: 13),
-                        ),
-                        const SizedBox(width: 8),
-                        ShaderMask(
-                          shaderCallback: (bounds) => const LinearGradient(
-                            colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                          ).createShader(bounds),
-                          child: const Text(
-                            'Sarthi',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
-                              color: Colors.white,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ),
-                      ],
+                    // ── Sarthi Responsive Logo ───────────
+                    const SarthiLogo(
+                      size: 28,
+                      showText: true,
                     ),
                     // ── Location pill ────────────────────
                     Flexible(

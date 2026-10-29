@@ -1,5 +1,5 @@
 import styles from "./features.module.css";
-import { CheckCircle2, MapPin, Navigation, Wallet, Zap, Compass, CreditCard, ShieldCheck, UserCheck, AlertTriangle, ArrowRight, Shield } from "lucide-react";
+import { CheckCircle2, MapPin, Navigation, Wallet, Zap, CreditCard, Shield, UserCheck, ShieldCheck, AlertTriangle } from "lucide-react";
 
 export const metadata = {
   title: "Features | Sarthi",

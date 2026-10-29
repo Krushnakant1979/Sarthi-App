@@ -114,7 +114,8 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       }
     }
 
-    _liveLocationSub = _locationService.getPositionStream().listen((position) {
+    _liveLocationSub = _locationService.getPositionStream(distanceFilter: 10).listen((position) {
+      if (position.accuracy > 35) return;
       _lastValidPosition = position;
       _mapController?.updateUserLocation(
         position.latitude,
@@ -172,6 +173,26 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
       _liveLocationSub = _locationService
           .getPositionStream(distanceFilter: 10)
           .listen((position) {
+            // Filter out inaccurate GPS fixes (e.g. cell tower triangulation drift > 35m)
+            if (position.accuracy > 35) return;
+
+            // Prevent unnatural teleports (speed > 130 km/h) if last position exists
+            if (_lastValidPosition != null) {
+              final distance = Geolocator.distanceBetween(
+                _lastValidPosition!.latitude,
+                _lastValidPosition!.longitude,
+                position.latitude,
+                position.longitude,
+              );
+              final timeDiffSec = position.timestamp
+                  .difference(_lastValidPosition!.timestamp)
+                  .inSeconds
+                  .abs();
+              if (timeDiffSec > 0 && (distance / timeDiffSec) > 36.0) {
+                return;
+              }
+            }
+
             _lastValidPosition = position;
             final uid = FirebaseAuth.instance.currentUser?.uid;
             if (uid != null) {
@@ -348,7 +369,15 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
           );
         }
       });
-      if (fitCamera) {
+      // Re-ensure live location marker is preserved
+      if (_lastValidPosition != null) {
+        await _mapController!.updateUserLocation(
+          _lastValidPosition!.latitude,
+          _lastValidPosition!.longitude,
+          heading: _lastValidPosition!.heading,
+        );
+      }
+      if (fitCamera && !_isNavigatingInApp) {
         await _mapController!.fitBounds(
           startLat,
           startLng,
@@ -384,6 +413,28 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
     if (target == null || !_mapReady) return;
     if (activeRide == null) return; // Do not dynamically reroute static incoming requests
     
+    final status = activeRide['status'] as String?;
+    // If captain has already arrived at pickup, or ride is completed/cancelled, do NOT reroute
+    if (status == 'arrived' || status == 'completed' || status == 'cancelled') {
+      return;
+    }
+
+    final targetLat = double.tryParse(target['lat']?.toString() ?? '');
+    final targetLng = double.tryParse(target['lng']?.toString() ?? '');
+    if (targetLat != null && targetLng != null) {
+      // If captain is within 50 meters of target, captain has arrived at the spot;
+      // avoid re-routing jitter / clearing markers
+      final distToTarget = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        targetLat,
+        targetLng,
+      );
+      if (distToTarget < 50) {
+        return;
+      }
+    }
+
     if (lastOrigin != null &&
         Geolocator.distanceBetween(
               lastOrigin.latitude,
@@ -414,14 +465,24 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
 
   Future<void> _renderActiveRide(Map<String, dynamic> ride) async {
     final status = ride['status'] as String?;
-    final isGoingToDestination = status == 'in_progress' || status == 'arrived';
+    // Only in_progress means we are driving to drop-off.
+    // 'arrived' means captain is at pickup waiting for user and OTP!
+    final isGoingToDestination = status == 'in_progress';
     final target = isGoingToDestination
         ? ride['destination']
         : ride['pickup'];
     if (target is Map) {
+      final targetLat = double.tryParse(target['lat']?.toString() ?? '');
+      final targetLng = double.tryParse(target['lng']?.toString() ?? '');
+      final isNewTarget = _navigationTarget == null ||
+          double.tryParse(_navigationTarget!['lat']?.toString() ?? '') != targetLat ||
+          double.tryParse(_navigationTarget!['lng']?.toString() ?? '') != targetLng ||
+          _navigationTargetIsPickup != !isGoingToDestination;
+
       await _renderRouteToTarget(
         Map<String, dynamic>.from(target),
         isPickup: !isGoingToDestination,
+        fitCamera: isNewTarget && !_isNavigatingInApp,
       );
     }
   }
@@ -915,12 +976,21 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                     ),
                     const SizedBox(width: 12),
                     // Sarthi CAPTAIN Logo
-                    const Icon(
-                      Icons.electric_rickshaw_rounded,
-                      color: Color(0xFF3B82F6),
-                      size: 26,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.asset(
+                        'assets/app-logo/Sarthi app captain  logo.png',
+                        width: 28,
+                        height: 28,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.electric_rickshaw_rounded,
+                          color: Color(0xFF3B82F6),
+                          size: 26,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     const Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1089,13 +1159,13 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                             Container(
                               height: 46,
                               decoration: BoxDecoration(
-                                color: context.colors.primary,
+                                color: const Color(0xFF0B2144),
                                 borderRadius: BorderRadius.circular(15),
-                                boxShadow: [
+                                boxShadow: const [
                                   BoxShadow(
-                                    color: context.colors.primary.withValues(alpha: 0.45),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 5),
+                                    color: Colors.black12,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
                                   ),
                                 ],
                               ),
@@ -1123,13 +1193,13 @@ class _CaptainMapScreenState extends ConsumerState<CaptainMapScreen> {
                               width: 46,
                               height: 46,
                               decoration: BoxDecoration(
-                                color: context.colors.primary,
+                                color: const Color(0xFF0B2144),
                                 borderRadius: BorderRadius.circular(15),
-                                boxShadow: [
+                                boxShadow: const [
                                   BoxShadow(
-                                    color: context.colors.primary.withValues(alpha: 0.45),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 5),
+                                    color: Colors.black12,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
                                   ),
                                 ],
                               ),

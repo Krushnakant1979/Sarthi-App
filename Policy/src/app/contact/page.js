@@ -1,8 +1,6 @@
 "use client";
 import { useState } from "react";
 import styles from "./contact.module.css";
-import navStyles from "../page.module.css";
-import { User, Car, Briefcase } from "lucide-react";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", subject: "", message: "" });

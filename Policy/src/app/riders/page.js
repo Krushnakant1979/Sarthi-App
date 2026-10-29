@@ -1,6 +1,5 @@
 import styles from "../page.module.css";
-import Link from "next/link";
-import { ArrowRight, Smartphone, MapPin, Car, CreditCard, Clock, FileText, Headphones, CheckCircle2 } from "lucide-react";
+import { Smartphone, MapPin, Car, CreditCard, Clock, Headphones } from "lucide-react";
 
 export const metadata = {
   title: "Riders | Sarthi",

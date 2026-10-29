@@ -182,6 +182,7 @@ export const AdminProfileModal = ({ onClose }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

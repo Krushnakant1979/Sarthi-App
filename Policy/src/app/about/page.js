@@ -1,5 +1,5 @@
 import styles from "./about.module.css";
-import { Zap, Shield, Navigation, Users, Rocket } from "lucide-react";
+import { Zap, Shield, Navigation, Users } from "lucide-react";
 
 export const metadata = {
   title: "About Us | Sarthi",

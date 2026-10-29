@@ -34,9 +34,12 @@ class AllServicesTab extends StatelessWidget {
             Expanded(
               child: Align(
                 alignment: Alignment.topCenter,
-                child: Image.asset(
-                  'assets/app-logo/Sarthi app user logo.png',
-                  fit: BoxFit.contain,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.asset(
+                    'assets/app-logo/Sarthi app user logo.png',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),

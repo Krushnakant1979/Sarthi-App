@@ -12,11 +12,13 @@ const firebaseConfig = {
 
 import { getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app, "https://rapido-app-8745a-default-rtdb.asia-southeast1.firebasedatabase.app");
+export const storage = getStorage(app);
 
 export default app;

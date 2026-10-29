@@ -340,7 +340,7 @@ class OlaMapPlatformView(
             val outerOptions = OlaCircleOptions.Builder()
                 .setOlaLatLng(position)
                 .setRadius(10.0f)
-                .setColorHexCode("#22C55E")
+                .setColorHexCode("#0B2545")
                 .setCircleOpacity(1.0f)
                 .build()
             pickupNativeCircle = map.addCircle(outerOptions)
@@ -751,8 +751,6 @@ class OlaMapPlatformView(
                     safeRemoveCircle(pickupInnerCircle)
                     safeRemoveCircle(captainNativeCircle)
                     safeRemoveCircle(captainInnerCircle)
-                    safeRemoveCircle(userLiveNativeCircle)
-                    safeRemoveCircle(userLiveInnerCircle)
                 } catch (_: Exception) {}
 
                 pickupMarker = null
@@ -764,8 +762,6 @@ class OlaMapPlatformView(
                 pickupInnerCircle = null
                 captainNativeCircle = null
                 captainInnerCircle = null
-                userLiveNativeCircle = null
-                userLiveInnerCircle = null
                 mlActivePolylineCasing = null
                 mlActivePolyline = null
 

@@ -7,6 +7,8 @@ import { db, rtdb } from "@/config/firebase";
 import { collection, addDoc, doc, updateDoc, serverTimestamp, onSnapshot, getDoc } from "firebase/firestore";
 import { ref, onValue, get as rtdbGet } from "firebase/database";
 import { geocode, getDirections, decodePolyline, autocomplete } from "@/lib/olamaps";
+import { FARE_RULES, calculateFare } from "@/lib/fare";
+import styles from "./booking.module.css";
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const p = Math.PI / 180;
@@ -15,8 +17,6 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
             (1 - Math.cos((lon2 - lon1) * p)) / 2;
   return 12742 * Math.asin(Math.sqrt(a)) * 1000;
 }
-import { FARE_RULES, calculateFare } from "@/lib/fare";
-import styles from "./booking.module.css";
 
 const OlaMap = dynamic(() => import("@/components/OlaMap"), {
   ssr: false,
@@ -177,9 +177,9 @@ function BookingContent() {
         if (loc.lat && loc.lng) {
           setCaptainLocation([loc.lng, loc.lat]); // MapLibre needs [lng, lat]
         }
-      } else if (!captainLocation && activeRide.pickup) {
+      } else if (activeRide.pickup) {
         // Fallback: If no live location is available yet, default to slightly offset from pickup
-        setCaptainLocation([activeRide.pickup.lng - 0.001, activeRide.pickup.lat - 0.001]);
+        setCaptainLocation((prev) => prev || [activeRide.pickup.lng - 0.001, activeRide.pickup.lat - 0.001]);
       }
     });
 

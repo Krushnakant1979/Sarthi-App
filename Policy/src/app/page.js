@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Apple, Play, CheckCircle2, ArrowRight, MapPin, Circle, Car, CreditCard, ShieldCheck, Users, Clock, Smartphone, Globe } from "lucide-react";
+import { CheckCircle2, MapPin, Circle, Car, CreditCard, ShieldCheck, Users, Clock, Smartphone, Globe } from "lucide-react";
 import styles from "./page.module.css";
 import { autocomplete, getPlaceDetails } from "@/lib/olamaps";
 import { useRouter } from "next/navigation";
@@ -470,12 +470,13 @@ export default function Page() {
                   </li>
                 ))}
               </ul>
-              <button
+              <Link
+                href="/captains/register"
                 className={styles.btnNavPrimary}
-                style={{ padding: "16px 36px", fontSize: "1rem", borderRadius: "999px" }}
+                style={{ padding: "16px 36px", fontSize: "1rem", borderRadius: "999px", display: "inline-block", textDecoration: "none" }}
               >
                 Register as Captain →
-              </button>
+              </Link>
             </div>
           </div>
         </section>
@@ -500,7 +501,9 @@ export default function Page() {
               >
                 Book Your First Ride
               </button>
-              <button className={styles.btnCtaOutline}>Join as Captain</button>
+              <Link href="/captains/register" className={styles.btnCtaOutline} style={{ textDecoration: "none" }}>
+                Join as Captain
+              </Link>
             </div>
           </div>
         </section>

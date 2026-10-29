@@ -11,7 +11,7 @@ import '../widgets/admin_common_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ─── Brand Colors ──────────────────────────────────────────────────────────────
-const _navy = Color(0xFF0B2748);
+const _navy = Color(0xFF2563EB);
 const _yellow = Color(0xFFFFD21E);
 const _green = Color(0xFF16A34A);
 const _orange = Color(0xFFF59E0B);
@@ -1692,14 +1692,14 @@ class _ActionButton extends StatelessWidget {
       icon: Icon(
         icon,
         size: 16,
-        color: color == _yellow ? _navy : Colors.white,
+        color: color == _yellow ? const Color(0xFF0F172A) : Colors.white,
       ), // Decreased
       label: Text(
         label,
         style: GoogleFonts.inter(
           fontWeight: FontWeight.w700,
           fontSize: 11,
-          color: color == _yellow ? _navy : Colors.white,
+          color: color == _yellow ? const Color(0xFF0F172A) : Colors.white,
         ),
       ), // Decreased
       style: ElevatedButton.styleFrom(

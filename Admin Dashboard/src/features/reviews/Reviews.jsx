@@ -148,8 +148,12 @@ export default function Reviews() {
                   <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 600, color: 'var(--brand-blue)' }}>
                     {review.tripId || review.rideId || review.id.slice(0, 8)}
                   </td>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewer || review.userName || 'Passenger'}</td>
-                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>{review.reviewee || review.captainName || 'Captain'}</td>
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>
+                    {review.riderName || review.userName || review.reviewer || 'Passenger'}
+                  </td>
+                  <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', fontWeight: 500 }}>
+                    {review.captainName || review.reviewee || 'Captain'}
+                  </td>
                   <td style={{ padding: '1rem 1.25rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       {[...Array(5)].map((_, i) => (
@@ -158,7 +162,9 @@ export default function Reviews() {
                     </div>
                   </td>
                   <td style={{ padding: '1rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-secondary)', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={review.comment || review.feedback}>
-                    "{review.comment || review.feedback || 'No comments provided'}"
+                    {(review.comment && review.comment.trim()) || review.feedback
+                      ? `"${review.comment || review.feedback}"`
+                      : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Rated without comment</span>}
                   </td>
                   <td style={{ padding: '1rem 1.25rem' }}>
                     <span style={{ 
@@ -166,15 +172,15 @@ export default function Reviews() {
                       borderRadius: 'var(--r-full)', 
                       fontSize: '0.75rem', 
                       fontWeight: 600,
-                      background: review.status === 'Resolved' ? 'var(--success-bg)' : review.status === 'Flagged' ? 'var(--error-bg)' : 'var(--warning-bg)',
-                      color: review.status === 'Resolved' ? 'var(--success)' : review.status === 'Flagged' ? 'var(--error)' : 'var(--warning)'
+                      background: (review.status || '').toLowerCase() === 'resolved' ? 'var(--success-bg)' : (review.status || '').toLowerCase() === 'flagged' ? 'var(--error-bg)' : 'var(--warning-bg)',
+                      color: (review.status || '').toLowerCase() === 'resolved' ? 'var(--success)' : (review.status || '').toLowerCase() === 'flagged' ? 'var(--error)' : 'var(--warning)'
                     }}>
-                      {review.status || 'Open'}
+                      {(review.status || '').toLowerCase() === 'resolved' ? 'Resolved' : (review.status || '').toLowerCase() === 'flagged' ? 'Flagged' : 'Active'}
                     </span>
                   </td>
                   <td style={{ paddingRight: '1.5rem' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                      {review.status !== 'Resolved' && (
+                      {(review.status || '').toLowerCase() !== 'resolved' && (
                         <button 
                           className="btn btn-sm"
                           disabled={updatingId === review.id}
@@ -185,7 +191,7 @@ export default function Reviews() {
                           <Check size={14} weight="bold" /> Resolve
                         </button>
                       )}
-                      {review.status !== 'Flagged' && review.status !== 'Resolved' && (
+                      {(review.status || '').toLowerCase() !== 'flagged' && (review.status || '').toLowerCase() !== 'resolved' && (
                         <button 
                           className="btn btn-sm"
                           disabled={updatingId === review.id}
@@ -196,10 +202,16 @@ export default function Reviews() {
                           <Flag size={14} /> Flag
                         </button>
                       )}
-                      {review.status === 'Resolved' && (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Check size={14} weight="bold" /> Case Closed
-                        </span>
+                      {(review.status || '').toLowerCase() === 'resolved' && (
+                        <button
+                          className="btn btn-sm"
+                          disabled={updatingId === review.id}
+                          onClick={() => handleUpdateStatus(review.id, 'Active')}
+                          style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)', border: '1px solid var(--border)', fontSize: '0.75rem' }}
+                          title="Reopen Review"
+                        >
+                          Reopen
+                        </button>
                       )}
                     </div>
                   </td>

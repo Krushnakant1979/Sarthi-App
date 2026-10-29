@@ -1074,40 +1074,68 @@ class RideDetails extends ConsumerWidget {
                       'in_progress',
                       'ongoing',
                     ].contains(status)) ...[
-                      SizedBox(height: 10),
+                      const SizedBox(height: 10),
                       SizedBox(
                         width: double.infinity,
-                        height: 46,
-                        child: OutlinedButton.icon(
+                        height: 50,
+                        child: ElevatedButton(
                           onPressed: () => _showCancelDialog(
                             context,
                             ref,
                             rideId,
                             status,
                           ),
-                          icon: const Icon(
-                            Icons.cancel_outlined,
-                            color: AdminColors.error,
-                            size: 18,
-                          ),
-                          label: Text(
-                            'Force Cancel Ride (Admin Override)',
-                            style: GoogleFonts.inter(
-                              color: AdminColors.error,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AdminColors.error,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                              horizontal: 16,
                             ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AdminColors.error),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.cancel_outlined,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Force Cancel Ride',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  Text(
+                                    '(Admin Override)',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 10,
+                                      letterSpacing: 0.1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
-                    SizedBox(height: 12),
+                    SizedBox(height: 16 + MediaQuery.of(context).padding.bottom),
                   ],
                 ),
               ),

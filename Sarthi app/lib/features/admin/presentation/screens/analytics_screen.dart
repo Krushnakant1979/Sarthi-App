@@ -474,7 +474,7 @@ class _RevenueSummaryCard extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AdminColors.primary, Color(0xFF14478B)],
+          colors: [AdminColors.primary, Color(0xFF1D4ED8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

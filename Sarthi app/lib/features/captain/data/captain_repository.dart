@@ -360,8 +360,12 @@ class CaptainRepository {
     String? userId,
     String? rideId,
     String? comment,
+    String? riderName,
+    String? captainName,
   }) async {
     final captainRef = _firestore.collection('users').doc(captainId);
+    String resolvedCaptainName = captainName ?? '';
+
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(captainRef);
       if (!snapshot.exists) {
@@ -369,6 +373,9 @@ class CaptainRepository {
       }
 
       final data = snapshot.data()!;
+      if (resolvedCaptainName.isEmpty) {
+        resolvedCaptainName = (data['name'] as String?) ?? 'Captain';
+      }
       final currentScore = (data['ratingScore'] as num?) ?? 0;
       final currentCount = (data['ratingCount'] as int?) ?? 0;
 
@@ -380,13 +387,23 @@ class CaptainRepository {
 
     try {
       final effectiveUid = userId ?? FirebaseAuth.instance.currentUser?.uid;
+      String resolvedRiderName = riderName ?? '';
       if (effectiveUid != null) {
+        if (resolvedRiderName.isEmpty) {
+          final userDoc = await _firestore.collection('users').doc(effectiveUid).get();
+          if (userDoc.exists && userDoc.data() != null) {
+            resolvedRiderName = (userDoc.data()!['name'] as String?) ?? 'Rider';
+          }
+        }
+
         await _firestore.collection('reviews').add({
           'captainId': captainId,
           'userId': effectiveUid,
           'rideId': rideId,
           'rating': stars,
           'comment': comment ?? '',
+          'riderName': resolvedRiderName.isNotEmpty ? resolvedRiderName : 'Rider',
+          'captainName': resolvedCaptainName.isNotEmpty ? resolvedCaptainName : 'Captain',
           'status': 'active',
           'createdAt': FieldValue.serverTimestamp(),
         });

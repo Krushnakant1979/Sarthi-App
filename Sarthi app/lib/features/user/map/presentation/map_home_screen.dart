@@ -27,6 +27,7 @@ import 'widgets/in_progress_bottom_sheet.dart';
 import 'widgets/map_top_navigation_bar.dart';
 import 'widgets/completed_bottom_sheet.dart';
 import 'widgets/selected_bottom_sheet.dart';
+import 'widgets/animated_confirm_ride_button.dart';
 class MapHomeScreen extends ConsumerStatefulWidget {
   const MapHomeScreen({super.key});
 
@@ -34,7 +35,8 @@ class MapHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<MapHomeScreen> createState() => _MapHomeScreenState();
 }
 
-class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
+class _MapHomeScreenState extends ConsumerState<MapHomeScreen>
+    with WidgetsBindingObserver {
   int _selectedNavIndex = 0;
 
   OlaMapsController? _mapController;
@@ -75,16 +77,19 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
   String? _dispatchRideId;
   int _dispatchIndex = 0;
 
+  // Pending route data to draw once map finishes loading
+  Map<String, dynamic>? _pendingRoutePickup;
+  Map<String, dynamic>? _pendingRouteDest;
 
   final ValueNotifier<double> _sheetExtent = ValueNotifier(0.50);
   final DraggableScrollableController _sheetController =
       DraggableScrollableController();
   double? _targetSheetFraction;
 
-
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _sheetController.addListener(() {
       if (_sheetController.isAttached) {
         _sheetExtent.value = _sheetController.size;
@@ -92,15 +97,132 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
     });
     _initLocation();
 
+    // Check and restore active ride from backend on initial startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncActiveRideOnResume();
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _dispatchTimer?.cancel();
     _locationSubscription?.cancel();
     _sheetController.dispose();
     _sheetExtent.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncActiveRideOnResume();
+    }
+  }
+
+  Future<void> _syncActiveRideOnResume() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final activeRide =
+          await ref.read(rideRepositoryProvider).getActiveRide(user.uid);
+      if (!mounted) return;
+
+      if (activeRide != null) {
+        ref.read(currentRideIdProvider.notifier).state = activeRide['id'];
+        _restoreActiveRide(activeRide);
+      } else {
+        // ONLY reset if the query succeeded and confirmed 0 active rides on the backend.
+        // If an exception was thrown (e.g. offline/network unreachable), control jumps to catch
+        // so we DO NOT reset the user's screen during temporary network dropouts.
+        if (_bookingState != 'default') {
+          ref.read(currentRideIdProvider.notifier).state = null;
+          setState(() {
+            _bookingState = 'default';
+            _destination = null;
+            _pickupLocation = null;
+            _routePolyline = null;
+            _routePoints = null;
+            _followUser = true;
+          });
+          _mapController?.clearRoute();
+          _mapController?.toggleNativeUserLocation(true);
+          _dispatchTimer?.cancel();
+          _dispatchTimer = null;
+          _dispatchRideId = null;
+        }
+      }
+    } catch (e) {
+      debugPrint('Network error syncing active ride on resume (retaining local state): $e');
+    }
+  }
+
+  void _restoreActiveRide(Map<String, dynamic> rideData) {
+    if (!mounted) return;
+    final status = rideData['status'] as String? ?? 'default';
+    final rideId = rideData['id'] as String?;
+
+    if (rideId != null) {
+      ref.read(currentRideIdProvider.notifier).state = rideId;
+    }
+
+    final pickup = rideData['pickup'] as Map<String, dynamic>?;
+    final dest = rideData['destination'] as Map<String, dynamic>?;
+
+    setState(() {
+      _bookingState = status;
+      if (rideData['vehicleType'] != null) {
+        _vehicleType = rideData['vehicleType'] as String;
+      }
+      if (pickup != null) {
+        _pickupLocation = {
+          'lat': (pickup['lat'] as num).toDouble(),
+          'lng': (pickup['lng'] as num).toDouble(),
+          'description': pickup['address'] ?? 'Pickup location',
+        };
+      }
+      if (dest != null) {
+        _destination = {
+          'lat': (dest['lat'] as num).toDouble(),
+          'lng': (dest['lng'] as num).toDouble(),
+          'description': dest['address'] ?? 'Destination',
+        };
+      }
+      if (status != 'default') {
+        _followUser = false;
+      }
+    });
+
+    if (status == 'searching') {
+      _manageDispatchTimer(rideData);
+    } else {
+      _dispatchTimer?.cancel();
+      _dispatchTimer = null;
+      _dispatchRideId = null;
+    }
+
+    // Check if the route is already loaded for these identical coordinates
+    final hasSameRoute = _routePolyline != null &&
+        _pickupLocation != null &&
+        _destination != null &&
+        (_pickupLocation!['lat'] as num?)?.toDouble() == (pickup?['lat'] as num?)?.toDouble() &&
+        (_pickupLocation!['lng'] as num?)?.toDouble() == (pickup?['lng'] as num?)?.toDouble() &&
+        (_destination!['lat'] as num?)?.toDouble() == (dest?['lat'] as num?)?.toDouble() &&
+        (_destination!['lng'] as num?)?.toDouble() == (dest?['lng'] as num?)?.toDouble();
+
+    if (pickup != null && dest != null && !hasSameRoute) {
+      if (_mapController != null) {
+        _restoreRoute(pickup, dest);
+      } else {
+        _pendingRoutePickup = pickup;
+        _pendingRouteDest = dest;
+      }
+    }
+
+    if (status != 'default' && status != 'searching') {
+      _mapController?.toggleNativeUserLocation(true);
+    }
   }
 
   void _manageDispatchTimer(Map<String, dynamic>? rideData) {
@@ -110,29 +232,110 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
       _dispatchRideId = null;
       return;
     }
-    
-    if (rideData['id'] != _dispatchRideId) {
+
+    final rideId = rideData['id'] as String?;
+    if (rideId == null) return;
+
+    final createdAt = (rideData['createdAt'] as Timestamp?)?.toDate();
+    if (createdAt != null &&
+        DateTime.now().difference(createdAt).inSeconds >= 90) {
       _dispatchTimer?.cancel();
-      _dispatchRideId = rideData['id'];
+      _dispatchTimer = null;
+      _dispatchRideId = null;
+      ref.read(rideRepositoryProvider).updateRideStatus(
+        rideId,
+        'cancelled',
+        extraData: {
+          'cancelledBy': 'system',
+          'cancelReason': 'No captain accepted within the time limit',
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _bookingState = 'default';
+          _destination = null;
+          _pickupLocation = null;
+          _routePolyline = null;
+          _routePoints = null;
+          _followUser = true;
+        });
+        _mapController?.clearRoute();
+        _mapController?.toggleNativeUserLocation(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No captains accepted the request. Please try again.'),
+            backgroundColor: Color(0xFF1E293B),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (rideId != _dispatchRideId || _dispatchTimer == null) {
+      _dispatchTimer?.cancel();
+      _dispatchRideId = rideId;
       _dispatchIndex = rideData['currentRouteIndex'] ?? 0;
-      
+
       _dispatchTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
         if (!mounted) {
-           timer.cancel();
-           return;
+          timer.cancel();
+          return;
         }
+
+        if (createdAt != null &&
+            DateTime.now().difference(createdAt).inSeconds >= 90) {
+          timer.cancel();
+          _dispatchTimer = null;
+          _dispatchRideId = null;
+          ref.read(rideRepositoryProvider).updateRideStatus(
+            rideId,
+            'cancelled',
+            extraData: {
+              'cancelledBy': 'system',
+              'cancelReason': 'No captain accepted within the time limit',
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+          );
+          if (mounted) {
+            setState(() {
+              _bookingState = 'default';
+              _destination = null;
+              _pickupLocation = null;
+              _routePolyline = null;
+              _routePoints = null;
+              _followUser = true;
+            });
+            _mapController?.clearRoute();
+            _mapController?.toggleNativeUserLocation(true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'No captains accepted the request. Please try again.',
+                ),
+                backgroundColor: Color(0xFF1E293B),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
         final routingQueue = (rideData['routingQueue'] as List?)?.cast<String>();
         if (routingQueue != null && routingQueue.isNotEmpty) {
-           _dispatchIndex++;
-           if (_dispatchIndex < routingQueue.length) {
-              FirebaseFirestore.instance.collection('ride_requests').doc(_dispatchRideId).update({
-                'currentRouteIndex': _dispatchIndex,
-                'routeStartedAt': FieldValue.serverTimestamp(),
-                'updatedAt': FieldValue.serverTimestamp(),
-              }).catchError((_) {});
-           } else {
-              timer.cancel();
-           }
+          _dispatchIndex++;
+          if (_dispatchIndex < routingQueue.length) {
+            FirebaseFirestore.instance
+                .collection('ride_requests')
+                .doc(_dispatchRideId)
+                .update({
+                  'currentRouteIndex': _dispatchIndex,
+                  'routeStartedAt': FieldValue.serverTimestamp(),
+                  'updatedAt': FieldValue.serverTimestamp(),
+                })
+                .catchError((_) {});
+          }
         }
       });
     }
@@ -276,16 +479,34 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
 
   Future<void> _handleConfirmRide(WidgetRef ref) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      double? pLat = (_pickupLocation?['lat'] as num?)?.toDouble();
-      double? pLng = (_pickupLocation?['lng'] as num?)?.toDouble();
-      if (pLat == null || pLng == null) {
-        final pos = await _locationService.getCurrentPosition();
-        if (pos != null) {
-          pLat = pos.latitude;
-          pLng = pos.longitude;
-        }
+    if (uid == null) return;
+
+    // Prevent duplicate bookings if an active ride already exists
+    final repo = ref.read(rideRepositoryProvider);
+    final existingActiveRide = ref.read(activeRideProvider).valueOrNull ??
+        await repo.getActiveRide(uid);
+    if (existingActiveRide != null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You already have an active ride request in progress.'),
+          backgroundColor: Color(0xFF1E293B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _restoreActiveRide(existingActiveRide);
+      return;
+    }
+
+    double? pLat = (_pickupLocation?['lat'] as num?)?.toDouble();
+    double? pLng = (_pickupLocation?['lng'] as num?)?.toDouble();
+    if (pLat == null || pLng == null) {
+      final pos = await _locationService.getCurrentPosition();
+      if (pos != null) {
+        pLat = pos.latitude;
+        pLng = pos.longitude;
       }
+    }
 
       if (pLat == null || pLng == null) return;
 
@@ -356,7 +577,6 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
           SnackBar(content: Text('Failed to request ride: $e')),
         );
       }
-    }
   }
 
   Future<void> _handleOfferTap() async {
@@ -427,11 +647,23 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
       }
     });
 
-    // Listen for ride state changes to automatically clear the map when a ride ends
+    // Listen to activeRideProvider from backend to restore any active ride
+    ref.listen(activeRideProvider, (previous, next) {
+      final activeRide = next.value;
+      if (activeRide != null) {
+        final currentId = ref.read(currentRideIdProvider);
+        if (currentId == null || currentId != activeRide['id'] || _bookingState == 'default') {
+          ref.read(currentRideIdProvider.notifier).state = activeRide['id'];
+          _restoreActiveRide(activeRide);
+        }
+      }
+    });
+
+    // Listen for ride state changes to automatically manage bottom sheets, dispatch timers, and map route
     ref.listen(currentRideStreamProvider, (previous, next) {
       final oldStatus = previous?.value?.data()?['status'];
       final newStatus = next.value?.data()?['status'];
-      
+
       final rideData = next.value?.data();
       if (rideData != null) {
         rideData['id'] = next.value?.id;
@@ -453,9 +685,12 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         _mapController?.toggleNativeUserLocation(true);
         if (newStatus == 'cancelled') {
           final cancelledBy = next.value?.data()?['cancelledBy'];
+          final cancelReason = next.value?.data()?['cancelReason'];
           final cancelMessage = cancelledBy == 'captain'
               ? 'Your ride was cancelled by the captain'
-              : 'Your ride request has been cancelled';
+              : cancelledBy == 'system'
+                  ? (cancelReason ?? 'No captains available. Please try again.')
+                  : 'Your ride request has been cancelled';
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && oldStatus != null) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -468,7 +703,11 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                           color: Colors.white.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.info_outline, color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.info_outline,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -487,8 +726,15 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                   behavior: SnackBarBehavior.floating,
                   backgroundColor: const Color(0xFF1E293B), // Slate 800
                   elevation: 8,
-                  margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  margin: const EdgeInsets.only(
+                    bottom: 24,
+                    left: 24,
+                    right: 24,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -499,30 +745,12 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
             ref.read(currentRideIdProvider.notifier).state = null;
           });
         }
-      } else if (newStatus == 'accepted' ||
-          newStatus == 'arriving' ||
-          newStatus == 'arrived' ||
-          newStatus == 'in_progress') {
-        
-        // Show native blue tracking dot instead of green pickup bullseye
-        if (oldStatus != newStatus) {
-            _mapController?.toggleNativeUserLocation(true);
-        }
-
-        // If route was lost (e.g. app restart), try to restore it
-        if (_routePolyline == null && _mapController != null) {
-          final rideData = next.value?.data();
-          if (rideData != null &&
-              rideData['destination'] != null &&
-              rideData['pickup'] != null) {
-            final destMap = rideData['destination'] as Map<String, dynamic>;
-            final pickupMap = rideData['pickup'] as Map<String, dynamic>;
-
-            // Only recalculate route if we have valid coordinates
-            if (destMap['lat'] != null && pickupMap['lat'] != null) {
-              _restoreRoute(pickupMap, destMap);
-            }
-          }
+      } else if (newStatus != null &&
+          newStatus != 'completed' &&
+          newStatus != 'cancelled') {
+        // Active ride states: searching, pending, accepted, arriving, arrived, in_progress
+        if (rideData != null) {
+          _restoreActiveRide(rideData);
         }
       }
     });
@@ -586,32 +814,52 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                         _mapController = controller;
                         controller.mapEvents.listen((event) async {
                           if (event is Map && event['event'] == 'mapReady') {
-                            // 1. Immediately jump to India to avoid showing the whole world map
-                            _safeMoveCamera(controller, 20.5937, 78.9629, zoom: 4.5);
-
-                            if (!context.mounted) return;
-
-                            // 2. Try to get a fast last known location and animate there
-                            final lastKnown = await _locationService
-                                .getLastKnownPosition();
-                            if (lastKnown != null && context.mounted) {
-                              _safeMoveCamera(controller, lastKnown.latitude, lastKnown.longitude, zoom: 14.0);
+                            // If an active ride route is pending restoration, draw it now
+                            if (_pendingRoutePickup != null && _pendingRouteDest != null) {
+                              unawaited(_restoreRoute(_pendingRoutePickup!, _pendingRouteDest!));
+                              _pendingRoutePickup = null;
+                              _pendingRouteDest = null;
+                            } else {
+                              final activeDoc = ref.read(currentRideStreamProvider).valueOrNull?.data() ??
+                                  ref.read(activeRideProvider).valueOrNull;
+                              if (activeDoc != null &&
+                                  activeDoc['pickup'] != null &&
+                                  activeDoc['destination'] != null) {
+                                unawaited(_restoreRoute(
+                                  activeDoc['pickup'] as Map<String, dynamic>,
+                                  activeDoc['destination'] as Map<String, dynamic>,
+                                ));
+                              }
                             }
 
-                            // 3. Fetch the accurate current location
-                            final pos = await _locationService
-                                .getCurrentPosition();
-                            if (pos != null && context.mounted) {
-                              // Apply bottom padding first so the camera centres
-                              // the blue dot in the visible area above the sheet
-                              final topPadding = MediaQuery.of(context).padding.top;
-                              await controller.setPadding(top: topPadding, bottom: 300);
-                              _safeMoveCamera(controller, pos.latitude, pos.longitude, zoom: 16.0);
-                              // Only drop the blue dot when we have the accurate GPS fix
-                              controller.updateUserLocation(
-                                pos.latitude,
-                                pos.longitude,
-                              );
+                            // If not in an active ride, center camera on user's location
+                            if (_bookingState == 'default') {
+                              // 1. Immediately jump to India to avoid showing the whole world map
+                              _safeMoveCamera(controller, 20.5937, 78.9629, zoom: 4.5);
+
+                              if (!context.mounted) return;
+
+                              // 2. Try to get a fast last known location and animate there
+                              final lastKnown = await _locationService
+                                  .getLastKnownPosition();
+                              if (lastKnown != null && context.mounted) {
+                                _safeMoveCamera(controller, lastKnown.latitude, lastKnown.longitude, zoom: 14.0);
+                              }
+
+                              // 3. Fetch the accurate current location
+                              final pos = await _locationService
+                                  .getCurrentPosition();
+                              if (pos != null && context.mounted) {
+                                final topPadding = MediaQuery.of(context).padding.top;
+                                await controller.setPadding(top: topPadding, bottom: 300);
+                                _safeMoveCamera(controller, pos.latitude, pos.longitude, zoom: 16.0);
+                                controller.updateUserLocation(
+                                  pos.latitude,
+                                  pos.longitude,
+                                );
+                              }
+                            } else {
+                              controller.toggleNativeUserLocation(true);
                             }
                           } else if (event is Map && event['event'] == 'cameraMove') {
                             if (_bookingState == 'default') {
@@ -697,7 +945,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                         borderRadius: BorderRadius.circular(20),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(0.1),
+                                            color: Colors.black.withValues(alpha: 0.1),
                                             blurRadius: 10,
                                             offset: const Offset(0, 4),
                                           ),
@@ -754,7 +1002,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                               border: Border.all(color: Colors.blue, width: 6),
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: Colors.black.withOpacity(0.3),
+                                                  color: Colors.black.withValues(alpha: 0.3),
                                                   blurRadius: 4,
                                                   offset: const Offset(0, 2),
                                                 ),
@@ -851,26 +1099,32 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                     builder: (context, ref, _) {
                       final rideStream = ref.watch(currentRideStreamProvider);
                       final rideSnapshot = rideStream.valueOrNull;
-                      final rideData = rideSnapshot?.data();
+                      final rideData = rideSnapshot?.data() ??
+                          ref.watch(activeRideProvider).valueOrNull;
                       final status = rideData?['status'];
                       final otp = rideData?['otp'];
                       final fare = rideData?['fareEstimate'];
-                      final rideId = rideSnapshot?.id;
+                      final rideId = rideSnapshot?.id ??
+                          rideData?['id'] ??
+                          ref.watch(currentRideIdProvider);
                       String displayState = _bookingState;
-                      if (status != null) displayState = status;
+                      if (status != null && status != 'cancelled') displayState = status;
                           
                           final isDefault = displayState == 'default';
+                          final isSearching = displayState == 'searching';
 
                           return DraggableScrollableSheet(
                             controller: _sheetController,
                             snap: isDefault,
                             snapSizes: isDefault ? const [0.38, 0.50, 0.65, 1.0] : null,
                             snapAnimationDuration: const Duration(milliseconds: 280),
-                            initialChildSize: (_targetSheetFraction ?? 0.50).clamp(
-                              0.38,
-                              1.0,
-                            ),
-                            minChildSize: 0.38,
+                            initialChildSize: isSearching
+                                ? 0.38
+                                : (_targetSheetFraction ?? 0.50).clamp(
+                                    0.38,
+                                    1.0,
+                                  ),
+                            minChildSize: isSearching ? 0.32 : 0.38,
                             maxChildSize: 1.0,
                             builder: (context, scrollController) {
                               return Container(
@@ -893,11 +1147,14 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                   if (displayState == 'searching') {
                                     stateContent = SearchingBottomSheet(
                                       onCancelRequest: () {
-                                        if (rideId != null) {
+                                        final effectiveRideId = rideId ??
+                                            ref.read(currentRideIdProvider) ??
+                                            ref.read(activeRideProvider).valueOrNull?['id'];
+                                        if (effectiveRideId != null) {
                                           ref
                                               .read(rideRepositoryProvider)
                                               .updateRideStatus(
-                                                rideId,
+                                                effectiveRideId,
                                                 'cancelled',
                                                 extraData: {
                                                   'cancelledBy': 'user',
@@ -907,6 +1164,9 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                               );
                                           ref.read(currentRideIdProvider.notifier).state = null;
                                         }
+                                        _dispatchTimer?.cancel();
+                                        _dispatchTimer = null;
+                                        _dispatchRideId = null;
                                         setState(() {
                                           _bookingState = 'default';
                                           _destination = null;
@@ -928,7 +1188,10 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                       status: displayState,
                                       captainId: rideData?['assignedCaptainId'],
                                       onCancelRide: () async {
-                                        if (rideId == null) return;
+                                        final effectiveRideId = rideId ??
+                                            ref.read(currentRideIdProvider) ??
+                                            ref.read(activeRideProvider).valueOrNull?['id'];
+                                        if (effectiveRideId == null) return;
                                         final confirmed = await showDialog<bool>(
                                           context: context,
                                           builder: (ctx) => AlertDialog(
@@ -957,7 +1220,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                         );
                                         if (confirmed == true) {
                                           ref.read(rideRepositoryProvider).updateRideStatus(
-                                            rideId,
+                                            effectiveRideId,
                                             'cancelled',
                                             extraData: {
                                               'cancelledBy': 'user',
@@ -990,6 +1253,8 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                       fare: fare,
                                       paymentMethod: _paymentMethod,
                                       captainId: rideData?['assignedCaptainId'],
+                                      rideId: rideId,
+                                      captainName: rideData?['captainName'] ?? rideData?['driverName'],
                                       onDone: () {
                                         ref.read(currentRideIdProvider.notifier).state = null;
                                         setState(() {
@@ -1007,8 +1272,14 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                         _mapController?.clearRoute();
                                         _mapController?.toggleNativeUserLocation(true);
                                       },
-                                      onRateCaptain: (captainId) {
-                                        _showRatingSheet(context, captainId, ref);
+                                      onRateCaptain: (captainId, {rideId, captainName}) {
+                                        _showRatingSheet(
+                                          context,
+                                          captainId,
+                                          ref,
+                                          rideId: rideId,
+                                          captainName: captainName,
+                                        );
                                       },
                                     );
                                   } else if (displayState == 'selected' &&
@@ -1060,7 +1331,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                                             alignment: Alignment.topCenter,
                                             children: <Widget>[
                                               ...previousChildren,
-                                              if (currentChild != null) currentChild,
+                                              ?currentChild,
                                             ],
                                           ),
                                       child: KeyedSubtree(
@@ -1108,7 +1379,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                       final screenHeight = MediaQuery.of(context).size.height;
                       final showButton = _bookingState == 'default' && _mapInteracted && extent < 0.45;
                       return Positioned(
-                        bottom: (screenHeight * extent) + 16,
+                        bottom: (screenHeight * extent) + 17,
                         left: 0,
                         right: 0,
                         child: IgnorePointer(
@@ -1128,55 +1399,27 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                         ),
                       );
                     },
-                    child: Container(
-                      height: 50,
-                      width: (MediaQuery.of(context).size.width * 0.5).clamp(160.0, 220.0),
-                      decoration: BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                            color: context.colors.primary.withValues(alpha: 0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          if (_mapController != null) {
-                            final center = await _mapController!.getCenterCoordinates();
-                            if (center != null) {
-                              _pickupLocation = {
-                                'lat': center['lat'],
-                                'lng': center['lng'],
-                                'description': _pickupLocation?['description'] ?? 'Selected Location',
-                              };
-                            }
+                    child: AnimatedConfirmRideButton(
+                      onPressed: () async {
+                        if (_mapController != null) {
+                          final center = await _mapController!.getCenterCoordinates();
+                          if (center != null) {
+                            _pickupLocation = {
+                              'lat': center['lat'],
+                              'lng': center['lng'],
+                              'description': _pickupLocation?['description'] ?? 'Selected Location',
+                            };
                           }
+                        }
+                        if (!context.mounted) return;
+                        final result = await context.push('/search', extra: {
+                          if (_pickupLocation != null) 'pickup': _pickupLocation,
+                        });
+                        if (result != null && result is Map<String, dynamic>) {
                           if (!context.mounted) return;
-                          final result = await context.push('/search', extra: {
-                            if (_pickupLocation != null) 'pickup': _pickupLocation,
-                          });
-                          if (result != null && result is Map<String, dynamic>) {
-                            if (!context.mounted) return;
-                            _processDestination(context, result);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: context.colors.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Confirm Ride',
-                          style: TextStyle(
-                            fontSize: MediaQuery.of(context).size.width < 380 ? 15 : 17,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
+                          _processDestination(context, result);
+                        }
+                      },
                     ),
                   ),
                 ],
@@ -1245,7 +1488,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
                   height: 40,
                   margin: const EdgeInsets.only(top: 4),
                   decoration: BoxDecoration(
-                    color: context.colors.rapidoYellow,
+                    color: const Color(0xFF1E60F6).withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -1275,8 +1518,8 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
               ),
               Expanded(
                 child: _NavItem(
-                  selectedIcon: Icons.work_rounded,
-                  unselectedIcon: Icons.work_outline_rounded,
+                  selectedIcon: Icons.route_rounded,
+                  unselectedIcon: Icons.route_outlined,
                   label: 'Trips',
                   isSelected: _selectedNavIndex == 2,
                   onTap: () => _onNavTapped(2),
@@ -1305,8 +1548,15 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
 
 
 
-  void _showRatingSheet(BuildContext context, String captainId, WidgetRef ref) {
+  void _showRatingSheet(
+    BuildContext context,
+    String captainId,
+    WidgetRef ref, {
+    String? rideId,
+    String? captainName,
+  }) {
     int selectedStars = 0;
+    final commentCtrl = TextEditingController();
 
     String getRatingLabel() {
       switch (selectedStars) {
@@ -1337,177 +1587,204 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
           builder: (ctx, setModalState) {
             return SafeArea(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const _DragHandle(),
-                    const SizedBox(height: 12),
-                    
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        const Align(
-                          alignment: Alignment.center,
-                          child: Text(
-                            'Rate your captain',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: IconButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 4),
-                    const Text(
-                      'How was your ride?',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(5, (index) {
-                        final isSelected = index < selectedStars;
-                        return GestureDetector(
-                          onTap: () {
-                            setModalState(() => selectedStars = index + 1);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            child: Icon(
-                              isSelected ? Icons.star_rounded : Icons.star_border_rounded,
-                              size: 44,
-                              color: isSelected ? const Color(0xFFFBBF24) : const Color(0xFF94A3B8),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    if (selectedStars > 0) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0E7FF),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          getRatingLabel(),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF3730A3),
-                          ),
-                        ),
-                      ),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  0,
+                  20,
+                  MediaQuery.of(ctx).viewInsets.bottom + 24,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const _DragHandle(),
                       const SizedBox(height: 12),
-                    ] else ...[
-                      const SizedBox(height: 38),
-                    ],
-                    
-                    Text(
-                      selectedStars > 0 ? '$selectedStars out of 5' : 'Select a rating',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
+                      
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const Align(
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Rate your captain',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: IconButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    
-                    const Text(
-                      'Your feedback helps us improve.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF94A3B8),
+                      
+                      const SizedBox(height: 4),
+                      const Text(
+                        'How was your ride?',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                        ),
                       ),
-                    ),
-                    
-                    const SizedBox(height: 28),
-                    
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF005AFE),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
+                      const SizedBox(height: 20),
+                      
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(5, (index) {
+                          final isSelected = index < selectedStars;
+                          return GestureDetector(
+                            onTap: () {
+                              setModalState(() => selectedStars = index + 1);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              child: Icon(
+                                isSelected ? Icons.star_rounded : Icons.star_border_rounded,
+                                size: 44,
+                                color: isSelected ? const Color(0xFFFBBF24) : const Color(0xFF94A3B8),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      if (selectedStars > 0) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE0E7FF),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            getRatingLabel(),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF3730A3),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ] else ...[
+                        const SizedBox(height: 28),
+                      ],
+                      
+                      Text(
+                        selectedStars > 0 ? '$selectedStars out of 5' : 'Select a rating',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextField(
+                        controller: commentCtrl,
+                        maxLines: 2,
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+                        decoration: InputDecoration(
+                          hintText: 'Add a comment or feedback (optional)...',
+                          hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                           ),
-                        ),
-                        onPressed: selectedStars == 0
-                            ? null
-                            : () async {
-                                Navigator.pop(ctx);
-                                try {
-                                  await CaptainRepository().rateCaptain(
-                                    captainId,
-                                    selectedStars,
-                                  );
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Rating submitted! Thank you.'),
-                                        backgroundColor: Color(0xFF16A34A),
-                                      ),
-                                    );
-                                  }
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Failed to submit rating: $e'),
-                                      ),
-                                    );
-                                  }
-                                }
-                                ref.read(currentRideIdProvider.notifier).state = null;
-                                setState(() {
-                                  _destination = null;
-                                  _bookingState = 'default';
-                                  _bikeFare = null;
-                                  _autoFare = null;
-                                  _parcelFare = null;
-                                  _cabFare = null;
-                                  _appliedOfferCode = null;
-                                  _discountAmount = null;
-                                  _followUser = true;
-                                });
-                                _mapController?.clearRoute();
-                              },
-                        child: const Text(
-                          'Submit rating',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF005AFE), width: 1.5),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF005AFE),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: selectedStars == 0
+                              ? null
+                              : () async {
+                                  Navigator.pop(ctx);
+                                  try {
+                                    final currentUser = ref.read(currentUserProvider).value;
+                                    await CaptainRepository().rateCaptain(
+                                      captainId,
+                                      selectedStars,
+                                      rideId: rideId,
+                                      comment: commentCtrl.text.trim(),
+                                      riderName: currentUser?.name,
+                                      captainName: captainName,
+                                    );
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Rating submitted! Thank you.'),
+                                          backgroundColor: Color(0xFF16A34A),
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Failed to submit rating: $e'),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                  ref.read(currentRideIdProvider.notifier).state = null;
+                                  setState(() {
+                                    _destination = null;
+                                    _bookingState = 'default';
+                                    _bikeFare = null;
+                                    _autoFare = null;
+                                    _parcelFare = null;
+                                    _cabFare = null;
+                                    _appliedOfferCode = null;
+                                    _discountAmount = null;
+                                    _followUser = true;
+                                  });
+                                  _mapController?.clearRoute();
+                                },
+                          child: const Text(
+                            'Submit rating',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -2220,6 +2497,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
         setState(() {
           _routePolyline = polyStr;
           _routePoints = pointsList;
+          _pickupLocation = pickup;
           _destination = dest;
         });
 
@@ -2227,6 +2505,13 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen> {
           polyline: polyStr,
           points: pointsList,
           color: '#2563EB',
+        );
+
+        await _mapController?.fitBounds(
+          pickupLat,
+          pickupLng,
+          destLat,
+          destLng,
         );
       }
     } catch (e) {

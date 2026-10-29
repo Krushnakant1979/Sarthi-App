@@ -113,64 +113,8 @@ class _MarketingScreenState extends ConsumerState<MarketingScreen> {
       ),
       body: Column(
         children: [
-          // Segmented tab switch
-          Container(
-            color: AdminColors.card,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: AdminColors.background,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedTab = 0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                          color: _selectedTab == 0 ? AdminColors.primary : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Active Campaigns',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: _selectedTab == 0 ? Colors.white : AdminColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedTab = 1),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                          color: _selectedTab == 1 ? AdminColors.primary : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Compose New',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: _selectedTab == 1 ? Colors.white : AdminColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Smooth Slidable Segmented Tab Switch
+          _buildSlidableTabSwitch(),
 
           Expanded(
             child: _selectedTab == 0
@@ -189,32 +133,61 @@ class _MarketingScreenState extends ConsumerState<MarketingScreen> {
       data: (campaigns) {
         if (campaigns.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.campaign_outlined, size: 54, color: AdminColors.textSecondary.withValues(alpha: 0.3)),
-                const SizedBox(height: 12),
-                Text(
-                  'No campaigns created yet',
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AdminColors.textPrimary),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Compose a campaign to engage passengers and captains',
-                  style: GoogleFonts.inter(fontSize: 12, color: AdminColors.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () => setState(() => _selectedTab = 1),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: Text('Create First Campaign', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.campaign_outlined,
+                    size: 38,
+                    color: AdminColors.textSecondary.withValues(alpha: 0.3),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 10),
+                  Text(
+                    'No campaigns created yet',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AdminColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Compose a campaign to engage passengers and captains',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AdminColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    onPressed: () => setState(() => _selectedTab = 1),
+                    icon: const Icon(Icons.add_rounded, size: 15),
+                    label: Text(
+                      'Create First Campaign',
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminColors.primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -512,6 +485,113 @@ class _MarketingScreenState extends ConsumerState<MarketingScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSlidableTabSwitch() {
+    final isFirst = _selectedTab == 0;
+
+    void selectTab(int index) {
+      if (_selectedTab != index) {
+        HapticFeedback.selectionClick();
+        setState(() => _selectedTab = index);
+      }
+    }
+
+    return Container(
+      color: AdminColors.card,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final totalWidth = constraints.maxWidth;
+
+          void handlePosition(double localX) {
+            if (totalWidth <= 0) return;
+            if (localX < totalWidth / 2) {
+              selectTab(0);
+            } else {
+              selectTab(1);
+            }
+          }
+
+          return Container(
+            height: 42,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (details) => handlePosition(details.localPosition.dx),
+              onHorizontalDragDown: (details) => handlePosition(details.localPosition.dx),
+              onHorizontalDragUpdate: (details) => handlePosition(details.localPosition.dx),
+              child: Stack(
+                children: [
+                  // Smooth sliding indicator pill
+                  Positioned.fill(
+                    child: AnimatedAlign(
+                      alignment: isFirst ? Alignment.centerLeft : Alignment.centerRight,
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      child: FractionallySizedBox(
+                        widthFactor: 0.5,
+                        heightFactor: 1.0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB),
+                            borderRadius: BorderRadius.circular(9),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Tab labels
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: isFirst ? FontWeight.w800 : FontWeight.w600,
+                              color: isFirst ? Colors.white : const Color(0xFF64748B),
+                            ),
+                            child: const Text('Active Campaigns'),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: !isFirst ? FontWeight.w800 : FontWeight.w600,
+                              color: !isFirst ? Colors.white : const Color(0xFF64748B),
+                            ),
+                            child: const Text('Compose New'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

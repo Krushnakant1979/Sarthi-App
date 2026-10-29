@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Apple, Play } from "lucide-react";
 import styles from "./components.module.css";
 
 export default function Footer() {
@@ -57,6 +56,7 @@ export default function Footer() {
             <li><Link href="/features" className={styles.footerColLink}>Features</Link></li>
             <li><Link href="/riders" className={styles.footerColLink}>Riders</Link></li>
             <li><Link href="/captains" className={styles.footerColLink}>Captains</Link></li>
+            <li><Link href="/captains/register" className={styles.footerColLink}>Join as Captain</Link></li>
           </ul>
         </div>
 

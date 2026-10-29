@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -11,6 +11,7 @@ import styles from "./components.module.css";
 function ProfileDropdown({ user, logout }) {
   const [isOpen, setIsOpen] = useState(false);
   const [userData, setUserData] = useState(null);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     async function fetchUserData() {
@@ -28,6 +29,31 @@ function ProfileDropdown({ user, logout }) {
     fetchUserData();
   }, [user]);
 
+  // Handle outside click and escape key to close dropdown
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
   const initials = userData?.firstName 
     ? `${userData.firstName[0]}${userData.lastName?.[0] || ''}`.toUpperCase() 
     : (user.displayName?.[0] || user.email?.[0] || 'U').toUpperCase();
@@ -36,12 +62,22 @@ function ProfileDropdown({ user, logout }) {
     ? `${userData.firstName} ${userData.lastName || ''}` 
     : (user.displayName || 'Sarthi User');
 
+  const handleLogout = async () => {
+    setIsOpen(false);
+    try {
+      await logout();
+    } catch (e) {
+      console.error("Failed to logout:", e);
+    }
+  };
+
   return (
-    <div className={styles.profileContainer}>
+    <div className={styles.profileContainer} ref={dropdownRef}>
       <button 
+        type="button"
         className={styles.profileBtn} 
-        onClick={() => setIsOpen(!isOpen)}
-        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-expanded={isOpen}
       >
         <div className={styles.profileAvatar}>{initials}</div>
       </button>
@@ -63,11 +99,22 @@ function ProfileDropdown({ user, logout }) {
                 <strong>{userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}</strong>
               </div>
             )}
-            <Link href="/rides" className={styles.profileItem} onClick={() => setIsOpen(false)} style={{ textDecoration: 'none', display: 'flex' }}>
+            <Link 
+              href="/rides" 
+              className={styles.profileItem} 
+              onClick={() => setIsOpen(false)} 
+              style={{ textDecoration: 'none', display: 'flex', cursor: 'pointer' }}
+            >
               <span>My Rides</span>
               <strong>→</strong>
             </Link>
-            <button onClick={logout} className={styles.profileLogoutBtn}>Logout</button>
+            <button 
+              type="button"
+              onClick={handleLogout} 
+              className={styles.profileLogoutBtn}
+            >
+              Logout
+            </button>
           </div>
         </div>
       )}

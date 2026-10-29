@@ -52,9 +52,18 @@ function AppInner() {
   if (loading) {
     return (
       <div className="loading-screen">
-        <div style={{ width: 52, height: 52, background: 'linear-gradient(135deg, #FFD633, #FFB300)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 800, color: '#0B2545', marginBottom: '1rem', boxShadow: '0 4px 16px rgba(255,179,0,0.35)' }}>
-          S
-        </div>
+        <img
+          src="/Sarthi app Admin logo.png"
+          alt="Sarthi Admin Logo"
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 14,
+            objectFit: 'cover',
+            marginBottom: '0.25rem',
+            boxShadow: '0 4px 20px rgba(30, 128, 240, 0.35)'
+          }}
+        />
         <div className="loading-screen-brand">Sarthi Admin</div>
         <div className="spinner"></div>
       </div>

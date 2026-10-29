@@ -122,14 +122,14 @@ class _UserProfileBanner extends ConsumerWidget {
       padding: EdgeInsets.all(isNarrow ? 12 : 16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0F2027), Color(0xFF142F4B)],
+          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: _navy.withValues(alpha: 0.2),
+            color: const Color(0xFF2563EB).withValues(alpha: 0.25),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -251,7 +251,7 @@ class _UserProfileBanner extends ConsumerWidget {
   }
 }
 
-class _SearchBar extends StatelessWidget {
+class _SearchBar extends StatefulWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
@@ -263,38 +263,97 @@ class _SearchBar extends StatelessWidget {
   });
 
   @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    _focusNode.addListener(() => setState(() {}));
+    widget.controller.addListener(_onControllerChange);
+  }
+
+  void _onControllerChange() {
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+    final isFocused = _focusNode.hasFocus;
+    final hasText = widget.controller.text.isNotEmpty;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      height: 48,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _border),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.search_rounded, color: _muted, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              style: GoogleFonts.inter(color: _text, fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'Search admin tools (pricing, support, finance...)...',
-                hintStyle: GoogleFonts.inter(color: _muted, fontSize: 12),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
+        color: _card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isFocused ? _primary : _border,
+          width: isFocused ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isFocused
+                ? _primary.withValues(alpha: 0.12)
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: isFocused ? 8 : 4,
+            offset: const Offset(0, 2),
           ),
-          if (controller.text.isNotEmpty)
-            GestureDetector(
-              onTap: onClear,
-              child: const Icon(Icons.clear_rounded, color: _muted, size: 16),
-            ),
         ],
+      ),
+      child: TextField(
+        focusNode: _focusNode,
+        controller: widget.controller,
+        onChanged: widget.onChanged,
+        style: GoogleFonts.inter(
+          color: _text,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          isDense: true,
+          filled: false,
+          fillColor: Colors.transparent,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          hintText: 'Search admin tools (pricing, support, finance...)...',
+          hintStyle: GoogleFonts.inter(
+            color: _muted.withValues(alpha: 0.8),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w400,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: isFocused ? _primary : _muted,
+            size: 20,
+          ),
+          suffixIcon: hasText
+              ? IconButton(
+                  icon: const Icon(Icons.cancel_rounded, color: _muted, size: 18),
+                  tooltip: 'Clear search',
+                  onPressed: widget.onClear,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                )
+              : null,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        ),
       ),
     );
   }
@@ -877,14 +936,6 @@ class _AccountSecuritySection extends ConsumerWidget {
                     ),
                   ),
                 ),
-                onTap: () {},
-              ),
-              const Divider(height: 1, color: _border, indent: 48),
-              _ToolTile(
-                title: 'Security Settings',
-                subtitle: 'Password, sessions and authentication',
-                icon: Icons.lock_rounded,
-                color: _navy,
                 onTap: () {},
               ),
             ],

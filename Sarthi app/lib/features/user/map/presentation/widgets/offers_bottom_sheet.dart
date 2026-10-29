@@ -85,8 +85,12 @@ class _OffersBottomSheetState extends State<OffersBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Container(
-      padding: const EdgeInsets.only(top: 24, bottom: 24),
+      padding: EdgeInsets.only(
+        top: 24,
+        bottom: 48 + bottomInset,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

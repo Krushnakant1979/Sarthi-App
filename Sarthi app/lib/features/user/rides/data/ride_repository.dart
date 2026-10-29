@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/analytics/analytics_logger.dart';
 
 class RideRepository {
@@ -38,6 +39,12 @@ class RideRepository {
       }
     } catch (e) {
       if (e.toString().contains('Platform is temporarily paused')) rethrow;
+    }
+
+    // Double safety check: prevent duplicate bookings for the same user
+    final existingRide = await getActiveRide(userId);
+    if (existingRide != null) {
+      throw Exception('An active ride is already in progress');
     }
 
     final docRef = _firestore.collection('ride_requests').doc();
@@ -135,8 +142,9 @@ class RideRepository {
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-          final activeStatuses = [
+          const activeStatuses = [
             'searching',
+            'pending',
             'accepted',
             'arriving',
             'arrived',
@@ -162,10 +170,105 @@ class RideRepository {
             final doc = docs.first;
             final data = doc.data();
             data['id'] = doc.id;
+
+            // Handle expired search (older than 120s without captain acceptance)
+            if (data['status'] == 'searching') {
+              final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+              if (createdAt != null &&
+                  DateTime.now().difference(createdAt).inSeconds > 120) {
+                updateRideStatus(
+                  doc.id,
+                  'cancelled',
+                  extraData: {
+                    'cancelledBy': 'system',
+                    'cancelReason': 'No captain available in your area',
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  },
+                );
+                return null;
+              }
+            }
+
             return data;
           }
           return null;
         });
+  }
+
+  // One-shot fetch for active ride (used on app open/resume and duplicate prevention)
+  Future<Map<String, dynamic>?> getActiveRide(String userId) async {
+    const activeStatuses = [
+      'searching',
+      'pending',
+      'accepted',
+      'arriving',
+      'arrived',
+      'in_progress',
+    ];
+
+    QuerySnapshot<Map<String, dynamic>> snapshot;
+    try {
+      snapshot = await _firestore
+          .collection('ride_requests')
+          .where('userId', isEqualTo: userId)
+          .get();
+    } catch (serverError) {
+      debugPrint('Server fetch failed for active ride, falling back to cache: $serverError');
+      try {
+        snapshot = await _firestore
+            .collection('ride_requests')
+            .where('userId', isEqualTo: userId)
+            .get(const GetOptions(source: Source.cache));
+      } catch (cacheError) {
+        debugPrint('Cache fetch also failed for active ride: $cacheError');
+        // Rethrow network exception so caller knows NOT to clear local active state
+        throw serverError;
+      }
+    }
+
+    final docs = snapshot.docs.where((doc) {
+      final data = doc.data();
+      return activeStatuses.contains(data['status']);
+    }).toList();
+
+    if (docs.isNotEmpty) {
+      docs.sort((a, b) {
+        final aTime =
+            (a.data()['createdAt'] as Timestamp?)?.toDate() ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime =
+            (b.data()['createdAt'] as Timestamp?)?.toDate() ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+
+      final doc = docs.first;
+      final data = doc.data();
+      data['id'] = doc.id;
+
+      // Auto-cancel if searching has expired (> 120s)
+      if (data['status'] == 'searching') {
+        final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+        if (createdAt != null &&
+            DateTime.now().difference(createdAt).inSeconds > 120) {
+          try {
+            await updateRideStatus(
+              doc.id,
+              'cancelled',
+              extraData: {
+                'cancelledBy': 'system',
+                'cancelReason': 'No captain available in your area',
+                'updatedAt': FieldValue.serverTimestamp(),
+              },
+            );
+          } catch (_) {}
+          return null;
+        }
+      }
+
+      return data;
+    }
+    return null;
   }
 
   // Stream live location of the assigned captain from Realtime Database

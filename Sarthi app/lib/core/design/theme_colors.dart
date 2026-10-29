@@ -120,7 +120,7 @@ class AppThemeColors extends ThemeExtension<AppThemeColors> {
   }
 
   static const AppThemeColors light = AppThemeColors(
-    primary: Color(0xFF0B2545),
+    primary: Color(0xFF2563EB),
     actionBlue: Color(0xFF1565C0),
     liveTeal: Color(0xFF00A6A6),
     rapidoYellow: Color(0xFFFFD633),

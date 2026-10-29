@@ -96,7 +96,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Future<void> _recordSearchHistory(Map<String, dynamic> result) async {
     try {
-      final user = await ref.read(currentUserProvider.future);
+      final userRepo = ref.read(userRepositoryProvider);
+      final userFuture = ref.read(currentUserProvider.future);
+      final user = await userFuture;
       if (user != null) {
         final currentRecent = List<Map<String, dynamic>>.from(
           user.recentSearches ?? [],
@@ -108,10 +110,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (currentRecent.length > 5) {
           currentRecent.removeRange(5, currentRecent.length);
         }
-        await ref.read(userRepositoryProvider).updateUser(user.uid, {
+        await userRepo.updateUser(user.uid, {
           'recentSearches': currentRecent,
         });
-        ref.invalidate(currentUserProvider);
+        if (mounted) {
+          ref.invalidate(currentUserProvider);
+        }
       }
     } catch (error) {
       debugPrint('Failed to record search history: $error');

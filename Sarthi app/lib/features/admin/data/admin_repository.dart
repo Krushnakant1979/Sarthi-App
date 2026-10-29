@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/auth/domain/app_user.dart';
@@ -259,18 +260,85 @@ class AdminRepository {
   }
 
   Stream<List<Map<String, dynamic>>> streamPayoutHistory() {
-    return _firestore
-        .collection('payout_history')
-        .orderBy('settledAt', descending: true)
-        .limit(100)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            final data = doc.data();
-            data['id'] = doc.id;
+    late StreamController<List<Map<String, dynamic>>> controller;
+    StreamSubscription? subHistory;
+    StreamSubscription? subLegacy;
+
+    List<Map<String, dynamic>> historyDocs = [];
+    List<Map<String, dynamic>> legacyDocs = [];
+
+    void emitMerged() {
+      final Map<String, Map<String, dynamic>> merged = {};
+
+      for (final doc in historyDocs) {
+        merged[doc['id']] = doc;
+      }
+
+      for (final doc in legacyDocs) {
+        final id = doc['id'];
+        if (!merged.containsKey(id)) {
+          final duplicate = merged.values.any((m) =>
+              m['captainId'] == doc['captainId'] &&
+              m['amount'] == doc['amount']);
+          if (!duplicate) {
+            merged[id] = doc;
+          }
+        }
+      }
+
+      final list = merged.values.toList();
+      list.sort((a, b) {
+        final DateTime dateA = (a['settledAt'] as Timestamp?)?.toDate() ??
+            (a['createdAt'] as Timestamp?)?.toDate() ??
+            DateTime(1970);
+        final DateTime dateB = (b['settledAt'] as Timestamp?)?.toDate() ??
+            (b['createdAt'] as Timestamp?)?.toDate() ??
+            DateTime(1970);
+        return dateB.compareTo(dateA);
+      });
+
+      if (!controller.isClosed) {
+        controller.add(list);
+      }
+    }
+
+    controller = StreamController<List<Map<String, dynamic>>>(
+      onListen: () {
+        subHistory = _firestore
+            .collection('payout_history')
+            .snapshots()
+            .listen((snap) {
+          historyDocs = snap.docs.map((d) {
+            final data = d.data();
+            data['id'] = d.id;
             return data;
           }).toList();
+          emitMerged();
+        }, onError: (e) {
+          if (!controller.isClosed) controller.addError(e);
         });
+
+        subLegacy = _firestore
+            .collection('payouts')
+            .snapshots()
+            .listen((snap) {
+          legacyDocs = snap.docs.map((d) {
+            final data = d.data();
+            data['id'] = d.id;
+            return data;
+          }).toList();
+          emitMerged();
+        }, onError: (_) {
+          // Ignore if legacy read fails
+        });
+      },
+      onCancel: () {
+        subHistory?.cancel();
+        subLegacy?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   Stream<List<Map<String, dynamic>>> streamOffers() {

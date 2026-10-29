@@ -46,7 +46,7 @@ const Login = ({ onLogin }) => {
       {/* Left Panel */}
       <div className="login-panel">
         <div className="login-panel-inner">
-          <div className="login-logo">S</div>
+          <img src="/Sarthi app Admin logo.png" alt="Sarthi Admin Logo" className="login-logo" />
 
           <h1 className="login-title">Welcome back</h1>
           <p className="login-subtitle">Sign in to Sarthi Admin Console</p>

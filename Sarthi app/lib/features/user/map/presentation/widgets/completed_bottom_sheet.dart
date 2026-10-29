@@ -5,14 +5,18 @@ class CompletedBottomSheet extends StatelessWidget {
   final dynamic fare;
   final String paymentMethod;
   final String? captainId;
+  final String? rideId;
+  final String? captainName;
   final VoidCallback onDone;
-  final void Function(String)? onRateCaptain;
+  final void Function(String captainId, {String? rideId, String? captainName})? onRateCaptain;
 
   const CompletedBottomSheet({
     super.key,
     required this.fare,
     required this.paymentMethod,
     required this.captainId,
+    this.rideId,
+    this.captainName,
     required this.onDone,
     required this.onRateCaptain,
   });
@@ -204,7 +208,7 @@ class CompletedBottomSheet extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: () {
                     if (captainId != null && onRateCaptain != null) {
-                      onRateCaptain!(captainId!);
+                      onRateCaptain!(captainId!, rideId: rideId, captainName: captainName);
                     } else {
                       onDone();
                     }

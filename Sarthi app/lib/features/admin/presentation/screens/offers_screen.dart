@@ -290,7 +290,7 @@ class OffersScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
                     const _OfferInfoCard(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),
@@ -393,7 +393,7 @@ class _OffersFilterTabs extends ConsumerWidget {
       items: tabs,
       fontSize: 11,
       backgroundColor: context.colors.surface,
-      indicatorColor: const Color(0xFF0B1F3A),
+      indicatorColor: const Color(0xFF2563EB),
       unselectedTextColor: context.colors.textMuted,
       itemPadding: const EdgeInsets.symmetric(vertical: 8),
       onChanged: (tab) {
@@ -465,7 +465,7 @@ class _OffersEmptyState extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: onCreate,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0B1F3A),
+                backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -1070,7 +1070,7 @@ class _CreateOfferScreenState extends ConsumerState<CreateOfferScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: _type == 'flat'
-                                          ? const Color(0xFF0B1F3A)
+                                          ? const Color(0xFF2563EB)
                                           : Colors.transparent,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
@@ -1112,7 +1112,7 @@ class _CreateOfferScreenState extends ConsumerState<CreateOfferScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: _type == 'percent'
-                                          ? const Color(0xFF0B1F3A)
+                                          ? const Color(0xFF2563EB)
                                           : Colors.transparent,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
@@ -1954,7 +1954,7 @@ class _OfferPreviewCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF0B1F3A), Color(0xFF0044C7)],
+            colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
             stops: [0.65, 0.65],

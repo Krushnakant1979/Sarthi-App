@@ -67,20 +67,20 @@ class _CaptainTripsScreenState extends ConsumerState<CaptainTripsScreen>
                     ),
                     child: IconButton(
                       onPressed: () => context.pop(),
-                      icon: Icon(
+                      icon: const Icon(
                         Icons.arrow_back_ios_new_rounded,
-                        color: context.colors.primary,
+                        color: Colors.black,
                         size: 20,
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
-                  Text(
+                  const Text(
                     'My Trips',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
-                      color: context.colors.primary,
+                      color: Colors.black,
                     ),
                   ),
                 ],
@@ -271,12 +271,12 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                       const SizedBox(height: 24),
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: Text(
+                        child: const Text(
                           'Trip History',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
-                            color: context.colors.primary,
+                            color: Colors.black,
                           ),
                         ),
                       ),
@@ -634,10 +634,10 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                     ),
                     Text(
                       '₹${netIncome.toStringAsFixed(0)}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: context.colors.primary,
+                        color: Colors.black,
                       ),
                     ),
                   ],
@@ -651,12 +651,12 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: Text(
+                  child: const Text(
                     'View Details',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: context.colors.primary,
+                      color: Colors.black,
                     ),
                   ),
                 ),
@@ -728,12 +728,12 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    const Text(
                       'Trip Details',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: context.colors.primary,
+                        color: Colors.black,
                       ),
                     ),
                     Container(
@@ -808,19 +808,19 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                         children: [
                           Text(
                             pickupName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: context.colors.primary,
+                              color: Colors.black,
                             ),
                           ),
                           const SizedBox(height: 20),
                           Text(
                             dropoffName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: context.colors.primary,
+                              color: Colors.black,
                             ),
                           ),
                         ],
@@ -831,12 +831,12 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                 const Divider(height: 32, color: Color(0xFFF3F4F6)),
 
                 // Earnings Breakdown
-                Text(
+                const Text(
                   'Earnings Breakdown',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: context.colors.primary,
+                    color: Colors.black,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -880,20 +880,20 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    const Text(
                       'Net Income',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: context.colors.primary,
+                        color: Colors.black,
                       ),
                     ),
                     Text(
                       '₹${netIncome.toStringAsFixed(0)}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: context.colors.primary,
+                        color: Colors.black,
                       ),
                     ),
                   ],
@@ -913,9 +913,9 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                     ),
                     Text(
                       distanceStr,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: context.colors.primary,
+                        color: Colors.black,
                       ),
                     ),
                   ],
@@ -933,9 +933,9 @@ class _TripsTabViewState extends ConsumerState<_TripsTabView> {
                     ),
                     Text(
                       riderName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: context.colors.primary,
+                        color: Colors.black,
                       ),
                     ),
                   ],

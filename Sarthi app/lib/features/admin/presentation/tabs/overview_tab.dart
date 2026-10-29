@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -213,7 +214,7 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AdminColors.primary, Color(0xFF14478B)],
+                colors: [AdminColors.primary, Color(0xFF1D4ED8)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -471,41 +472,38 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
             ],
           ),
           SizedBox(height: 12),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _buildQuickActionCard(
-                    icon: Icons.verified_user_rounded,
-                    label: 'Verify Captains',
-                    color: AdminColors.primary,
-                    onTap: () {
-                      ref.read(usersFilterProvider.notifier).state = 'pending';
-                      DefaultTabController.of(context).animateTo(2);
-                    },
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickActionCard(
+                  icon: Icons.verified_user_rounded,
+                  label: 'Verify Captains',
+                  color: AdminColors.primary,
+                  onTap: () {
+                    ref.read(usersFilterProvider.notifier).state = 'pending';
+                    DefaultTabController.of(context).animateTo(2);
+                  },
                 ),
-                SizedBox(width: 14),
-                Expanded(
-                  child: _buildQuickActionCard(
-                    icon: Icons.near_me_rounded,
-                    label: 'Active Rides',
-                    color: Colors.orange,
-                    onTap: () => DefaultTabController.of(context).animateTo(1),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickActionCard(
+                  icon: Icons.near_me_rounded,
+                  label: 'Active Rides',
+                  color: Colors.orange,
+                  onTap: () => DefaultTabController.of(context).animateTo(1),
                 ),
-                SizedBox(width: 14),
-                Expanded(
-                  child: _buildQuickActionCard(
-                    icon: Icons.local_activity_rounded,
-                    label: 'Create Offer',
-                    color: AdminColors.success,
-                    onTap: () {}, // Need route for Create Offer
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickActionCard(
+                  icon: Icons.local_activity_rounded,
+                  label: 'Create Offer',
+                  color: AdminColors.success,
+                  onTap: () {}, // Need route for Create Offer
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
 
           SizedBox(height: 20),
@@ -601,7 +599,7 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
               ),
             ],
           ),
-          SizedBox(height: 30),
+          const SizedBox(height: 36),
           _buildAnimatedLineChart(rides),
         ],
       ),
@@ -709,7 +707,8 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+        height: 94,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         decoration: BoxDecoration(
           color: AdminColors.card,
           borderRadius: BorderRadius.circular(12),
@@ -723,23 +722,29 @@ class _OverviewTabState extends ConsumerState<OverviewTab>
           ],
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: Icon(icon, color: color, size: 18),
             ),
-            SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                color: AdminColors.textPrimary,
-                fontWeight: FontWeight.w700,
-                fontSize: 10,
+            const SizedBox(height: 6),
+            Flexible(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  color: AdminColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 10,
+                  height: 1.2,
+                ),
               ),
             ),
           ],
@@ -1070,13 +1075,15 @@ class _AnimatedLineChartState
     return SizedBox(
       height: 180,
       width: double.infinity,
-      child: CustomPaint(
-        painter: _LineChartPainter(
-          data: _dataTween?.evaluate(animation) ?? widget.data,
-          labels: widget.labels,
-          maxValue: _maxValueTween?.evaluate(animation) ?? widget.maxValue,
-          lineColor: AdminColors.secondary,
-          textColor: AdminColors.textPrimary,
+      child: ClipRect(
+        child: CustomPaint(
+          painter: _LineChartPainter(
+            data: _dataTween?.evaluate(animation) ?? widget.data,
+            labels: widget.labels,
+            maxValue: _maxValueTween?.evaluate(animation) ?? widget.maxValue,
+            lineColor: AdminColors.secondary,
+            textColor: AdminColors.textPrimary,
+          ),
         ),
       ),
     );
@@ -1088,13 +1095,33 @@ class _ListTween extends Tween<List<double>> {
 
   @override
   List<double> lerp(double t) {
-    if (begin == null || end == null || begin!.length != end!.length) {
-      return end ?? [];
+    if (begin == null && end == null) return [];
+    if (begin == null || begin!.isEmpty) return end ?? [];
+    if (end == null || end!.isEmpty) return begin ?? [];
+
+    final b = begin!;
+    final e = end!;
+
+    if (b.length == e.length) {
+      return List.generate(
+        b.length,
+        (i) => b[i] + (e[i] - b[i]) * t,
+      );
     }
-    return List.generate(
-      begin!.length,
-      (i) => begin![i] + (end![i] - begin![i]) * t,
-    );
+
+    // Resample begin list so it smoothly morphs into end list even when lengths differ (e.g. 7 to 6 points)
+    if (e.length <= 1) return end ?? [];
+
+    return List.generate(e.length, (i) {
+      final double srcIdx = (b.length <= 1)
+          ? 0.0
+          : i * (b.length - 1) / (e.length - 1);
+      final int idx0 = srcIdx.floor();
+      final int idx1 = (idx0 + 1 < b.length) ? idx0 + 1 : idx0;
+      final double fraction = srcIdx - idx0;
+      final double bVal = b[idx0] + (b[idx1] - b[idx0]) * fraction;
+      return bVal + (e[i] - bVal) * t;
+    });
   }
 }
 
@@ -1117,6 +1144,11 @@ class _LineChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
 
+    // Guarantee that effectiveMax is never less than any currently displayed data point,
+    // which prevents overshoot/overlapping during any animation or transition.
+    final double currentMax = data.fold<double>(0.0, (m, v) => v > m ? v : m);
+    final double effectiveMax = math.max(maxValue, currentMax);
+
     final paintLine = Paint()
       ..color = lineColor
       ..strokeWidth = 3
@@ -1135,7 +1167,8 @@ class _LineChartPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
 
-    final double stepX = size.width / (data.length - 1);
+    final double stepX =
+        data.length > 1 ? size.width / (data.length - 1) : size.width;
     final double maxH = size.height - 40;
 
     final path = Path();
@@ -1145,7 +1178,9 @@ class _LineChartPainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final double x = i * stepX;
-      final double normalized = maxValue > 0 ? (data[i] / maxValue) : 0;
+      final double val = data[i] < 0 ? 0.0 : data[i];
+      final double normalized =
+          effectiveMax > 0 ? (val / effectiveMax).clamp(0.0, 1.0) : 0.0;
       final double y = maxH - (normalized * (maxH - 30));
 
       points.add(Offset(x, y));
@@ -1203,31 +1238,34 @@ class _LineChartPainter extends CustomPainter {
         );
         tp.layout();
         double valueX = (p.dx - tp.width / 2).clamp(0.0, size.width - tp.width);
-        tp.paint(canvas, Offset(valueX, p.dy - 20));
+        double valueY = (p.dy - 18).clamp(2.0, size.height - 30);
+        tp.paint(canvas, Offset(valueX, valueY));
 
-        final labelSpan = TextSpan(
-          text: labels[i],
-          style: GoogleFonts.inter(
-            color: AdminColors.textSecondary,
-            fontSize: 9,
-            fontWeight: FontWeight.w600,
-            height: 1.1,
-          ),
-        );
-        final labelTp = TextPainter(
-          text: labelSpan,
-          textDirection: ui.TextDirection.ltr,
-          textAlign: TextAlign.center,
-        );
-        labelTp.layout();
-        double labelX = (p.dx - labelTp.width / 2).clamp(
-          0.0,
-          size.width - labelTp.width,
-        );
+        if (i < labels.length) {
+          final labelSpan = TextSpan(
+            text: labels[i],
+            style: GoogleFonts.inter(
+              color: AdminColors.textSecondary,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              height: 1.1,
+            ),
+          );
+          final labelTp = TextPainter(
+            text: labelSpan,
+            textDirection: ui.TextDirection.ltr,
+            textAlign: TextAlign.center,
+          );
+          labelTp.layout();
+          double labelX = (p.dx - labelTp.width / 2).clamp(
+            0.0,
+            size.width - labelTp.width,
+          );
 
-        // Adjust Y offset slightly higher if it's a multiline string so it doesn't get cut off
-        double yOffset = labels[i].contains('\n') ? 26 : 20;
-        labelTp.paint(canvas, Offset(labelX, size.height - yOffset));
+          // Adjust Y offset slightly higher if it's a multiline string so it doesn't get cut off
+          double yOffset = labels[i].contains('\n') ? 26 : 20;
+          labelTp.paint(canvas, Offset(labelX, size.height - yOffset));
+        }
       }
     }
   }

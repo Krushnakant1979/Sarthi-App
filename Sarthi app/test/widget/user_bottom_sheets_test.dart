@@ -66,7 +66,7 @@ void main() {
               onDone: () {
                 doneTapped = true;
               },
-              onRateCaptain: (id) {
+              onRateCaptain: (id, {captainName, rideId}) {
                 ratedCaptainId = id;
               },
             ),

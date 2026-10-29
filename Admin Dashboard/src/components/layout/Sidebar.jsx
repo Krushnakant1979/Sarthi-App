@@ -48,7 +48,11 @@ export const Sidebar = ({ isMobileMenuOpen, setIsMobileMenuOpen }) => {
     <aside className={`sidebar ${isExpanded ? 'expanded' : 'collapsed'} ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
       {/* Brand */}
       <div className="sidebar-brand">
-        <div className="sidebar-logo animate-float">S</div>
+        <img 
+          src="/Sarthi app Admin logo.png" 
+          alt="Sarthi Admin" 
+          className="sidebar-logo animate-float" 
+        />
         <div className="sidebar-brand-text">
           <span className="brand-name">Sarthi</span>
           <span className="brand-tag">Admin Console</span>

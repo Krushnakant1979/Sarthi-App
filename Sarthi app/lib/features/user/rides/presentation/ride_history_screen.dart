@@ -1,10 +1,11 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import '../../map/presentation/widgets/sarthi_logo.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
 enum RideFilter { today, last30Days, allTime }
 
@@ -12,7 +13,7 @@ enum RideStatusFilter { all, completed, cancelled }
 
 enum RideSortOrder { newestFirst, oldestFirst }
 
-final rideFilterProvider = StateProvider<RideFilter>((ref) => RideFilter.today);
+final rideFilterProvider = StateProvider<RideFilter>((ref) => RideFilter.allTime);
 final rideStatusFilterProvider = StateProvider<RideStatusFilter>(
   (ref) => RideStatusFilter.all,
 );
@@ -54,6 +55,7 @@ class PaginatedRideHistoryNotifier
   final Ref ref;
   DocumentSnapshot? _lastDoc;
   int _fetchId = 0;
+  static const int maxRides = 30;
 
   PaginatedRideHistoryNotifier(this.ref)
     : super(PaginatedRideHistoryState(rides: [])) {
@@ -75,6 +77,10 @@ class PaginatedRideHistoryNotifier
   Future<void> loadMore({bool fromRefresh = false}) async {
     if (state.isLoading && !fromRefresh) return;
     if (!state.hasMore) return;
+    if (!fromRefresh && state.rides.length >= maxRides) {
+      state = state.copyWith(isLoading: false, hasMore: false);
+      return;
+    }
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -96,14 +102,20 @@ class PaginatedRideHistoryNotifier
         startDate = now.subtract(const Duration(days: 30));
       }
 
+      final remainingNeeded = maxRides - (fromRefresh ? 0 : state.rides.length);
+      if (remainingNeeded <= 0) {
+        state = state.copyWith(isLoading: false, hasMore: false);
+        return;
+      }
+
       bool keepFetching = true;
       List<Map<String, dynamic>> accumulatedRides = [];
       bool hasMoreData = true;
       
       // We wrap the fetching in a loop to handle client-side filtering.
-      // If we fetch 20 rides and none of them are completed/cancelled,
+      // If we fetch rides and none of them are completed/cancelled,
       // we need to keep fetching until we find some to display,
-      // otherwise the UI will be stuck showing "0 trips" with no way to scroll.
+      // capped at the last 30 rides.
       while (keepFetching && currentFetchId == _fetchId) {
         Query query = FirebaseFirestore.instance
             .collection('ride_requests')
@@ -113,7 +125,14 @@ class PaginatedRideHistoryNotifier
           query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
         }
 
-        query = query.orderBy('createdAt', descending: sortOrder == RideSortOrder.newestFirst).limit(20);
+        final fetchLimit = math.min(20, remainingNeeded - accumulatedRides.length);
+        if (fetchLimit <= 0) {
+          keepFetching = false;
+          hasMoreData = false;
+          break;
+        }
+
+        query = query.orderBy('createdAt', descending: sortOrder == RideSortOrder.newestFirst).limit(fetchLimit);
 
         if (_lastDoc != null) {
           query = query.startAfterDocument(_lastDoc!);
@@ -134,6 +153,7 @@ class PaginatedRideHistoryNotifier
                     final status = ride['status'] as String? ?? '';
                     return status == 'completed' || status == 'cancelled';
                   })
+                  .take(maxRides)
                   .toList();
               
               if (cacheRides.isNotEmpty) {
@@ -152,7 +172,7 @@ class PaginatedRideHistoryNotifier
 
         if (snapshot.docs.isNotEmpty) {
           _lastDoc = snapshot.docs.last;
-          hasMoreData = snapshot.docs.length == 20;
+          hasMoreData = snapshot.docs.length == fetchLimit;
           
           final newRides = snapshot.docs
               .map((doc) {
@@ -169,8 +189,8 @@ class PaginatedRideHistoryNotifier
           accumulatedRides.addAll(newRides);
           
           // Stop fetching if we have accumulated enough valid rides for this page
-          // or if we reached the end of the collection
-          if (accumulatedRides.length >= 10 || !hasMoreData) {
+          // or reached the cap of 30 rides or the end of the collection
+          if (accumulatedRides.length >= remainingNeeded || !hasMoreData) {
             keepFetching = false;
           }
         } else {
@@ -181,12 +201,19 @@ class PaginatedRideHistoryNotifier
 
       if (currentFetchId != _fetchId) return;
 
+      List<Map<String, dynamic>> finalRides = _lastDoc == null && state.rides.isNotEmpty 
+          ? accumulatedRides // If it was a refresh, replace the cached items
+          : [...state.rides, ...accumulatedRides];
+
+      if (finalRides.length >= maxRides) {
+        finalRides = finalRides.take(maxRides).toList();
+        hasMoreData = false;
+      }
+
       state = state.copyWith(
-        rides: _lastDoc == null && state.rides.isNotEmpty 
-            ? accumulatedRides // If it was a refresh, replace the cached items
-            : [...state.rides, ...accumulatedRides],
+        rides: finalRides,
         isLoading: false,
-        hasMore: hasMoreData,
+        hasMore: hasMoreData && finalRides.length < maxRides,
       );
     } catch (e) {
       if (currentFetchId != _fetchId) return;
@@ -242,7 +269,11 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
     final activeStatusFilter = ref.watch(rideStatusFilterProvider);
     final activeSortOrder = ref.watch(rideSortOrderProvider);
 
-    final displayedRides = historyState.rides.where((ride) {
+    final cappedRides = historyState.rides
+        .take(PaginatedRideHistoryNotifier.maxRides)
+        .toList();
+
+    final displayedRides = cappedRides.where((ride) {
       final status = ride['status'] as String? ?? '';
       if (activeStatusFilter == RideStatusFilter.completed) {
         return status == 'completed';
@@ -253,13 +284,13 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
       return true;
     }).toList();
 
-    final completedCount = historyState.rides
+    final completedCount = cappedRides
         .where((r) => r['status'] == 'completed')
         .length;
-    final cancelledCount = historyState.rides
+    final cancelledCount = cappedRides
         .where((r) => r['status'] == 'cancelled')
         .length;
-    final totalFare = historyState.rides
+    final totalFare = cappedRides
         .where((r) => r['status'] == 'completed')
         .fold<double>(0, (acc, r) {
           final f = r['fareEstimate'];
@@ -269,90 +300,78 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
         });
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4FF),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [
           SliverAppBar(
-            expandedHeight: 230,
             floating: false,
             pinned: true,
-            backgroundColor: const Color(0xFF0B2144),
+            backgroundColor: const Color(0xFFF8FAFC),
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
             automaticallyImplyLeading: false,
-            flexibleSpace: FlexibleSpaceBar(
-              background: _buildHeroHeader(
-                context,
-                completedCount,
-                cancelledCount,
-                totalFare,
-              ),
-            ),
+            titleSpacing: 16,
+            toolbarHeight: 56,
             title: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset(
+                    'assets/app-logo/Sarthi app user logo.png',
+                    width: 32,
+                    height: 32,
+                    fit: BoxFit.contain,
                   ),
-                  child: const SarthiLogo(size: 14),
                 ),
-                const SizedBox(width: 8),
-                ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [Colors.white, Color(0xFFBFDBFE)],
-                  ).createShader(bounds),
-                  child: const Text(
-                    'Sarthi',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      color: Colors.white,
-                      letterSpacing: -0.3,
-                    ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Trips',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.5,
                   ),
                 ),
                 const Spacer(),
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    GestureDetector(
+                    _Bounceable(
                       onTap: () => context.push('/notifications'),
                       child: Container(
-                        width: 32,
-                        height: 32,
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          color: Colors.white,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.25),
+                            color: const Color(0xFFE2E8F0),
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: const Icon(
                           Icons.notifications_none_rounded,
-                          size: 16,
-                          color: Colors.white,
+                          size: 20,
+                          color: Color(0xFF0F172A),
                         ),
                       ),
                     ),
                     Positioned(
-                      top: 2,
-                      right: 2,
+                      top: 4,
+                      right: 4,
                       child: Container(
                         width: 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0B2144),
+                          color: const Color(0xFFE11D48),
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: Colors.white,
@@ -363,8 +382,8 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
+                const SizedBox(width: 10),
+                _Bounceable(
                   onTap: () {
                     if (widget.onProfileTap != null) {
                       widget.onProfileTap!();
@@ -375,22 +394,24 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
                     }
                   },
                   child: Container(
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: const LinearGradient(
                         colors: [Color(0xFF0B2144), Color(0xFF1A3A6B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                          color: const Color(0xFF0B2144).withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    child: const CircleAvatar(
-                      radius: 15,
-                      backgroundColor: Colors.transparent,
+                    child: const Center(
                       child: Icon(
                         Icons.person_rounded,
                         color: Colors.white,
@@ -405,16 +426,23 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
 
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _build3DStatCard(
+                    context,
+                    completedCount,
+                    cancelledCount,
+                    totalFare,
+                  ),
+                  const SizedBox(height: 18),
                   Container(
-                    height: 52,
+                    height: 42,
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9), // Light grey
-                      borderRadius: BorderRadius.circular(26),
+                      color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(21),
                     ),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
@@ -435,8 +463,15 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
                               width: tabWidth,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF0B2144),
-                                  borderRadius: BorderRadius.circular(22),
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.06),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -531,58 +566,80 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '${displayedRides.length} trips found',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF475569),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        transitionBuilder: (child, animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.2),
+                                end: Offset.zero,
+                              ).animate(CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                              )),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Text(
+                          '${displayedRides.length} trips found',
+                          key: ValueKey<int>(displayedRides.length),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF475569),
+                          ),
                         ),
                       ),
-                      PopupMenuButton<RideSortOrder>(
-                        initialValue: activeSortOrder,
-                        onSelected: (order) => ref.read(rideSortOrderProvider.notifier).state = order,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        color: Colors.white,
-                        elevation: 4,
-                        offset: const Offset(0, 30),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFCBD5E1)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                activeSortOrder == RideSortOrder.newestFirst ? 'Newest first' : 'Oldest first',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                      _Bounceable(
+                        scaleFactor: 0.95,
+                        child: PopupMenuButton<RideSortOrder>(
+                          initialValue: activeSortOrder,
+                          onSelected: (order) => ref.read(rideSortOrderProvider.notifier).state = order,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          color: Colors.white,
+                          elevation: 4,
+                          offset: const Offset(0, 30),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFCBD5E1)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  activeSortOrder == RideSortOrder.newestFirst ? 'Newest first' : 'Oldest first',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0B2144),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 16,
                                   color: Color(0xFF0B2144),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 16,
-                                color: Color(0xFF0B2144),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: RideSortOrder.newestFirst,
+                              child: Text('Newest first', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                            ),
+                            const PopupMenuItem(
+                              value: RideSortOrder.oldestFirst,
+                              child: Text('Oldest first', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                            ),
+                          ],
                         ),
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: RideSortOrder.newestFirst,
-                            child: Text('Newest first', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                          ),
-                          const PopupMenuItem(
-                            value: RideSortOrder.oldestFirst,
-                            child: Text('Oldest first', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                          ),
-                        ],
                       ),
                     ],
                   ),
@@ -594,12 +651,7 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
 
           if (historyState.rides.isEmpty)
             if (historyState.isLoading)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF0B2144)),
-                ),
-              )
+              const _RideHistorySkeletonList()
             else if (historyState.error != null)
               SliverFillRemaining(
                 hasScrollBody: false,
@@ -670,7 +722,11 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
                         ),
                       );
                     }
-                    return _RideCard(ride: displayedRides[index]);
+                    return _RideCard(
+                      key: ValueKey(displayedRides[index]['id'] ?? index),
+                      ride: displayedRides[index],
+                      index: index,
+                    );
                   },
                   childCount:
                       displayedRides.length +
@@ -683,25 +739,6 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
     );
   }
 
-  Widget _buildHeroHeader(
-    BuildContext context,
-    int completed,
-    int cancelled,
-    double totalFare,
-  ) {
-    return Container(
-      color: const Color(0xFF0B2144),
-      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _build3DStatCard(context, completed, cancelled, totalFare),
-        ],
-      ),
-    );
-  }
-
   Widget _build3DStatCard(
     BuildContext context,
     int completed,
@@ -709,82 +746,101 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
     double totalFare,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF16325B), // Slightly lighter than background
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildStatItem(
-            icon: Icons.check_rounded,
-            iconColor: Colors.white,
-            iconBg: const Color(0xFF22C55E),
-            value: '$completed',
+          _buildStatColumn(
+            countWidget: _AnimatedCounterText(
+              value: completed,
+              style: const TextStyle(
+                color: Color(0xFF0F172A),
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                height: 1.1,
+              ),
+            ),
             label: 'Completed',
+            labelColor: const Color(0xFF059669),
+            labelBg: const Color(0xFFECFDF5),
           ),
-          Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.15)),
-          _buildStatItem(
-            icon: Icons.close_rounded,
-            iconColor: Colors.white,
-            iconBg: const Color(0xFFEF4444),
-            value: '$cancelled',
+          Container(width: 1, height: 36, color: const Color(0xFFF1F5F9)),
+          _buildStatColumn(
+            countWidget: _AnimatedCounterText(
+              value: cancelled,
+              style: const TextStyle(
+                color: Color(0xFF0F172A),
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                height: 1.1,
+              ),
+            ),
             label: 'Cancelled',
+            labelColor: const Color(0xFFE11D48),
+            labelBg: const Color(0xFFFEE2E2),
           ),
-          Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.15)),
-          _buildStatItem(
-            icon: Icons.account_balance_wallet_rounded,
-            iconColor: Colors.white,
-            iconBg: null,
-            value: '₹${totalFare.toInt()}',
-            label: 'Total spent',
+          Container(width: 1, height: 36, color: const Color(0xFFF1F5F9)),
+          _buildStatColumn(
+            countWidget: _AnimatedCounterText(
+              value: totalFare.toInt(),
+              prefix: '₹',
+              style: const TextStyle(
+                color: Color(0xFF0F172A),
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                height: 1.1,
+              ),
+            ),
+            label: 'Total Spent',
+            labelColor: const Color(0xFF64748B),
+            labelBg: const Color(0xFFF1F5F9),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatItem({
-    required IconData icon,
-    required Color iconColor,
-    required Color? iconBg,
-    required String value,
+  Widget _buildStatColumn({
+    required Widget countWidget,
     required String label,
+    required Color labelColor,
+    required Color labelBg,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (iconBg != null)
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: iconBg,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: iconColor, size: 14),
-          )
-        else
-          Icon(icon, color: iconColor, size: 20),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            height: 1.1,
+        countWidget,
+        const SizedBox(height: 5),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+          decoration: BoxDecoration(
+            color: labelBg,
+            borderRadius: BorderRadius.circular(10),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.6),
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: labelColor,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.1,
+            ),
           ),
         ),
       ],
@@ -810,8 +866,8 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
               curve: Curves.easeOutCubic,
               style: TextStyle(
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 13,
-                color: isActive ? Colors.white : const Color(0xFF64748B),
+                fontSize: 12,
+                color: isActive ? const Color(0xFF0F172A) : const Color(0xFF64748B),
                 fontFamily: 'Inter',
               ),
               child: Text(text),
@@ -845,13 +901,27 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (dotColor != Colors.transparent)
-                Container(
-                  margin: const EdgeInsets.only(right: 6),
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: dotColor,
-                    shape: BoxShape.circle,
+                AnimatedScale(
+                  scale: isActive ? 1.25 : 1.0,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutBack,
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: dotColor,
+                      shape: BoxShape.circle,
+                      boxShadow: isActive
+                          ? [
+                              BoxShadow(
+                                color: dotColor.withValues(alpha: 0.35),
+                                blurRadius: 4,
+                                spreadRadius: 0.5,
+                              ),
+                            ]
+                          : null,
+                    ),
                   ),
                 ),
               AnimatedDefaultTextStyle(
@@ -879,12 +949,14 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 110,
-            width: 110,
-            child: Image.asset(
-              'assets/images/sarthi-scooter-transparent.png',
-              fit: BoxFit.contain,
+          _FloatingEmptyState(
+            child: SizedBox(
+              height: 110,
+              width: 110,
+              child: Image.asset(
+                'assets/images/sarthi-scooter-transparent.png',
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -916,7 +988,8 @@ class _RideHistoryScreenState extends ConsumerState<RideHistoryScreen> {
 
 class _RideCard extends StatefulWidget {
   final Map<String, dynamic> ride;
-  const _RideCard({required this.ride});
+  final int index;
+  const _RideCard({super.key, required this.ride, this.index = 0});
 
   @override
   State<_RideCard> createState() => _RideCardState();
@@ -924,6 +997,7 @@ class _RideCard extends StatefulWidget {
 
 class _RideCardState extends State<_RideCard> {
   bool _pressed = false;
+  bool _detailsPressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -948,8 +1022,12 @@ class _RideCardState extends State<_RideCard> {
     final bool isCancelled = status == 'cancelled';
     final bool isCompleted = status == 'completed';
 
-    final statusColor = isCompleted ? const Color(0xFF22C55E) : (isCancelled ? const Color(0xFFEF4444) : const Color(0xFFF59E0B));
-    final statusBg = isCompleted ? const Color(0xFFDCFCE7) : (isCancelled ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7));
+    final statusColor = isCompleted
+        ? const Color(0xFF059669)
+        : (isCancelled ? const Color(0xFFE11D48) : const Color(0xFFD97706));
+    final statusBg = isCompleted
+        ? const Color(0xFFECFDF5)
+        : (isCancelled ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7));
     
     final statusLabel = isCompleted ? 'Completed' : (isCancelled ? 'Cancelled' : status.toUpperCase());
     final statusIcon = isCompleted ? Icons.check_circle_rounded : (isCancelled ? Icons.cancel_rounded : Icons.info_rounded);
@@ -965,134 +1043,193 @@ class _RideCardState extends State<_RideCard> {
     final vehicleLabel = vehicleType == 'bike' ? 'Bike' : (vehicleType == 'cab' ? 'Cab' : 'Auto');
     final vehicleIcon = vehicleType == 'bike' ? Icons.two_wheeler_rounded : (vehicleType == 'cab' ? Icons.directions_car_rounded : Icons.electric_rickshaw_rounded);
 
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: () => _showRideDetail(context, ride), 
-      child: AnimatedScale(
-        scale: _pressed ? 0.98 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFF1F5F9)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    final staggerMs = math.min(widget.index, 6) * 45;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 320 + staggerMs),
+      curve: Curves.easeOutCubic,
+      builder: (context, animValue, child) {
+        return Opacity(
+          opacity: animValue.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, 16 * (1.0 - animValue)),
+            child: child,
           ),
-          child: Column(
-            children: [
-              // Top Row
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0B2144).withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(8),
+        );
+      },
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: () => _showRideDetail(context, ride), 
+        child: AnimatedScale(
+          scale: _pressed ? 0.985 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Top Row
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E60F6).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(vehicleIcon, color: const Color(0xFF1E60F6), size: 20),
                     ),
-                    child: Icon(vehicleIcon, color: const Color(0xFF0B2144), size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(vehicleLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: Color(0xFF0F172A))),
+                          Text(formattedDate, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusBg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(statusIcon, size: 11, color: statusColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            statusLabel,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // Timeline
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
                       children: [
-                        Text(vehicleLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF0F172A))),
-                        Text(formattedDate, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusBg,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(statusIcon, size: 12, color: statusColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          statusLabel,
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: statusColor),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF1E60F6),
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF1E60F6).withValues(alpha: 0.35),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
                         ),
+                        Container(
+                          width: 2,
+                          height: 26,
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          color: const Color(0xFFCBD5E1),
+                        ),
+                        const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF0F172A)),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Timeline
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    children: [
-                      const SizedBox(height: 4),
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF0B2144), width: 2.5),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(pickupName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(pickupFull, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 12),
+                          Text(destName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(dest, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(color: Color(0xFFF1F5F9), height: 1),
+                const SizedBox(height: 12),
+                // Bottom Row
+                Row(
+                  children: [
+                    Text(isCompleted ? 'Paid ' : 'Est. ', style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                    Text(fare != null ? '₹$fare' : '₹--', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                    Container(width: 1, height: 12, color: const Color(0xFFE2E8F0), margin: const EdgeInsets.symmetric(horizontal: 8)),
+                    const Icon(Icons.route_outlined, size: 12, color: Color(0xFF64748B)),
+                    const SizedBox(width: 4),
+                    Text(distText, style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                    Container(width: 1, height: 12, color: const Color(0xFFE2E8F0), margin: const EdgeInsets.symmetric(horizontal: 8)),
+                    const Icon(Icons.schedule_rounded, size: 12, color: Color(0xFF64748B)),
+                    const SizedBox(width: 4),
+                    Text(durationText, style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                    const Spacer(),
+                    GestureDetector(
+                      onTapDown: (_) => setState(() => _detailsPressed = true),
+                      onTapUp: (_) => setState(() => _detailsPressed = false),
+                      onTapCancel: () => setState(() => _detailsPressed = false),
+                      onTap: () => _showRideDetail(context, ride),
+                      behavior: HitTestBehavior.opaque,
+                      child: AnimatedScale(
+                        scale: _detailsPressed ? 0.92 : 1.0,
+                        duration: const Duration(milliseconds: 100),
+                        curve: Curves.easeOutCubic,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E60F6),
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF1E60F6).withValues(alpha: 0.25),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Text(
+                            'Details',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
                         ),
                       ),
-                      Container(
-                        width: 2,
-                        height: 24,
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        color: const Color(0xFFCBD5E1), // Simulated dashed line
-                      ),
-                      const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF0F172A)),
-                    ],
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(pickupName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text(pickupFull, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 12),
-                        Text(destName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text(dest, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Divider(color: Color(0xFFF1F5F9), height: 1),
-              const SizedBox(height: 12),
-              // Bottom Row
-              Row(
-                children: [
-                  Text(isCompleted ? 'Paid ' : 'Est. ', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                  Text(fare != null ? '₹$fare' : '₹--', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                  Container(width: 1, height: 10, color: const Color(0xFFCBD5E1), margin: const EdgeInsets.symmetric(horizontal: 8)),
-                  const Icon(Icons.route_outlined, size: 12, color: Color(0xFF64748B)),
-                  const SizedBox(width: 4),
-                  Text(distText, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                  Container(width: 1, height: 10, color: const Color(0xFFCBD5E1), margin: const EdgeInsets.symmetric(horizontal: 8)),
-                  const Icon(Icons.schedule_rounded, size: 12, color: Color(0xFF64748B)),
-                  const SizedBox(width: 4),
-                  Text(durationText, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                  const Spacer(),
-                  const Text('Details >', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0B2144))),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1342,19 +1479,26 @@ class _RideCardState extends State<_RideCard> {
               SizedBox(
                 width: double.infinity,
                 height: 54,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0B2144), // Bright blue
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                child: _Bounceable(
+                  scaleFactor: 0.96,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E60F6),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
                     ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Close',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1390,3 +1534,213 @@ class _RideCardState extends State<_RideCard> {
     );
   }
 }
+
+class _Bounceable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double scaleFactor;
+
+  const _Bounceable({
+    required this.child,
+    this.onTap,
+    this.scaleFactor = 0.92,
+  });
+
+  @override
+  State<_Bounceable> createState() => _BounceableState();
+}
+
+class _BounceableState extends State<_Bounceable> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedScale(
+        scale: _pressed ? widget.scaleFactor : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _AnimatedCounterText extends StatelessWidget {
+  final num value;
+  final String prefix;
+  final TextStyle style;
+
+  const _AnimatedCounterText({
+    required this.value,
+    this.prefix = '',
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: value.toDouble()),
+      duration: const Duration(milliseconds: 650),
+      curve: Curves.easeOutCubic,
+      builder: (context, animatedValue, child) {
+        return Text(
+          '$prefix${animatedValue.toInt()}',
+          style: style,
+        );
+      },
+    );
+  }
+}
+
+class _FloatingEmptyState extends StatefulWidget {
+  final Widget child;
+  const _FloatingEmptyState({required this.child});
+
+  @override
+  State<_FloatingEmptyState> createState() => _FloatingEmptyStateState();
+}
+
+class _FloatingEmptyStateState extends State<_FloatingEmptyState>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final offset = math.sin(_controller.value * math.pi) * 8.0;
+        return Transform.translate(
+          offset: Offset(0, -offset),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+class _RideHistorySkeletonList extends StatelessWidget {
+  const _RideHistorySkeletonList();
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            return Shimmer.fromColors(
+              baseColor: const Color(0xFFE2E8F0),
+              highlightColor: const Color(0xFFF8FAFC),
+              period: const Duration(milliseconds: 1400),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(width: 60, height: 12, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                            const SizedBox(height: 6),
+                            Container(width: 90, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                          ],
+                        ),
+                        const Spacer(),
+                        Container(
+                          width: 72,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(width: 12, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(width: 140, height: 12, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                              const SizedBox(height: 6),
+                              Container(width: 200, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                              const SizedBox(height: 12),
+                              Container(width: 120, height: 12, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                              const SizedBox(height: 6),
+                              Container(width: 180, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Container(width: 60, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                        const Spacer(),
+                        Container(
+                          width: 68,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          childCount: 3,
+        ),
+      ),
+    );
+  }
+}
+
