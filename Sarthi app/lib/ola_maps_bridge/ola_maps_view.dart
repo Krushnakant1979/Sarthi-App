@@ -102,8 +102,8 @@ class OlaMapsController {
       'lat': lat,
       'lng': lng,
       'zoom': zoom,
-      if (bearing != null) 'bearing': bearing,
-      if (tilt != null) 'tilt': tilt,
+      'bearing': ?bearing,
+      'tilt': ?tilt,
     });
   }
 
@@ -168,6 +168,22 @@ class OlaMapsController {
 
   Future<void> clearRoute() async {
     await _channel.invokeMethod('clearRoute');
+  }
+
+  /// Displays and dynamically updates nearby available vehicle markers on the map.
+  Future<void> updateNearbyVehicles(List<Map<String, dynamic>> vehicles) async {
+    try {
+      await _channel.invokeMethod('updateNearbyVehicles', {
+        'vehicles': vehicles,
+      });
+    } catch (_) {}
+  }
+
+  /// Clears all dynamic nearby vehicle markers from the map.
+  Future<void> clearNearbyVehicles() async {
+    try {
+      await _channel.invokeMethod('clearNearbyVehicles');
+    } catch (_) {}
   }
 
   /// Shifts the map's camera focal point so the user marker appears

@@ -647,6 +647,50 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen>
       }
     });
 
+    final double? pLat = (_pickupLocation?['lat'] as num?)?.toDouble() ??
+        _lastValidPosition?.latitude;
+    final double? pLng = (_pickupLocation?['lng'] as num?)?.toDouble() ??
+        _lastValidPosition?.longitude;
+
+    final bool isTripActive = _bookingState == 'accepted' ||
+        _bookingState == 'arriving' ||
+        _bookingState == 'arrived' ||
+        _bookingState == 'in_progress';
+
+    // Stream nearest online, available vehicles matching selected ride type
+    final nearbyQuery = (!isTripActive && pLat != null && pLng != null)
+        ? NearbyCaptainsQuery(
+            pickupLat: pLat,
+            pickupLng: pLng,
+            vehicleType: _vehicleType,
+          )
+        : null;
+
+    final nearbyVehiclesAsync = nearbyQuery != null
+        ? ref.watch(nearbyAvailableCaptainsProvider(nearbyQuery))
+        : null;
+
+    final List<Map<String, dynamic>> nearbyVehiclesList =
+        nearbyVehiclesAsync?.valueOrNull ?? const [];
+
+    if (nearbyQuery != null) {
+      ref.listen(
+        nearbyAvailableCaptainsProvider(nearbyQuery),
+        (previous, next) {
+          if (isTripActive) {
+            _mapController?.clearNearbyVehicles();
+          } else {
+            final vehs = next.value;
+            if (vehs != null && _mapController != null) {
+              _mapController!.updateNearbyVehicles(vehs);
+            }
+          }
+        },
+      );
+    } else if (isTripActive) {
+      _mapController?.clearNearbyVehicles();
+    }
+
     // Listen to activeRideProvider from backend to restore any active ride
     ref.listen(activeRideProvider, (previous, next) {
       final activeRide = next.value;
@@ -1301,6 +1345,7 @@ class _MapHomeScreenState extends ConsumerState<MapHomeScreen>
                                       onOfferTap: _handleOfferTap,
                                       onPaymentTap: _handlePaymentTap,
                                       onConfirmRide: () => _handleConfirmRide(ref),
+                                      nearbyVehicleCount: nearbyVehiclesList.length,
                                     );
                                   } else {
                                     stateContent = DefaultBottomSheet(

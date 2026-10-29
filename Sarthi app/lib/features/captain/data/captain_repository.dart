@@ -123,6 +123,9 @@ class CaptainRepository {
         });
       }),
     );
+    try {
+      await _rtdb.ref().child('live/captains/$captainId/isBusy').set(true);
+    } catch (_) {}
   }
 
   Future<void> rejectRide(String rideId, String captainId) async {
@@ -162,19 +165,35 @@ class CaptainRepository {
   }
 
   // Broadcast live location to Realtime Database
+  final Map<String, String> _cachedVehicleType = {};
+
   Future<void> updateLiveLocation(
     String captainId,
     double lat,
     double lng,
-    double heading,
-  ) async {
+    double heading, {
+    String? vehicleType,
+  }) async {
     final liveRef = _rtdb.ref().child('live/captains/$captainId');
     await liveRef.onDisconnect().remove();
-    await liveRef.set({
+
+    String? vType = vehicleType ?? _cachedVehicleType[captainId];
+    if (vType == null) {
+      try {
+        final doc = await _firestore.collection('users').doc(captainId).get();
+        vType = doc.data()?['vehicleType'] as String? ?? 'bike';
+        _cachedVehicleType[captainId] = vType;
+      } catch (_) {
+        vType = 'bike';
+      }
+    }
+
+    await liveRef.update({
       'lat': lat,
       'lng': lng,
       'heading': heading,
       'online': true,
+      'vehicleType': vType,
       'updatedAt': ServerValue.timestamp,
     });
   }
@@ -185,6 +204,7 @@ class CaptainRepository {
     double? lat,
     double? lng,
     double heading = 0,
+    String? vehicleType,
   }) async {
     final firestoreUpdate = _firestore
         .collection('users')
@@ -199,7 +219,13 @@ class CaptainRepository {
     if (!isOnline) {
       rtdbUpdate = liveRef.remove();
     } else if (lat != null && lng != null) {
-      rtdbUpdate = updateLiveLocation(captainId, lat, lng, heading);
+      rtdbUpdate = updateLiveLocation(
+        captainId,
+        lat,
+        lng,
+        heading,
+        vehicleType: vehicleType,
+      );
     } else {
       rtdbUpdate = Future.value();
     }
@@ -231,6 +257,12 @@ class CaptainRepository {
       }
       await rideRef.update(updates);
     });
+
+    if (toStatus == 'completed' || toStatus == 'cancelled') {
+      try {
+        await _rtdb.ref().child('live/captains/$captainId/isBusy').set(false);
+      } catch (_) {}
+    }
   }
 
   Future<void> verifyOtpAndStartRide({

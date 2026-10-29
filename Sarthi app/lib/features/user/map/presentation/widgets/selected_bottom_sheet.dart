@@ -20,6 +20,7 @@ class SelectedBottomSheet extends StatelessWidget {
   final VoidCallback onOfferTap;
   final VoidCallback onPaymentTap;
   final VoidCallback onConfirmRide;
+  final int? nearbyVehicleCount;
 
   const SelectedBottomSheet({
     super.key,
@@ -39,6 +40,7 @@ class SelectedBottomSheet extends StatelessWidget {
     required this.onOfferTap,
     required this.onPaymentTap,
     required this.onConfirmRide,
+    this.nearbyVehicleCount,
   });
 
   @override
@@ -71,11 +73,11 @@ class SelectedBottomSheet extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'CHOOSE YOUR RIDE',
                       style: TextStyle(
                         color: Color(0xFF2563EB),
@@ -84,8 +86,8 @@ class SelectedBottomSheet extends StatelessWidget {
                         letterSpacing: 1.25,
                       ),
                     ),
-                    SizedBox(height: 3),
-                    Text(
+                    const SizedBox(height: 3),
+                    const Text(
                       'Ride your way',
                       style: TextStyle(
                         color: Color(0xFF0B2545),
@@ -94,6 +96,36 @@ class SelectedBottomSheet extends StatelessWidget {
                         letterSpacing: -0.45,
                       ),
                     ),
+                    if (nearbyVehicleCount != null) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: nearbyVehicleCount! > 0
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFF94A3B8),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            nearbyVehicleCount! > 0
+                                ? '$nearbyVehicleCount $selectedServiceLabel${nearbyVehicleCount! > 1 ? 's' : ''} available nearby'
+                                : 'Looking for available $selectedServiceLabel...',
+                            style: TextStyle(
+                              color: nearbyVehicleCount! > 0
+                                  ? const Color(0xFF059669)
+                                  : const Color(0xFF64748B),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

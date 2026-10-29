@@ -17,12 +17,25 @@ import com.ola.mapsdk.view.Marker
 import com.ola.mapsdk.view.OlaMap
 import com.ola.mapsdk.view.OlaMapView
 import com.ola.mapsdk.view.Polyline
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.view.animation.AccelerateDecelerateInterpolator
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.platform.PlatformView
+import org.maplibre.android.annotations.Icon
+import org.maplibre.android.annotations.IconFactory
+import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.annotations.PolylineOptions
+import org.maplibre.android.annotations.Marker as MlMarker
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -73,6 +86,21 @@ class OlaMapPlatformView(
     private var pendingPolylinePoints: List<OlaLatLng>? = null
     private var pendingPolylineColor: String? = null
     private var pendingPadding: IntArray? = null
+    private var pendingNearbyVehicles: List<Map<String, Any>>? = null
+
+    private class NearbyVehicleEntry(
+        val id: String,
+        var lat: Double,
+        var lng: Double,
+        var heading: Double,
+        var vehicleType: String,
+        var marker: MlMarker?,
+        var animator: ValueAnimator? = null
+    )
+
+    private val nearbyVehicleMarkers = HashMap<String, NearbyVehicleEntry>()
+    private val baseVehicleBitmaps = HashMap<String, Bitmap>()
+    private val vehicleIconCache = HashMap<String, Icon>()
 
     private var padLeft: Int = 0
     private var padTop: Int = 0
@@ -203,6 +231,12 @@ class OlaMapPlatformView(
                                     drawPolylineOnMap(pts, pendingPolylineColor ?: "#2563EB")
                                     pendingPolylinePoints = null
                                     pendingPolylineColor = null
+                                }
+
+                                // Apply pending nearby vehicles if queued
+                                pendingNearbyVehicles?.let { vehs ->
+                                    updateNearbyVehiclesOnMap(vehs)
+                                    pendingNearbyVehicles = null
                                 }
 
                                 mapLibre.addOnCameraMoveListener {
@@ -446,6 +480,206 @@ class OlaMapPlatformView(
         }
     }
 
+    // ── Nearby Vehicles Dynamic Rendering & Animation ───────────────────────
+
+    private fun getBaseVehicleBitmap(type: String): Bitmap {
+        val norm = when (type.lowercase().trim()) {
+            "auto" -> "auto"
+            "cab", "car" -> "cab"
+            "parcel" -> "parcel"
+            else -> "bike"
+        }
+        baseVehicleBitmaps[norm]?.let { return it }
+
+        val resName = "veh_$norm"
+        val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
+        var bmp: Bitmap? = null
+        if (resId != 0) {
+            try {
+                bmp = BitmapFactory.decodeResource(context.resources, resId)
+            } catch (e: Exception) {
+                Log.e("OlaMap", "Error decoding resource $resName: $e")
+            }
+        }
+
+        if (bmp == null) {
+            try {
+                val stream = context.assets.open("flutter_assets/assets/images/$resName.png")
+                bmp = BitmapFactory.decodeStream(stream)
+                stream.close()
+            } catch (_: Exception) {}
+        }
+
+        if (bmp == null) {
+            bmp = createFallbackVehicleBitmap(norm)
+        }
+
+        val density = context.resources.displayMetrics.density
+        val targetPx = (46 * density).toInt().coerceAtLeast(64)
+        val scaled = Bitmap.createScaledBitmap(bmp, targetPx, targetPx, true)
+        baseVehicleBitmaps[norm] = scaled
+        return scaled
+    }
+
+    private fun createFallbackVehicleBitmap(norm: String): Bitmap {
+        val density = context.resources.displayMetrics.density
+        val size = (46 * density).toInt().coerceAtLeast(64)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        paint.color = Color.parseColor("#33000000")
+        canvas.drawCircle(size / 2f, size / 2f + 2f, size * 0.42f, paint)
+
+        paint.color = Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, size * 0.40f, paint)
+
+        val borderColor = when (norm) {
+            "auto" -> Color.parseColor("#D97706")
+            "cab" -> Color.parseColor("#059669")
+            "parcel" -> Color.parseColor("#7C3AED")
+            else -> Color.parseColor("#2563EB")
+        }
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 3f * density
+        paint.color = borderColor
+        canvas.drawCircle(size / 2f, size / 2f, size * 0.40f, paint)
+
+        return bmp
+    }
+
+    private fun getVehicleIcon(vehicleType: String, heading: Double): Icon {
+        val norm = when (vehicleType.lowercase().trim()) {
+            "auto" -> "auto"
+            "cab", "car" -> "cab"
+            "parcel" -> "parcel"
+            else -> "bike"
+        }
+        val quantizedHeading = ((Math.round(heading / 5.0) * 5) % 360).toInt()
+        val cacheKey = "$norm-$quantizedHeading"
+        vehicleIconCache[cacheKey]?.let { return it }
+
+        val base = getBaseVehicleBitmap(norm)
+        val matrix = Matrix().apply {
+            postRotate(quantizedHeading.toFloat(), base.width / 2f, base.height / 2f)
+        }
+        val rotated = Bitmap.createBitmap(base, 0, 0, base.width, base.height, matrix, true)
+        val icon = IconFactory.getInstance(context).fromBitmap(rotated)
+        vehicleIconCache[cacheKey] = icon
+        return icon
+    }
+
+    private fun updateNearbyVehiclesOnMap(vehicles: List<Map<String, Any>>) {
+        val mapLibre = mapLibreMap
+        if (mapLibre == null) {
+            pendingNearbyVehicles = vehicles
+            return
+        }
+
+        val currentIds = HashSet<String>()
+
+        for (veh in vehicles) {
+            val id = veh["id"] as? String ?: continue
+            val lat = (veh["lat"] as? Number)?.toDouble() ?: continue
+            val lng = (veh["lng"] as? Number)?.toDouble() ?: continue
+            val heading = (veh["heading"] as? Number)?.toDouble() ?: 0.0
+            val vehicleType = (veh["vehicleType"] as? String) ?: "bike"
+            currentIds.add(id)
+
+            val existing = nearbyVehicleMarkers[id]
+            if (existing != null) {
+                val fromLat = existing.lat
+                val fromLng = existing.lng
+                val fromHeading = existing.heading
+                val toLat = lat
+                val toLng = lng
+                val toHeading = heading
+
+                if (existing.vehicleType != vehicleType) {
+                    existing.vehicleType = vehicleType
+                    existing.marker?.icon = getVehicleIcon(vehicleType, toHeading)
+                }
+
+                existing.animator?.cancel()
+
+                val moved = Math.abs(fromLat - toLat) > 0.000005 || Math.abs(fromLng - toLng) > 0.000005
+                val turned = Math.abs(fromHeading - toHeading) > 3.0
+
+                if (moved) {
+                    val animator = ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 650
+                        interpolator = AccelerateDecelerateInterpolator()
+                        addUpdateListener { va ->
+                            val f = va.animatedFraction
+                            val cLat = fromLat + (toLat - fromLat) * f
+                            val cLng = fromLng + (toLng - fromLng) * f
+                            existing.marker?.position = LatLng(cLat, cLng)
+                        }
+                        addListener(object : AnimatorListenerAdapter() {
+                            override fun onAnimationEnd(animation: Animator) {
+                                existing.marker?.position = LatLng(toLat, toLng)
+                                if (turned) {
+                                    existing.marker?.icon = getVehicleIcon(vehicleType, toHeading)
+                                }
+                            }
+                        })
+                    }
+                    existing.animator = animator
+                    existing.lat = toLat
+                    existing.lng = toLng
+                    existing.heading = toHeading
+                    animator.start()
+                } else if (turned) {
+                    existing.heading = toHeading
+                    existing.marker?.icon = getVehicleIcon(vehicleType, toHeading)
+                }
+            } else {
+                try {
+                    val icon = getVehicleIcon(vehicleType, heading)
+                    val marker = mapLibre.addMarker(
+                        MarkerOptions()
+                            .position(LatLng(lat, lng))
+                            .icon(icon)
+                    )
+                    nearbyVehicleMarkers[id] = NearbyVehicleEntry(
+                        id = id,
+                        lat = lat,
+                        lng = lng,
+                        heading = heading,
+                        vehicleType = vehicleType,
+                        marker = marker
+                    )
+                } catch (e: Exception) {
+                    Log.e("OlaMap", "Error adding nearby vehicle marker: $e")
+                }
+            }
+        }
+
+        val it = nearbyVehicleMarkers.entries.iterator()
+        while (it.hasNext()) {
+            val entry = it.next()
+            if (!currentIds.contains(entry.key)) {
+                entry.value.animator?.cancel()
+                entry.value.marker?.let { m ->
+                    try { mapLibre.removeMarker(m) } catch (_: Exception) {}
+                }
+                it.remove()
+            }
+        }
+    }
+
+    private fun clearNearbyVehiclesFromMap() {
+        pendingNearbyVehicles = null
+        val mapLibre = mapLibreMap
+        for (entry in nearbyVehicleMarkers.values) {
+            entry.animator?.cancel()
+            entry.marker?.let { m ->
+                try { mapLibre?.removeMarker(m) } catch (_: Exception) {}
+            }
+        }
+        nearbyVehicleMarkers.clear()
+    }
+
     // ── Camera helpers ───────────────────────────────────────────────────────
 
     private fun moveCameraTo(lat: Double, lng: Double, zoom: Double, bearing: Double? = null, tilt: Double? = null) {
@@ -479,6 +713,7 @@ class OlaMapPlatformView(
 
     override fun dispose() {
         try {
+            clearNearbyVehiclesFromMap()
             olaMapView?.onPause()
             olaMapView?.onStop()
             olaMapView?.onDestroy()
@@ -751,6 +986,7 @@ class OlaMapPlatformView(
                     safeRemoveCircle(pickupInnerCircle)
                     safeRemoveCircle(captainNativeCircle)
                     safeRemoveCircle(captainInnerCircle)
+                    clearNearbyVehiclesFromMap()
                 } catch (_: Exception) {}
 
                 pickupMarker = null
@@ -771,6 +1007,17 @@ class OlaMapPlatformView(
                 pendingPolylinePoints = null
                 pendingPolylineColor = null
 
+                result.success(null)
+            }
+
+            "updateNearbyVehicles" -> {
+                val vehiclesList = call.argument<List<Map<String, Any>>>("vehicles") ?: emptyList()
+                updateNearbyVehiclesOnMap(vehiclesList)
+                result.success(null)
+            }
+
+            "clearNearbyVehicles" -> {
+                clearNearbyVehiclesFromMap()
                 result.success(null)
             }
 

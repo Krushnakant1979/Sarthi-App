@@ -51,3 +51,44 @@ final assignedCaptainLocationProvider =
       }
       return ref.watch(captainLiveLocationProvider(captainId));
     });
+
+class NearbyCaptainsQuery {
+  final double pickupLat;
+  final double pickupLng;
+  final String vehicleType;
+  final double radiusMeters;
+
+  const NearbyCaptainsQuery({
+    required this.pickupLat,
+    required this.pickupLng,
+    required this.vehicleType,
+    this.radiusMeters = 6000,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NearbyCaptainsQuery &&
+          runtimeType == other.runtimeType &&
+          pickupLat == other.pickupLat &&
+          pickupLng == other.pickupLng &&
+          vehicleType == other.vehicleType &&
+          radiusMeters == other.radiusMeters;
+
+  @override
+  int get hashCode =>
+      pickupLat.hashCode ^
+      pickupLng.hashCode ^
+      vehicleType.hashCode ^
+      radiusMeters.hashCode;
+}
+
+final nearbyAvailableCaptainsProvider =
+    StreamProvider.family<List<Map<String, dynamic>>, NearbyCaptainsQuery>((ref, query) {
+  return ref.watch(rideRepositoryProvider).streamNearbyAvailableCaptains(
+        pickupLat: query.pickupLat,
+        pickupLng: query.pickupLng,
+        vehicleType: query.vehicleType,
+        radiusMeters: query.radiusMeters,
+      );
+});

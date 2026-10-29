@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sarthi_app/core/design/theme.dart';
 import 'package:sarthi_app/features/user/map/presentation/widgets/searching_bottom_sheet.dart';
 import 'package:sarthi_app/features/user/map/presentation/widgets/completed_bottom_sheet.dart';
+import 'package:sarthi_app/features/user/map/presentation/widgets/selected_bottom_sheet.dart';
+import 'package:sarthi_app/features/user/rides/domain/fare_calculator.dart';
 import 'package:sarthi_app/features/user/map/presentation/widgets/drag_handle.dart';
 
 void main() {
@@ -92,6 +94,86 @@ void main() {
       await tester.tap(find.text('Rate captain'));
       await tester.pump();
       expect(ratedCaptainId, 'captain_test_123');
+    });
+
+    testWidgets('SelectedBottomSheet renders nearby available vehicle count badge',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SelectedBottomSheet(
+                vehicleType: 'bike',
+                isFetchingRoute: false,
+                nearbyVehicleCount: 3,
+                destination: const {'name': 'Indiranagar Metro', 'address': '100 Feet Rd'},
+                paymentMethod: 'Cash',
+                durationSeconds: 900,
+                distanceMeters: 5200,
+                bikeFare: FareCalculator.calculateFare(
+                  5200,
+                  900,
+                  baseFare: 25.0,
+                  includedDistanceKm: 1.0,
+                  ratePerKm: 10.0,
+                  ratePerMinute: 1.0,
+                  minimumFare: 25.0,
+                  dynamicPricingEnabled: false,
+                  surgeMultiplier: 1.0,
+                ),
+                onVehicleTypeChanged: (_) {},
+                onOfferTap: () {},
+                onPaymentTap: () {},
+                onConfirmRide: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Verify the dynamic nearby count indicator is visible
+      expect(find.text('3 Bikes available nearby'), findsOneWidget);
+    });
+
+    testWidgets('SelectedBottomSheet shows looking status when 0 vehicles nearby',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: SelectedBottomSheet(
+                vehicleType: 'auto',
+                isFetchingRoute: false,
+                nearbyVehicleCount: 0,
+                destination: const {'name': 'MG Road Metro', 'address': 'MG Road'},
+                paymentMethod: 'Cash',
+                durationSeconds: 1200,
+                distanceMeters: 7500,
+                autoFare: FareCalculator.calculateFare(
+                  7500,
+                  1200,
+                  baseFare: 30.0,
+                  includedDistanceKm: 1.5,
+                  ratePerKm: 12.0,
+                  ratePerMinute: 1.5,
+                  minimumFare: 30.0,
+                  dynamicPricingEnabled: false,
+                  surgeMultiplier: 1.0,
+                ),
+                onVehicleTypeChanged: (_) {},
+                onOfferTap: () {},
+                onPaymentTap: () {},
+                onConfirmRide: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Verify looking status message
+      expect(find.text('Looking for available Auto Rickshaw...'), findsOneWidget);
     });
   });
 }

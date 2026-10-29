@@ -296,6 +296,122 @@ class RideRepository {
     if (newStatus == 'completed') {
       AnalyticsLogger.logRideCompleted(rideId: rideId);
     }
+    if (newStatus == 'completed' || newStatus == 'cancelled') {
+      try {
+        final doc = await _firestore.collection('ride_requests').doc(rideId).get();
+        final capId = doc.data()?['assignedCaptainId'] as String?;
+        if (capId != null) {
+          _rtdb.ref().child('live/captains/$capId/isBusy').set(false);
+        }
+      } catch (_) {}
+    }
+  }
+
+  final Map<String, Map<String, dynamic>> _captainProfileCache = {};
+
+  static bool matchesVehicleType(String captainVehicleType, String requestedVehicleType) {
+    final cap = captainVehicleType.toLowerCase().trim();
+    final req = requestedVehicleType.toLowerCase().trim();
+    if (req == 'bike') return cap == 'bike';
+    if (req == 'auto') return cap == 'auto';
+    if (req == 'cab') return cap == 'cab' || cap == 'car';
+    if (req == 'parcel') return cap == 'parcel' || cap == 'bike';
+    return cap == req;
+  }
+
+  /// Streams nearest online, available captains matching [vehicleType] around [pickupLat, pickupLng]
+  /// directly from Firebase Realtime Database in real time.
+  Stream<List<Map<String, dynamic>>> streamNearbyAvailableCaptains({
+    required double pickupLat,
+    required double pickupLng,
+    required String vehicleType,
+    double radiusMeters = 6000,
+  }) {
+    return _rtdb.ref().child('live/captains').onValue.asyncMap((event) async {
+      if (!event.snapshot.exists || event.snapshot.value == null) {
+        return <Map<String, dynamic>>[];
+      }
+
+      final rawData = event.snapshot.value;
+      if (rawData is! Map) {
+        return <Map<String, dynamic>>[];
+      }
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final List<Map<String, dynamic>> nearbyList = [];
+
+      for (final entry in rawData.entries) {
+        final captainId = entry.key.toString();
+        final capData = entry.value;
+        if (capData is! Map) continue;
+
+        // Verify captain is online
+        final isOnline = capData['online'] == true;
+        if (!isOnline) continue;
+
+        // Verify captain is not busy on an ongoing trip
+        final isBusy = capData['isBusy'] == true;
+        if (isBusy) continue;
+
+        // Discard stale locations (> 10 mins without update)
+        final updatedAt = capData['updatedAt'];
+        if (updatedAt is num && (nowMs - updatedAt) > 10 * 60 * 1000) {
+          continue;
+        }
+
+        final lat = (capData['lat'] as num?)?.toDouble();
+        final lng = (capData['lng'] as num?)?.toDouble();
+        final heading = (capData['heading'] as num?)?.toDouble() ?? 0.0;
+        if (lat == null || lng == null) continue;
+
+        // Distance check
+        final distance = Geolocator.distanceBetween(pickupLat, pickupLng, lat, lng);
+        if (distance > radiusMeters) continue;
+
+        // Resolve vehicle type
+        String? cVehicleType = capData['vehicleType']?.toString().toLowerCase().trim();
+        if (cVehicleType == null || cVehicleType.isEmpty) {
+          if (_captainProfileCache.containsKey(captainId)) {
+            final profile = _captainProfileCache[captainId];
+            if (profile?['isVerified'] != true) continue;
+            cVehicleType = profile?['vehicleType'];
+          } else {
+            try {
+              final userDoc = await _firestore.collection('users').doc(captainId).get();
+              if (!userDoc.exists) continue;
+              final uData = userDoc.data()!;
+              final isVerified = uData['role'] == 'captain' && uData['verificationStatus'] == 'verified';
+              cVehicleType = (uData['vehicleType'] as String?)?.toLowerCase().trim() ?? 'bike';
+              _captainProfileCache[captainId] = {
+                'isVerified': isVerified,
+                'vehicleType': cVehicleType,
+              };
+              if (!isVerified) continue;
+            } catch (_) {
+              continue;
+            }
+          }
+        }
+
+        if (cVehicleType == null) continue;
+
+        // Only display vehicles matching selected ride type
+        if (!matchesVehicleType(cVehicleType, vehicleType)) continue;
+
+        nearbyList.add({
+          'id': captainId,
+          'lat': lat,
+          'lng': lng,
+          'heading': heading,
+          'vehicleType': cVehicleType,
+          'distance': distance,
+        });
+      }
+
+      // Sort nearest first
+      nearbyList.sort((a, b) => (a['distance'] as double).compareTo(b['distance'] as double));
+      return nearbyList;
+    });
   }
 
   Future<List<Map<String, dynamic>>> getActiveOffers() async {
